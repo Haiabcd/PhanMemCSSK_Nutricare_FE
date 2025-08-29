@@ -1,9 +1,13 @@
-import Home from "./src/screens/Home";
+import Welcome from "./src/screens/Welcome";
+// import Home from "./src/screens/Home";
+
 
 function App() {
   return (
-    <Home />
+    <Welcome />
+    // <Home />
   );
 }
+
 
 export default App;

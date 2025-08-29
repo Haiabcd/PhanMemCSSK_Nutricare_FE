@@ -1,12 +1,13 @@
 import { View, Text } from 'react-native';
-import { styles } from '../theme/Home.styles';
+import { styles } from '../styles/Home.styles';
 
 
 const Home = () => {
     return (
         <View style={styles.container}>
-            <Text style={styles.text}>Home</Text>
-            <Text style={styles.text}>Welcome to NutriCare</Text>
+            {/* <View style={styles.top}>
+                <Text style={styles.title}>Home Screen</Text>
+            </View> */}
         </View>
     )
 }
