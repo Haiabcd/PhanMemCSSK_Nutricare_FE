@@ -1,0 +1,31 @@
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { NavigationContainer } from '@react-navigation/native';
+import Welcome from '../screens/Welcome';
+import WizardNavigator from './WizardNavigator';
+
+export type RootStackParamList = {
+    Welcome: undefined;
+    Wizard: undefined;
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+export const AppNavigator = () => {
+    return (
+        <NavigationContainer>
+            <Stack.Navigator initialRouteName="Welcome">
+                <Stack.Screen
+                    name="Welcome"
+                    component={Welcome}
+                    options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                    name="Wizard"
+                    component={WizardNavigator}
+                    options={{ headerShown: false }}
+                />
+
+            </Stack.Navigator>
+        </NavigationContainer>
+    );
+};

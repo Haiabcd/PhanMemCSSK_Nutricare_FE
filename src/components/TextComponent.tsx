@@ -1,4 +1,4 @@
-import { StyleSheet, Text } from 'react-native'
+import { StyleProp, StyleSheet, Text, ViewStyle } from 'react-native'
 import React from 'react'
 import { fontFamilies } from '../constants/fontFamilies';
 import { colors } from '../constants/colors';
@@ -8,7 +8,7 @@ interface Props {
     text: string;
     size?: number;
     color?: string;
-    style?: object;
+    style?: StyleProp<ViewStyle>;
 }
 
 const TextComponent = (props: Props) => {

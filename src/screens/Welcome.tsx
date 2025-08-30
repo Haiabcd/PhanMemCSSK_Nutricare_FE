@@ -5,11 +5,12 @@ import Container from '../components/Container';
 import { colors } from '../constants/colors';
 import TitleComponent from '../components/TitleComponent';
 import BounceButton from '../components/BounceButton';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/AppNavigator';
+
 
 const { width } = Dimensions.get('window');
-
-
-
 //------------List Image------------//
 const IMAGES = [
     require('../assets/images/Welcome/Track.png'),
@@ -20,16 +21,14 @@ const IMAGES = [
 //------------Image Transfer Time ------------//
 const AUTO_PLAY_MS = 3000;
 
-
-
 const Welcome = () => {
     const listRef = useRef<FlatList<number>>(null);
     const [index, setIndex] = useState(0);
     const DATA = useMemo(() => IMAGES.map((_, i) => i), []);
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
-    // ----------- Animation cho caption ---------//
+    // ----------- Animation---------//
     useEffect(() => {
-        // Dùng setInterval + clear để cuộn ảnh tự động
         const id = setInterval(() => {
             const next = (index + 1) % DATA.length;
             listRef.current?.scrollToOffset({
@@ -67,7 +66,6 @@ const Welcome = () => {
                 style={styles.bgList}
             />
 
-
             <View style={styles.top}>
                 <TitleComponent text="Nutricare" size={36} color={colors.green} />
                 <TitleComponent text=" Hành trình sức khỏe của bạn bắt đầu từ đây" size={22} color={colors.textSub} style={styles.title} />
@@ -81,6 +79,7 @@ const Welcome = () => {
                     containerStyle={[styles.btnStart]}
                     labelStyle={styles.labelStart}
                     labelSize={18}
+                    onPress={() => navigation.navigate('Wizard')}
                 />
 
                 <TitleComponent text="HOẶC" size={16} color={colors.textWhite} style={styles.textOr} />

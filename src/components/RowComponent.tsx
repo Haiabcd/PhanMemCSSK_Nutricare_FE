@@ -1,6 +1,5 @@
 import { StyleSheet, View } from 'react-native'
 import React, { ReactNode } from 'react'
-import { spacing } from '../constants/spacings';
 import { colors } from '../constants/colors';
 
 
@@ -8,12 +7,8 @@ interface Props {
     children: ReactNode;
 }
 
-
-const Container = (props: Props) => {
-
+const RowComponent = (props: Props) => {
     const { children } = props;
-
-
     return (
         <View style={styles.container}>
             {children}
@@ -21,14 +16,13 @@ const Container = (props: Props) => {
     )
 }
 
-export default Container
+export default RowComponent
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
         backgroundColor: colors.greenLight2,
-        paddingHorizontal: spacing.md,
-        paddingTop: spacing.xl,
-        paddingVertical: spacing.md,
-    },
-});
+    }
+})

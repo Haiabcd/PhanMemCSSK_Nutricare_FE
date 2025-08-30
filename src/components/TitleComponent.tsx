@@ -16,7 +16,7 @@ interface Props {
 const TextComponent = (props: Props) => {
     const { text, size, font, color, style } = props;
     return (
-        <Text style={[styles.text, { fontFamily: font ?? fontFamilies.regular, fontSize: size ?? 14, color: color ?? colors.black }, style]}>{text}</Text>
+        <Text style={[styles.text, { fontFamily: font ?? fontFamilies.bold, fontSize: size ?? 18, color: color ?? colors.black }, style]}>{text}</Text>
     )
 }
 
