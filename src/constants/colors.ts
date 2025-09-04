@@ -8,4 +8,13 @@ export const colors = {
     greenLight2: "#BBF7D0",
     red: "#EF4444",
     blue: "#3B82F6",
+    bg: '#f7faf8',
+    header: '#43B05C',
+    text: '#0f172a',
+    sub: '#6b7280',
+    border: '#e5efe8',
+    chip: '#eafff3',
+    inputBg: '#f9fffb',
+    primary: '#0ea5e9',
+    success: '#16a34a',
 };
