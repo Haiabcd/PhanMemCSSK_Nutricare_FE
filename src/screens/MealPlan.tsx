@@ -285,7 +285,7 @@ const styles = {
     },
 
     section: {
-        backgroundColor: "#D1FAE5",
+        backgroundColor: "#f7faf8",
         padding: 12,
         borderRadius: 10,
         marginBottom: 12,
@@ -315,7 +315,7 @@ const styles = {
     topRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#D1FAE5'
+        backgroundColor: '#f7faf8'
     },
 
     badgeWrap: {

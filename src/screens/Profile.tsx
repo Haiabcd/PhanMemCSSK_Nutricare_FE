@@ -7,10 +7,13 @@ import {
     Pressable,
     ScrollView,
     StyleSheet,
+    Switch,
+    Alert,
 } from 'react-native';
 import McIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Container from '../components/Container';
 
+/** ----------------- Types ----------------- */
 type Profile = {
     name: string;
     age: string;
@@ -44,15 +47,41 @@ export default function ProfileScreen() {
     const [draft, setDraft] = useState<Profile>(DEFAULT_PROFILE);
     const [showEdit, setShowEdit] = useState(false);
 
+    // Cài đặt chung
+    const [allowNotif, setAllowNotif] = useState<boolean>(true);
+
     const onOpenEdit = () => { setDraft(data); setShowEdit(true); };
     const onCancel = () => setShowEdit(false);
     const onSave = () => { setData(draft); setShowEdit(false); };
+
+    const onLogout = () => {
+        // TODO: thay bằng logic đăng xuất thực tế
+        Alert.alert('Đăng xuất', 'Bạn đã đăng xuất (demo).');
+    };
+
+    const onDeleteAccount = () => {
+        Alert.alert(
+            'Xóa tài khoản',
+            'Hành động này không thể hoàn tác. Bạn chắc chắn muốn xóa tài khoản?',
+            [
+                { text: 'Hủy', style: 'cancel' },
+                {
+                    text: 'Xóa',
+                    style: 'destructive',
+                    onPress: () => {
+                        // TODO: gọi API xóa tài khoản & dọn dẹp dữ liệu cục bộ
+                        Alert.alert('Đã xóa', 'Tài khoản của bạn đã được xóa (demo).');
+                    },
+                },
+            ],
+        );
+    };
 
     return (
         <Container>
             {/* ===== Header KHÔNG cuộn (CHANGED: đưa ra ngoài ScrollView) ===== */}
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>Hồ sơ Dinh dưỡng</Text>
+                <Text style={styles.headerTitle}>Hồ sơ Cá nhân</Text>
                 <Text style={styles.headerSub}>Quản lý thông tin và mục tiêu dinh dưỡng của bạn</Text>
             </View>
 
@@ -179,6 +208,55 @@ export default function ProfileScreen() {
                     <Pressable style={styles.primaryBtn} onPress={onOpenEdit}>
                         <McIcon name="pencil" size={18} color="#fff" />
                         <Text style={styles.primaryBtnText}>Chỉnh Sửa Hồ Sơ</Text>
+                    </Pressable>
+                </View>
+
+                {/* Cài đặt chung */}
+                <View style={[styles.cardBase, styles.shadow, styles.settingsCard]}>
+                    <Text style={styles.settingsTitle}>Cài đặt chung</Text>
+
+                    {/* Gửi thông báo */}
+                    <View style={styles.settingRow}>
+                        <View style={styles.settingLeft}>
+                            <View style={styles.settingIcon}>
+                                <McIcon name="bell-outline" size={16} color={colors.success} />
+                            </View>
+                            <View>
+                                <Text style={styles.settingLabel}>Gửi thông báo</Text>
+                                <Text style={styles.settingSub}>Nhận nhắc nhở và cập nhật dinh dưỡng</Text>
+                            </View>
+                        </View>
+                        <Switch
+                            value={allowNotif}
+                            onValueChange={setAllowNotif}
+                            thumbColor={allowNotif ? '#fff' : '#fff'}
+                            trackColor={{ false: '#e5e7eb', true: '#86efac' }}
+                        />
+                    </View>
+
+                    {/* Đăng xuất */}
+                    <Pressable style={[styles.settingRow, styles.settingPress]} onPress={onLogout}>
+                        <View style={styles.settingLeft}>
+                            <View style={[styles.settingIcon, { backgroundColor: '#ebf5ff' }]}>
+                                <McIcon name="logout" size={16} color={colors.primary} />
+                            </View>
+                            <Text style={styles.settingLabel}>Đăng xuất</Text>
+                        </View>
+                        <McIcon name="chevron-right" size={18} color="#94a3b8" />
+                    </Pressable>
+
+                    {/* Xóa tài khoản */}
+                    <Pressable style={[styles.settingRow, styles.settingPress]} onPress={onDeleteAccount}>
+                        <View style={styles.settingLeft}>
+                            <View style={[styles.settingIcon, { backgroundColor: '#fee2e2' }]}>
+                                <McIcon name="trash-can-outline" size={16} color="#ef4444" />
+                            </View>
+                            <View>
+                                <Text style={[styles.settingLabel, { color: '#ef4444' }]}>Xóa tài khoản</Text>
+                                <Text style={styles.settingSub}>Xóa vĩnh viễn dữ liệu và tài khoản</Text>
+                            </View>
+                        </View>
+                        <McIcon name="chevron-right" size={18} color="#94a3b8" />
                     </Pressable>
                 </View>
             </ScrollView>
@@ -336,4 +414,53 @@ const styles = StyleSheet.create({
         alignItems: 'center', justifyContent: 'center', gap: 8,
     },
     primaryBtnText: { color: '#fff', fontWeight: '900' },
+
+    // -------- Cài đặt chung --------
+    settingsCard: {
+        marginHorizontal: 16,
+        marginTop: 12,
+        marginBottom: 24,
+        padding: 14,
+        borderRadius: 18,
+    },
+    settingsTitle: {
+        fontSize: 16,
+        fontWeight: '900',
+        color: colors.text,
+        marginBottom: 8,
+    },
+    settingRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 10,
+    },
+    settingPress: {
+        borderTopWidth: 1,
+        borderTopColor: '#f1f5f9',
+    },
+    settingLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        flexShrink: 1,
+    },
+    settingIcon: {
+        width: 24,
+        height: 24,
+        borderRadius: 999,
+        backgroundColor: colors.chip,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    settingLabel: {
+        color: colors.text,
+        fontSize: 14,
+        fontWeight: '800',
+    },
+    settingSub: {
+        color: '#64748b',
+        fontSize: 12,
+        marginTop: 2,
+    },
 });
