@@ -8,24 +8,29 @@ import RowComponent from "../components/RowComponent";
 import TitleComponent from "../components/TitleComponent";
 import PressComponent from "../components/PressComponent";
 import { colors } from "../constants/colors";
+import TextComponent from "../components/TextComponent"; // Giả sử có component TextComponent
+import { Text } from "react-native-gesture-handler";
 
 export const STEP_ROUTES = [
     "StepName",
     "StepAge",
     "StepGender",
-    // "StepHighWeigh",
-    // "StepTarget",
-    // "StepLevel",
-    "Home",
+    "StepHeight",
+    "StepWeight",
+    "StepCondition",
+    "StepAllergy",
+    "StepLevelActivity",
+    "StepTarget",
 ] as const;
 
 interface WizardFrameProps {
     title: string;
+    subtitle?: string;
     children: React.ReactNode;
 }
 
 export default function WizardFrame(props: WizardFrameProps) {
-    const { title, children } = props;
+    const { title, subtitle, children } = props;
     const navigation = useNavigation();
     const route = useRoute();
     const stepIndex = Math.max(0, STEP_ROUTES.indexOf(route.name as typeof STEP_ROUTES[number]));
@@ -46,7 +51,7 @@ export default function WizardFrame(props: WizardFrameProps) {
     };
 
     return (
-        <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === "ios" ? "padding" : undefined}>
             <Container>
                 <RowComponent>
                     <Pressable onPress={goBack} hitSlop={8}>
@@ -56,32 +61,46 @@ export default function WizardFrame(props: WizardFrameProps) {
                 </RowComponent>
 
                 <View style={styles.center}>
-                    <TitleComponent text={title} size={26} style={{ textAlign: "center", marginTop: 8 }} />
+                    <TitleComponent 
+                        text={title} 
+                        size={26} 
+                        style={{marginBottom: 15 }} 
+                    />
+                    
+                    {subtitle && (
+                        <TextComponent text={subtitle} style={{marginBottom:34}} color={colors.sub}/>
+                    )}
+                    
                     {children}
                 </View>
 
                 <View style={styles.bottom}>
-                    <PressComponent onPress={goNext} label={stepIndex === STEP_ROUTES.length - 1 ? "Hoàn Thành" : "Tiếp Theo"} />
+                    <PressComponent 
+                        onPress={goNext} 
+                        label={stepIndex === STEP_ROUTES.length - 1 ? "Hoàn Thành" : "Tiếp Theo"} 
+                    />
                 </View>
-
-
             </Container>
         </KeyboardAvoidingView>
     );
 }
 
-
 const styles = StyleSheet.create({
-    container: {
+    keyboard: {
         flex: 1,
     },
     center: {
-        flex: 5,
-        backgroundColor: "#fff",
+        flex: 6,
     },
     bottom: {
         flex: 1,
         justifyContent: "center",
         paddingHorizontal: 16
+    },
+    subtitle: {
+        marginTop: 4,
+        marginBottom: 16,
+        paddingHorizontal: 20,
+        lineHeight: 20,
     }
 });

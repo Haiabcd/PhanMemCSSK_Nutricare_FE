@@ -23,6 +23,6 @@ const styles = StyleSheet.create({
         flex: 1,
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: colors.greenLight2,
+        backgroundColor: colors.bg,
     }
 })

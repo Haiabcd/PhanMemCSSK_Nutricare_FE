@@ -7,21 +7,20 @@ import {
     Text,
     Image,
     StyleSheet,
-    ImageSourcePropType,
     StyleProp,
     ViewStyle,
     TextStyle,
-    ImageStyle,
 } from "react-native";
 import { colors } from "../constants/colors";
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 
 type BounceButtonProps = {
     label?: string;
-    iconSource?: ImageSourcePropType;
+    icon?: string;
     labelSize?: number;
     containerStyle?: StyleProp<ViewStyle>;
     labelStyle?: StyleProp<TextStyle>;
-    iconStyle?: StyleProp<ImageStyle>;
+    iconStyle?: StyleProp<TextStyle>;
     gap?: number;
     duration?: number;
     pressedScale?: number;
@@ -29,7 +28,7 @@ type BounceButtonProps = {
 
 const BounceButton: React.FC<BounceButtonProps> = ({
     label,
-    iconSource,
+    icon,
     labelSize = 16,
     containerStyle,
     labelStyle,
@@ -60,10 +59,19 @@ const BounceButton: React.FC<BounceButtonProps> = ({
         if (children) return children;
         return (
             <View style={styles.row}>
-                {iconSource ? (
-                    <Image source={iconSource} style={[styles.icon, iconStyle]} resizeMode="contain" />
+                {icon ? (
+                    icon === "google" ? (
+                        <Image
+                          source={require("../assets/images/common/gg.png")}
+                          style={[{ width: 24, height: 24 }]}
+                          resizeMode="contain"
+                          accessibilityLabel="Google logo"
+                        />
+                      ) : (
+                        <FontAwesome5 name={icon} size={23} style={iconStyle} />
+                      )
                 ) : null}
-                {iconSource && label ? <View style={{ width: gap }} /> : null}
+                {icon && label ? <View style={{ width: gap }} /> : null}
                 {label ? (
                     <Text style={[styles.label, { fontSize: labelSize }, labelStyle]} numberOfLines={1}>
                         {label}
@@ -71,7 +79,7 @@ const BounceButton: React.FC<BounceButtonProps> = ({
                 ) : null}
             </View>
         );
-    }, [children, iconSource, iconStyle, label, labelSize, labelStyle, gap]);
+    }, [children, icon, iconStyle, label, labelSize, labelStyle, gap]);
 
     return (
         <Animated.View style={{ transform: [{ scale }] }}>
@@ -99,14 +107,11 @@ const styles = StyleSheet.create({
         backgroundColor: colors.white,
         paddingVertical: 15,
     },
-
     row: {
         flexDirection: "row",
+        width: "100%",
         alignItems: "center",
-    },
-    icon: {
-        width: 22,
-        height: 22,
+        justifyContent: "center",
     },
     label: {
         color: colors.black,

@@ -10,13 +10,14 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 //------------List Image------------//
 const IMAGES = [
-    require('../assets/images/Welcome/Track.png'),
-    require('../assets/images/Welcome/Theodoibuaan.jpg'),
-    require('../assets/images/Welcome/Dexuatthucpham.jpg'),
-    require('../assets/images/Welcome/Lapkehoachdinhduong.jpg'),
+    require('../assets/images/Welcome/Welcome1.png'),
+    require('../assets/images/Welcome/Welcome2.jpg'),
+    require('../assets/images/Welcome/Welcome3.png'),
+    require('../assets/images/Welcome/Welcome4.jpg'),
+
 ]
 //------------Image Transfer Time ------------//
 const AUTO_PLAY_MS = 3000;
@@ -68,7 +69,7 @@ const Welcome = () => {
 
             <View style={styles.top}>
                 <TitleComponent text="Nutricare" size={36} color={colors.green} />
-                <TitleComponent text=" Hành trình sức khỏe của bạn bắt đầu từ đây" size={22} color={colors.textSub} style={styles.title} />
+                <TitleComponent text=" Hành trình sức khỏe của bạn bắt đầu từ đây" size={22} color={colors.textBlack} style={styles.title} />
             </View>
 
 
@@ -87,14 +88,15 @@ const Welcome = () => {
                 {/* Tiếp tục với Google */}
                 <BounceButton
                     label="Tiếp tục với Google"
-                    iconSource={require("../assets/images/Welcome/Google.png")}
+                    icon="google"
                     labelSize={18}
                 />
 
                 {/* Tiếp tục với Facebook */}
                 <BounceButton
                     label="Tiếp tục với Facebook"
-                    iconSource={require("../assets/images/Welcome/Facebook.png")}
+                    icon="facebook"
+                    iconStyle={{ color: colors.blue }}
                     labelSize={18}
                 />
 

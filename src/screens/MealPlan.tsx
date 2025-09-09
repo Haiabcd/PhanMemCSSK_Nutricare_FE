@@ -192,7 +192,7 @@ const MealPlan = () => {
             <View style={styles.top}>
                 <View style={styles.nameAvatar}>
                     <Image
-                        source={require('../assets/images/Welcome/Lapkehoachdinhduong.jpg')}
+                        source={require('../assets/images/Welcome/Welcome2.jpg')}
                         style={styles.avatar}
                     />
                     <Text style={styles.textName}> Anh Hải</Text>

@@ -18,7 +18,7 @@ export default function ProgressBar(props: Props) {
 const styles = StyleSheet.create({
     bg: {
         height: 8,
-        backgroundColor: colors.white,
+        backgroundColor: "#A9D6DD",
         borderRadius: 999,
         overflow: "hidden",
         flex: 1,

@@ -9,7 +9,6 @@ export const colors = {
     red: "#EF4444",
     blue: "#3B82F6",
     bg: '#f7faf8',
-    header: '#43B05C',
     text: '#0f172a',
     sub: '#6b7280',
     border: '#e5efe8',
@@ -17,4 +16,16 @@ export const colors = {
     inputBg: '#f9fffb',
     primary: '#0ea5e9',
     success: '#16a34a',
+
+    slate50: '#f8fafc',
+    slate100: '#f1f5f9',
+    slate200: '#e2e8f0',
+    slate500: '#64748b',
+    slate600: '#475569',
+    slate700: '#334155',
+    slate800: '#1e293b',
+
+    emerald50: '#ecfdf5',
+    emerald700: '#047857',
+    emerald800: '#065f46',
 };

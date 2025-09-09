@@ -54,4 +54,5 @@ export const styles = StyleSheet.create({
         color: colors.blue,
         textDecorationLine: "underline"
     }
+    
 });
