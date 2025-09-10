@@ -1,510 +1,771 @@
-import { Image, Text, View, ScrollView, Pressable } from 'react-native'
-import React, { useState } from 'react'
-import Container from '../components/Container'
-import Icon from 'react-native-vector-icons/Entypo'
-import { Button } from '@react-navigation/elements'
-import Iconshoes from 'react-native-vector-icons/MaterialIcons'
+import React, { useState } from 'react';
+import {
+  Image,
+  Text,
+  View,
+  ScrollView,
+  Pressable,
+  StyleSheet,
+} from 'react-native';
+import Container from '../components/Container';
+import Entypo from 'react-native-vector-icons/Entypo';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import CaloriesNutritionCard from '../components/CaloriesNutritionCard';
+import HydrationCard from '../components/HydrationCard';
+import HydrationSummaryCard from '../components/HydrationCard';
 
-/** ─────────── Calories & Dinh Dưỡng ─────────── */
-function NutriBox({ title, current, total }: { title: string; current: number; total: number }) {
-    const pct = total === 0 ? 0 : Math.min(100, Math.max(0, (current / total) * 100))
-    return (
-        <View style={styles.box}>
-            <Text style={styles.boxTitle}>{title}</Text>
-            <View style={styles.progressBg}>
-                <View style={[styles.progressFill, { width: `${pct}%` }]} />
-            </View>
-            <Text style={styles.boxSub}>{current}/{total}g</Text>
-        </View>
-    )
+/* ================== Palette ================== */
+export const colors = {
+  white: '#ffffff',
+  black: '#000000',
+  textBlack: '#010101',
+  textWhite: '#F5FEF2',
+  green: '#43B05C',
+  greenLight: '#04B81B',
+  greenLight2: '#BBF7D0',
+  red: '#EF4444',
+  blue: '#3B82F6',
+  bg: '#f7faf8',
+  text: '#0f172a',
+  sub: '#6b7280',
+  border: '#e5efe8',
+  chip: '#eafff3',
+  inputBg: '#f9fffb',
+  primary: '#0ea5e9',
+  success: '#16a34a',
+
+  slate50: '#f8fafc',
+  slate100: '#f1f5f9',
+  slate200: '#e2e8f0',
+  slate500: '#64748b',
+  slate600: '#475569',
+  slate700: '#334155',
+  slate800: '#1e293b',
+
+  emerald50: '#ecfdf5',
+  emerald700: '#047857',
+  emerald800: '#065f46',
+
+  // ⬇ bổ sung nhẹ để tiện dùng
+  amber500: '#f59e0b',
+  violet500: '#8b5cf6',
+};
+
+const C = colors;
+
+/* ================== Avatar fallback ================== */
+function Avatar({
+  name,
+  photoUri,
+}: {
+  name: string;
+  photoUri?: string | null;
+}) {
+  const initials = name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+  if (photoUri) return <Image source={{ uri: photoUri }} style={s.avatar} />;
+
+  return (
+    <View style={s.avatarFallback}>
+      <Text style={s.avatarInitials}>{initials}</Text>
+    </View>
+  );
 }
 
-function CaloriesNutritionSummary() {
-    return (
-        <View style={styles.calWrap}>
-            {/* Hàng trên: vòng tròn Đã nạp + 3 dòng thông tin */}
-            <View style={styles.topRow}>
-                <View style={styles.badgeWrap}>
-                    <View style={styles.badgeCircle}>
-                        <Text style={styles.badgeText}>Đã Nạp 0</Text>
-                    </View>
-                    <View style={styles.badgeDot} />
-                </View>
+/* ================== Tabs món ăn (tick chọn) ================== */
+type TabKey = 'Sáng' | 'Trưa' | 'Chiều' | 'Phụ';
+type Meal = { id: string; title: string; kcal: number; img: string };
 
-                <View style={styles.infoCol}>
-                    <View style={styles.infoRow}>
-                        <Icon name="stopwatch" size={16} color="#0ea5e9" />
-                        <Text style={styles.infoText}>Cần nạp 2105 calo</Text>
-                    </View>
-                    <View style={[styles.infoRow, { marginTop: 6 }]}>
-                        <Icon name="info-with-circle" size={16} color="#0ea5e9" />
-                        <Text style={styles.infoText}>Còn lại 2105 calo</Text>
-                    </View>
-                    <View style={[styles.infoRow, { marginTop: 6 }]}>
-                        <Icon name="man" size={16} color="#0ea5e9" />
-                        <Text style={styles.infoText}>Tiêu hao 0</Text>
-                    </View>
-                </View>
-            </View>
-
-            {/* Grid 4 ô dinh dưỡng */}
-            <View style={styles.grid}>
-                <NutriBox title="Tinh Bột" current={0} total={200} />
-                <NutriBox title="Chất đạm" current={0} total={200} />
-                <NutriBox title="Chất béo" current={0} total={200} />
-                <NutriBox title="Chất xơ" current={0} total={200} />
-            </View>
-
-            <View style={styles.line} />
-
-            {/* Card mục tiêu bước chân */}
-            <View style={styles.card}>
-                <View style={styles.cardCol}>
-                    <Text style={styles.cardLabel}>Mục tiêu</Text>
-                    <Text style={styles.cardValue}>2000 bước</Text>
-                </View>
-
-                <View style={styles.cardIcon}>
-                    <Iconshoes name="snowshoeing" size={28} color="#ea580c" />
-                </View>
-
-                <View style={styles.cardCol}>
-                    <Text style={styles.cardLabel}>Thực tế</Text>
-                    <Text style={[styles.cardValue, { color: '#ea580c' }]}>50 bước</Text>
-                </View>
-            </View>
-        </View>
-    )
-}
-
-/** ─────────── Nhật ký bữa ăn ─────────── */
 function MealCardsTabs() {
-    const tabs = ['Sáng', 'Trưa', 'Chiều', 'Phụ']
-    const [active, setActive] = useState('Sáng')
-    const [checked, setChecked] = useState(false)
+  const [active, setActive] = useState<TabKey>('Sáng');
 
-    const pic = 'https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200'
+  const data: Record<TabKey, Meal[]> = {
+    Sáng: [
+      {
+        id: 'm1',
+        title: 'Bún gà rau củ',
+        kcal: 380,
+        img: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?w=1200',
+      },
+      {
+        id: 'm2',
+        title: 'Sữa chua + yến mạch',
+        kcal: 240,
+        img: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=1200',
+      },
+    ],
+    Trưa: [
+      {
+        id: 'm3',
+        title: 'Cơm cá hồi áp chảo',
+        kcal: 520,
+        img: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=1200',
+      },
+      {
+        id: 'm4',
+        title: 'Salad ức gà',
+        kcal: 330,
+        img: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=1200',
+      },
+      {
+        id: 'm5',
+        title: 'Canh nấm',
+        kcal: 110,
+        img: 'https://images.unsplash.com/photo-1526318472351-c75fcf070305?w=1200',
+      },
+    ],
+    Chiều: [
+      {
+        id: 'm6',
+        title: 'Bánh mì trứng + rau',
+        kcal: 410,
+        img: 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=1200',
+      },
+      {
+        id: 'm7',
+        title: 'Sữa tươi ít béo',
+        kcal: 160,
+        img: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=1200',
+      },
+    ],
+    Phụ: [
+      {
+        id: 'm8',
+        title: 'Táo + hạt điều',
+        kcal: 210,
+        img: 'https://images.unsplash.com/photo-1576402187878-974f70cbf7e5?w=1200',
+      },
+      {
+        id: 'm9',
+        title: 'Chuối',
+        kcal: 90,
+        img: 'https://images.unsplash.com/photo-1571771896275-1e6a1d49b6f9?w=1200',
+      },
+    ],
+  };
 
-    return (
-        <View>
-            {/* Tabs */}
-            <View style={styles2.tabBar}>
-                {tabs.map(t => (
-                    <Pressable
-                        key={t}
-                        onPress={() => setActive(t)}
-                        style={[styles2.pill, active === t && styles2.pillActive]}
-                    >
-                        <Text style={[styles2.pillText, active === t && styles2.pillTextActive]}>{t}</Text>
-                    </Pressable>
-                ))}
-            </View>
+  // selected theo từng tab
+  const [selectedMap, setSelectedMap] = useState<Record<TabKey, Set<string>>>({
+    Sáng: new Set(),
+    Trưa: new Set(),
+    Chiều: new Set(),
+    Phụ: new Set(),
+  });
 
-            {/* Tiêu đề */}
-            <Text style={styles2.tabTitle}>{active}</Text>
+  const toggleSelect = (tab: TabKey, id: string) => {
+    setSelectedMap(prev => {
+      const next = new Map(prev[tab]); // clone
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return { ...prev, [tab]: new Set(next) };
+    });
+  };
 
-            {/* Card duy nhất */}
-            <View style={styles2.card}>
-                <View style={styles2.imageWrap}>
-                    <Image source={{ uri: pic }} style={styles2.image} />
-                    <Pressable
-                        style={[
-                            styles2.checkBox,
-                            { backgroundColor: checked ? '#3B82F6' : '#e5e7eb' }
-                        ]}
-                        onPress={() => setChecked(!checked)}
-                    >
-                        {checked && <Icon name="check" size={12} color="#fff" />}
-                    </Pressable>
-                </View>
+  const tabs = Object.keys(data) as TabKey[];
+  const meals = data[active];
+  const selected = selectedMap[active];
 
-                <View style={styles2.btnRow}>
-                    <Pressable style={[styles2.btn, styles2.btnPrimary]}>
-                        <Text style={[styles2.btnText, styles2.btnTextPrimary]}>Đổi Món</Text>
-                    </Pressable>
-                    <Pressable style={[styles2.btn, styles2.btnGhost]}>
-                        <Text style={styles2.btnText}>Xem Chi Tiết</Text>
-                    </Pressable>
-                </View>
-            </View>
-        </View>
-    )
-}
+  return (
+    <View>
+      {/* Tabs */}
+      <View style={s.tabBar}>
+        {tabs.map(t => {
+          const isOn = active === t;
+          return (
+            <Pressable
+              key={t}
+              onPress={() => setActive(t)}
+              style={[s.pill, isOn && s.pillActive]}
+            >
+              <Text style={[s.pillText, isOn && s.pillTextActive]}>{t}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
-/** ─────────── Uống nước ─────────── */
-function TrackWater() {
-    const [water, setWater] = useState(0) // lít đã uống
-    const target = 2.5                    // mục tiêu (lít)
-    const step = 0.25                     // mỗi lần tăng/giảm
+      <Text style={s.tabTitle}>{active}</Text>
 
-    const addWater = () => setWater(prev => Math.min(target, +(prev + step).toFixed(2)))
-    const removeWater = () => setWater(prev => Math.max(0, +(prev - step).toFixed(2)))
+      {/* Danh sách món (tick chọn) */}
+      {meals.map(m => {
+        const isChecked = selected.has(m.id);
+        return (
+          <View key={m.id} style={s.mealCard}>
+            <View style={s.imageWrap}>
+              <Image source={{ uri: m.img }} style={s.image} />
+              <View style={s.overlay} />
 
-    const percent = target === 0 ? 0 : Math.min(100, Math.max(0, (water / target) * 100))
-
-    return (
-        <View style={styles.waterRow}>
-            {/* Nút trừ */}
-            <View style={styles.waterCol}>
-                <Pressable style={styles.circleBtn} onPress={removeWater}>
-                    <Icon name="minus" size={20} color="#fff" />
-                </Pressable>
-                <Text style={styles.waterText}>{step} lt</Text>
-                <Text style={styles.waterSub}>Thực tế {water.toFixed(2)} lt</Text>
-            </View>
-
-            {/* Cốc nước */}
-            <View style={styles.cupWrap}>
-                <View style={styles.cupRim} />
-                <View style={styles.cupBody}>
-                    <View style={styles.cupShineLeft} />
-                    <View style={styles.cupShineRight} />
-
-                    <View style={[styles.measureLine, { bottom: '25%' }]} />
-                    <View style={[styles.measureLine, { bottom: '50%' }]} />
-                    <View style={[styles.measureLine, { bottom: '75%' }]} />
-
-                    <View style={[styles.waterFillGlass, { height: `${percent}%` }]} />
-                    <View style={[styles.waterSurface, { bottom: `${percent}%` }]} />
-                </View>
-                <Text style={styles.waterBoxText}>
-                    {water.toFixed(2)} / {target} lt
+              {/* Badge thông tin */}
+              <View style={s.mealBadge}>
+                <Entypo name="leaf" size={12} color={C.success} />
+                <Text style={s.mealBadgeText}>
+                  {m.kcal} kcal • {m.title}
                 </Text>
+              </View>
+
+              {/* Checkbox */}
+              <Pressable
+                onPress={() => toggleSelect(active, m.id)}
+                style={[s.checkBox, isChecked ? s.checkOn : s.checkOff]}
+              >
+                {isChecked ? (
+                  <MaterialCommunityIcons
+                    name="check-bold"
+                    size={14}
+                    color={C.white}
+                  />
+                ) : (
+                  <MaterialCommunityIcons
+                    name="checkbox-blank-outline"
+                    size={14}
+                    color={C.slate500}
+                  />
+                )}
+              </Pressable>
             </View>
 
-            {/* Nút cộng */}
-            <View style={styles.waterCol}>
-                <Pressable style={styles.circleBtn} onPress={addWater}>
-                    <Icon name="plus" size={20} color="#fff" />
-                </Pressable>
-                <Text style={styles.waterText}>{step} lt</Text>
-                <Text style={styles.waterSub}>Mục tiêu {target} lt</Text>
+            <View style={s.btnRow}>
+              <Pressable style={[s.btn, s.btnPrimary]}>
+                <Text style={[s.btnText, s.btnTextPrimary]}>Đổi món</Text>
+              </Pressable>
+              <Pressable style={[s.btn, s.btnGhost]}>
+                <Text style={s.btnText}>Xem chi tiết</Text>
+              </Pressable>
             </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+/* ================== Uống nước (icon đẹp hơn) ================== */
+function TrackWater() {
+  const [water, setWater] = useState(0);
+  const target = 2.5;
+  const step = 0.25;
+
+  const add = () => setWater(v => Math.min(target, +(v + step).toFixed(2)));
+  const sub = () => setWater(v => Math.max(0, +(v - step).toFixed(2)));
+  const pct =
+    target === 0 ? 0 : Math.min(100, Math.max(0, (water / target) * 100));
+
+  return (
+    <View style={s.waterRow}>
+      <View style={s.waterCol}>
+        <Pressable
+          style={[s.circleBtn, { backgroundColor: C.blue }]}
+          onPress={sub}
+        >
+          <MaterialCommunityIcons
+            name="water-minus"
+            size={22}
+            color={C.white}
+          />
+        </Pressable>
+        <Text style={s.waterText}>{step} lt</Text>
+        <Text style={s.waterSub}>Thực tế {water.toFixed(2)} lt</Text>
+      </View>
+
+      {/* Cốc nước */}
+      <View style={s.cupWrap}>
+        <View style={s.cupRim} />
+        <View style={s.cupBody}>
+          <View style={s.cupShineLeft} />
+          <View style={s.cupShineRight} />
+          <View style={[s.measureLine, { bottom: '25%' }]} />
+          <View style={[s.measureLine, { bottom: '50%' }]} />
+          <View style={[s.measureLine, { bottom: '75%' }]} />
+          <View
+            style={[
+              s.waterFillGlass,
+              { height: `${pct}%`, backgroundColor: C.blue },
+            ]}
+          />
+          <View style={[s.waterSurface, { bottom: `${pct}%` }]} />
+          <MaterialCommunityIcons
+            name="cup-water"
+            size={20}
+            color={C.slate500}
+            style={{ position: 'absolute', top: 6, right: 6, opacity: 0.6 }}
+          />
         </View>
-    )
+        <Text style={s.waterBoxText}>
+          {water.toFixed(2)} / {target} lt
+        </Text>
+      </View>
+
+      <View style={s.waterCol}>
+        <Pressable
+          style={[s.circleBtn, { backgroundColor: C.success }]}
+          onPress={add}
+        >
+          <MaterialCommunityIcons name="water-plus" size={22} color={C.white} />
+        </Pressable>
+        <Text style={s.waterText}>{step} lt</Text>
+        <Text style={s.waterSub}>Mục tiêu {target} lt</Text>
+      </View>
+    </View>
+  );
 }
 
-/** ─────────── Main ─────────── */
+/* ================== Main ================== */
 const MealPlan = () => {
-    return (
-        <Container>
-            {/* top */}
-            <View style={styles.top}>
-                <View style={styles.nameAvatar}>
-                    <Image
-                        source={require('../assets/images/Welcome/Welcome2.jpg')}
-                        style={styles.avatar}
-                    />
-                    <Text style={styles.textName}> Anh Hải</Text>
-                </View>
-                <View style={styles.iconContainer}>
-                    <Icon name="bell" size={35} color="#fff" style={{ padding: 5 }} />
-                </View>
-            </View>
+  const [range, setRange] = useState<'day' | 'week'>('day');
 
-            <View style={styles.line} />
+  return (
+    <Container>
+      {/* Header */}
+      <View style={s.top}>
+        <View style={s.nameAvatar}>
+          <Avatar name="Anh Hải" />
+          <View style={{ marginLeft: 10 }}>
+            <Text style={s.hello}>Xin chào,</Text>
+            <Text style={s.textName}>Anh Hải</Text>
+          </View>
+        </View>
 
-            {/* center */}
-            <View style={{ flex: 1, flexDirection: "column", alignItems: "center", justifyContent: "center", marginTop: 0 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
-                    <Icon name="calendar" size={35} color="#3B82F6" style={{ padding: 5 }} />
-                    <Text style={{ fontSize: 17, fontWeight: "bold" }}>Thứ 2, 01 Tháng 09</Text>
-                </View>
-                <View style={{ flexDirection: "row", alignItems: "center", marginTop: 5 }}>
-                    <Button>Theo Ngày</Button>
-                    <View style={{ width: 10 }} />
-                    <Button>Theo Tuần</Button>
-                </View>
-            </View>
+        <Pressable style={s.iconContainer}>
+          <Entypo name="bell" size={20} color={C.blue} />
+        </Pressable>
+      </View>
 
-            {/* bottom */}
-            <View style={{ flex: 6 }}>
-                <ScrollView
-                    style={{ flex: 1 }}
-                    contentContainerStyle={{ padding: 12 }}
-                    showsVerticalScrollIndicator={false}
-                >
-                    {/* Calories & Dinh dưỡng */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Calories & Dinh Dưỡng</Text>
-                        <CaloriesNutritionSummary />
-                    </View>
+      <View style={s.line} />
 
-                    {/* Nhật ký bữa ăn */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Nhật Ký Ăn Uống</Text>
-                        <MealCardsTabs />
-                    </View>
+      {/* Date + segmented control */}
+      <View style={s.center}>
+        <View style={s.dateRow}>
+          <Entypo name="calendar" size={18} color={C.blue} />
+          <Text style={s.dateText}>Thứ 2, 01 Tháng 09</Text>
+        </View>
 
-                    {/* Uống nước */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Uống Nước</Text>
-                        <TrackWater />
-                    </View>
-                </ScrollView>
-            </View>
-        </Container>
-    )
-}
-export default MealPlan
+        <View style={s.segment}>
+          <Pressable
+            onPress={() => setRange('day')}
+            style={[s.segmentBtn, range === 'day' && s.segmentBtnActive]}
+          >
+            <Text
+              style={[s.segmentText, range === 'day' && s.segmentTextActive]}
+            >
+              Theo ngày
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setRange('week')}
+            style={[s.segmentBtn, range === 'week' && s.segmentBtnActive]}
+          >
+            <Text
+              style={[s.segmentText, range === 'week' && s.segmentTextActive]}
+            >
+              Theo tuần
+            </Text>
+          </Pressable>
+        </View>
+      </View>
 
-const styles = {
-    top: {
-        flex: 0.55,
-        flexDirection: "row",
-        justifyContent: "space-between",
-        marginTop: 20
-    },
+      {/* Content */}
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+        {/* Calories & Dinh dưỡng*/}
+        <View style={{ marginBottom: 12 }}>
+          <CaloriesNutritionCard
+            target={2105}
+            eaten={2105}
+            burned={0}
+            macros={{
+              carbs: { cur: 80, total: 263 },
+              protein: { cur: 30, total: 121 },
+              fat: { cur: 15, total: 63 },
+              fiber: { cur: 8, total: 27 },
+            }}
+            modeLabel="Cân Bằng"
+            palette={colors}
+          />
+        </View>
 
-    avatar: {
-        width: 60,
-        height: 60,
-        borderRadius: 100
-    },
+        {/* Nhật ký ăn uống */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Nhật ký ăn uống</Text>
+          <MealCardsTabs />
+        </View>
 
-    nameAvatar: {
-        display: "flex",
-        flexDirection: "row"
-    },
+        {/* Uống nước */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Uống nước</Text>
+          <HydrationSummaryCard
+            target={2.5}
+            step={0.25}
+            initial={0.5}
+            palette={colors} // tái dùng palette của app (giống Calo)
+          />
+        </View>
+      </ScrollView>
+    </Container>
+  );
+};
 
-    textName: {
-        fontSize: 14,
-        fontWeight: "bold",
-        marginTop: 20
-    },
+export default MealPlan;
 
-    iconContainer: {
-        borderWidth: 0,
-        width: 50,
-        height: 50,
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        backgroundColor: "#A7F3D0",
-        borderRadius: 10,
-    },
+/* ================== Styles ================== */
+const s = StyleSheet.create({
+  /* Header */
+  top: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  avatar: { width: 52, height: 52, borderRadius: 999 },
+  avatarFallback: {
+    width: 52,
+    height: 52,
+    borderRadius: 999,
+    backgroundColor: C.slate50,
+    borderWidth: 1,
+    borderColor: C.slate200,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitials: { fontWeight: '800', color: C.blue },
+  nameAvatar: { flexDirection: 'row', alignItems: 'center' },
+  hello: { fontSize: 12, color: C.sub },
+  textName: { fontSize: 16, fontWeight: '800', color: C.text },
+  iconContainer: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: C.slate50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: C.slate200,
+  },
 
-    section: {
-        backgroundColor: "#f7faf8",
-        padding: 12,
-        borderRadius: 10,
-        marginBottom: 12,
-    },
+  /* Common sections */
+  section: {
+    backgroundColor: C.white,
+    padding: 12,
+    borderRadius: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: C.slate200,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 12,
+    color: C.blue,
+  },
+  line: { height: 2, backgroundColor: C.slate200, marginVertical: 12 },
+  center: { alignItems: 'center', marginBottom: 6 },
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dateText: { fontSize: 15, fontWeight: '700', color: C.text },
 
-    sectionTitle: {
-        fontSize: 20,
-        fontWeight: "bold",
-        marginBottom: 20,
-        paddingBottom: 6,
-        borderBottomWidth: 1,
-        borderBottomColor: "#94a3b8",
-        color: '#3B82F6',
-    },
+  segment: {
+    flexDirection: 'row',
+    backgroundColor: C.slate100,
+    borderRadius: 999,
+    padding: 4,
+    gap: 6,
+    marginTop: 8,
+  },
+  segmentBtn: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: 999 },
+  segmentBtnActive: { backgroundColor: C.blue },
+  segmentText: { fontSize: 12, fontWeight: '800', color: C.text },
+  segmentTextActive: { color: C.white },
 
-    line: {
-        borderBottomWidth: 1,
-        borderBottomColor: "#94a3b8",
-        marginTop: 12,
-        marginBottom: 12,
-    },
+  /* Nutri Card (dark) */
+  nutriCard: {
+    backgroundColor: C.slate800,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 12,
+  },
+  nutriHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  nutriTitle: { color: C.textWhite, fontWeight: '800', fontSize: 16 },
+  statBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: C.slate700,
+    borderWidth: 1,
+    borderColor: C.slate600,
+  },
+  statBtnText: { color: C.textWhite, fontWeight: '800', fontSize: 12 },
 
-    /* top row calories */
-    calWrap: {
+  nutriBody: { flexDirection: 'row', marginTop: 8 },
+  nutriLeft: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  appleWrap: { alignItems: 'center', justifyContent: 'center' },
+  appleSmall: {
+    position: 'absolute',
+    top: 18,
+    color: C.textWhite,
+    opacity: 0.9,
+    fontSize: 12,
+  },
+  appleBig: {
+    position: 'absolute',
+    top: 40,
+    color: C.amber500,
+    fontSize: 28,
+    fontWeight: '900',
+  },
 
-    },
-    topRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#f7faf8'
-    },
+  nutriRight: { flex: 1, paddingLeft: 8, justifyContent: 'center' },
+  statRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  statLabel: { color: C.textWhite, opacity: 0.9, flex: 1 },
+  statValue: { color: C.textWhite, fontWeight: '900' },
 
-    badgeWrap: {
-        width: 88,
-        alignItems: 'center',
-        justifyContent: 'center'
-    },
+  dashedWrap: { marginTop: 8, position: 'relative' },
+  dashed: {
+    height: 1,
+    borderBottomWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: C.slate600,
+  },
+  helpDot: {
+    position: 'absolute',
+    right: -2,
+    top: -8,
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    backgroundColor: C.slate700,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: C.slate600,
+  },
 
-    badgeCircle: {
-        width: 99,
-        height: 99,
-        borderRadius: 999,
-        backgroundColor: '#ef4444',
-        alignItems: 'center',
-        justifyContent: 'center'
-    },
+  macroRow: { marginTop: 8 },
+  macroIcon: { position: 'absolute', left: 0, top: 2 },
+  macroText: { color: C.textWhite, marginLeft: 22 },
+  macroBarDark: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: C.slate700,
+    overflow: 'hidden',
+    marginTop: 6,
+    marginBottom: 6,
+    marginLeft: 22,
+  },
+  macroBarDarkFill: { height: '100%', borderRadius: 999 },
+  macroValDark: {
+    color: C.textWhite,
+    opacity: 0.9,
+    marginLeft: 22,
+    fontSize: 12,
+  },
 
-    badgeText: { color: '#fff', fontWeight: '700', textAlign: 'center', fontSize: 16 },
-    badgeDot: { width: 8, height: 8, borderRadius: 999, backgroundColor: '#22c55e', marginTop: 6 },
-    infoCol: { flex: 1 },
-    infoRow: { flexDirection: 'row', alignItems: 'center', marginLeft: 20 },
-    infoText: { color: '#0f172a', fontSize: 17, marginLeft: 8 },
+  modeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    justifyContent: 'center',
+  },
+  modeText: { color: C.textWhite, opacity: 0.9 },
+  modeChip: {
+    backgroundColor: C.greenLight2,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: C.green,
+  },
+  modeChipText: { color: C.emerald800, fontWeight: '900', fontSize: 12 },
 
-    /* card */
-    card: {
-        backgroundColor: '#f8fafc',
-        borderRadius: 14,
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginTop: 12,
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOpacity: 0.08,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 2 },
-    },
-    cardCol: { alignItems: 'center', minWidth: 100 },
-    cardLabel: { color: '#64748b', fontSize: 13, marginBottom: 2, fontWeight: '700' },
-    cardValue: { color: '#0f172a', fontSize: 18, fontWeight: '700' },
-    cardIcon: {
-        width: 48, height: 48, borderRadius: 999, backgroundColor: '#fff',
-        alignItems: 'center', justifyContent: 'center',
-        borderWidth: 1, borderColor: '#e2e8f0',
-    },
+  /* Meal tabs & cards (tick) */
+  tabBar: { flexDirection: 'row', paddingVertical: 4, marginBottom: 8 },
+  pill: {
+    flex: 1,
+    backgroundColor: C.slate100,
+    paddingVertical: 8,
+    borderRadius: 999,
+    marginHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pillActive: { backgroundColor: C.blue },
+  pillText: { color: C.text, fontWeight: '800', fontSize: 13 },
+  pillTextActive: { color: C.white },
+  tabTitle: {
+    textAlign: 'center',
+    fontWeight: '800',
+    color: C.text,
+    marginBottom: 8,
+    fontSize: 14,
+  },
 
-    /* grid 2x2 */
-    grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 12 },
-    box: {
-        width: '48%',
-        backgroundColor: '#fff',
-        borderRadius: 12,
-        padding: 12,
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-        marginBottom: 12,
-        elevation: 1,
-        shadowColor: '#000',
-        shadowOpacity: 0.06,
-        shadowRadius: 4,
-        shadowOffset: { width: 0, height: 2 },
-    },
-    boxTitle: { fontWeight: '700', color: '#0f172a', marginBottom: 8 },
-    progressBg: { height: 8, borderRadius: 999, backgroundColor: '#e5e7eb', overflow: 'hidden', marginBottom: 8 },
-    progressFill: { height: '100%', backgroundColor: '#cbd5e1' },
-    boxSub: { color: '#64748b', fontSize: 12 },
+  mealCard: {
+    backgroundColor: C.white,
+    borderRadius: 12,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: C.slate200,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    marginBottom: 12,
+  },
+  imageWrap: {
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: C.slate200,
+    position: 'relative',
+  },
+  image: { width: '100%', height: 130, resizeMode: 'cover' },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.12)',
+  },
+  mealBadge: {
+    position: 'absolute',
+    left: 8,
+    bottom: 8,
+    backgroundColor: C.white,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: C.slate200,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  mealBadgeText: { fontSize: 12, fontWeight: '800', color: C.text },
 
-    // Track water common
-    waterRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
-    waterCol: { alignItems: 'center', width: 80 },
-    circleBtn: { width: 48, height: 48, borderRadius: 999, backgroundColor: '#3B82F6', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-    waterText: { fontSize: 14, fontWeight: '600', color: '#0f172a' },
-    waterSub: { fontSize: 12, color: '#64748b', textAlign: 'center' },
+  checkBox: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  checkOn: { backgroundColor: C.blue, borderColor: C.blue },
+  checkOff: { backgroundColor: C.slate50, borderColor: C.slate200 },
 
-    // --- cốc nước ---
-    cupWrap: { flex: 1, alignItems: 'center', marginHorizontal: 12 },
-    cupRim: {
-        width: 96, height: 16, borderRadius: 50, backgroundColor: '#ffffff',
-        borderWidth: 1, borderColor: '#cbd5e1', marginBottom: -7, zIndex: 2
-    },
-    cupBody: {
-        width: 96, height: 150, borderRadius: 16, borderWidth: 1, borderColor: '#cbd5e1',
-        backgroundColor: '#f8fafc', overflow: 'hidden', position: 'relative'
-    },
-    waterFillGlass: {
-        position: 'absolute', bottom: 0, left: 0, right: 0,
-        backgroundColor: '#3B82F6', opacity: 0.95,
-        borderBottomLeftRadius: 16, borderBottomRightRadius: 16
-    },
-    waterSurface: {
-        position: 'absolute', left: 6, right: 6, height: 10, marginBottom: -5,
-        backgroundColor: '#60a5fa', borderRadius: 50, opacity: 0.9
-    },
-    cupShineLeft: {
-        position: 'absolute', top: 12, bottom: 12, left: 8,
-        width: 6, backgroundColor: '#ffffff', opacity: 0.25, borderRadius: 999
-    },
-    cupShineRight: {
-        position: 'absolute', top: 22, bottom: 22, right: 10,
-        width: 3, backgroundColor: '#ffffff', opacity: 0.25, borderRadius: 999
-    },
-    measureLine: {
-        position: 'absolute', left: 12, right: 12, height: 1,
-        backgroundColor: '#94a3b8', opacity: 0.25
-    },
-    waterBoxText: { marginTop: 8, color: '#0f172a', fontWeight: '600' },
-}
+  btnRow: { flexDirection: 'row', marginTop: 8 },
+  btn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnPrimary: { backgroundColor: C.blue, marginRight: 8 },
+  btnGhost: { backgroundColor: C.slate100 },
+  btnText: { fontWeight: '800', color: C.text, fontSize: 12 },
+  btnTextPrimary: { color: C.white },
 
-/* ===== Styles riêng cho Mục 2 (Nhật ký ăn uống) ===== */
-const styles2 = {
-    tabBar: {
-        flexDirection: 'row',
-        paddingVertical: 4,
-        marginBottom: 8,
-        justifyContent: 'space-between',   // CHANGED: dàn đều hàng ngang
-    },
-    pill: {
-        flex: 1,                            // CHANGED: mỗi pill chiếm đều
-        backgroundColor: '#e5edf3',
-        paddingVertical: 8,
-        paddingHorizontal: 14,
-        borderRadius: 999,
-        marginHorizontal: 4,                // CHANGED: khoảng cách đều hai bên
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    pillActive: { backgroundColor: '#3B82F6' },
-    pillText: { color: '#0f172a', fontWeight: '700', fontSize: 13 },
-    pillTextActive: { color: '#fff' },
+  /* Water */
+  waterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  waterCol: { alignItems: 'center', width: 88 },
+  circleBtn: {
+    width: 50,
+    height: 50,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  waterText: { fontSize: 13, fontWeight: '800', color: C.text },
+  waterSub: { fontSize: 12, color: C.sub, textAlign: 'center' },
 
-    tabTitle: { textAlign: 'center', fontWeight: '700', color: '#0f172a', marginBottom: 8 },
-
-    list: { paddingBottom: 8 },
-
-    card: {
-        backgroundColor: '#fff',
-        borderRadius: 12,
-        padding: 8,
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-        marginBottom: 12,
-        elevation: 1,
-        shadowColor: '#000',
-        shadowOpacity: 0.06,
-        shadowRadius: 4,
-        shadowOffset: { width: 0, height: 2 },
-    },
-
-    imageWrap: {
-        borderRadius: 10,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: '#dce6ef',
-        position: 'relative',
-    },
-    image: { width: '100%', height: 110, resizeMode: 'cover' },
-
-    greenDot: {
-        width: 14, height: 14, borderRadius: 999,
-        backgroundColor: '#22c55e',
-        position: 'absolute', top: 8, right: 8,
-        borderWidth: 2, borderColor: '#fff',
-    },
-
-    btnRow: { flexDirection: 'row', marginTop: 8 },
-    btn: {
-        flex: 1,
-        paddingVertical: 8,
-        borderRadius: 8,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    btnPrimary: { backgroundColor: '#3B82F6', marginRight: 8 },
-    btnGhost: { backgroundColor: '#e5e7eb' },
-    btnText: { fontWeight: '700', color: '#0f172a', fontSize: 12 },
-    btnTextPrimary: { color: '#fff' },
-
-    checkBox: {
-        width: 20,
-        height: 20,
-        borderRadius: 4,
-        backgroundColor: '#e5e7eb',   // xám khi chưa chọn
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-
-}
+  cupWrap: { flex: 1, alignItems: 'center', marginHorizontal: 12 },
+  cupRim: {
+    width: 100,
+    height: 16,
+    borderRadius: 50,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.slate200,
+    marginBottom: -7,
+    zIndex: 2,
+  },
+  cupBody: {
+    width: 100,
+    height: 160,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.slate200,
+    backgroundColor: C.slate50,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  waterFillGlass: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    opacity: 0.95,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+  },
+  waterSurface: {
+    position: 'absolute',
+    left: 6,
+    right: 6,
+    height: 10,
+    marginBottom: -5,
+    backgroundColor: '#60a5fa',
+    borderRadius: 50,
+    opacity: 0.9,
+  },
+  cupShineLeft: {
+    position: 'absolute',
+    top: 12,
+    bottom: 12,
+    left: 8,
+    width: 6,
+    backgroundColor: C.white,
+    opacity: 0.25,
+    borderRadius: 999,
+  },
+  cupShineRight: {
+    position: 'absolute',
+    top: 22,
+    bottom: 22,
+    right: 10,
+    width: 3,
+    backgroundColor: C.white,
+    opacity: 0.25,
+    borderRadius: 999,
+  },
+  measureLine: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    height: 1,
+    backgroundColor: C.slate200,
+    opacity: 0.45,
+  },
+  waterBoxText: { marginTop: 8, color: C.text, fontWeight: '800' },
+});

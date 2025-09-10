@@ -35,7 +35,7 @@ const Stack = createNativeStackNavigator<WizardStackParamList>();
 export default function WizardNavigator() {
     return (
         <WizardProvider>
-            <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="StepName">
+            <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Home">
                 <Stack.Screen name="StepName" component={StepNameScreen} />
                 <Stack.Screen name="StepGender" component={StepGenderScreen} />
                 <Stack.Screen name="StepAge" component={StepAgeScreen} />
@@ -45,7 +45,7 @@ export default function WizardNavigator() {
                 <Stack.Screen name="StepAllergy" component={StepAllergiesScreen} />
                 <Stack.Screen name="StepLevelActivity" component={StepLevelActivityScreen} />
                 <Stack.Screen name="StepTarget" component={StepTargetScreen} />
-                <Stack.Screen name="Done" component={StepDoneScreen} />
+                {/* <Stack.Screen name="Done" component={StepDoneScreen} /> */}
                 <Stack.Screen name="Home" component={BottomNavigator} />
             </Stack.Navigator>
         </WizardProvider>

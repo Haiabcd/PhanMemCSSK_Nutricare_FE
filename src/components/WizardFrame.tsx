@@ -21,6 +21,7 @@ export const STEP_ROUTES = [
     "StepAllergy",
     "StepLevelActivity",
     "StepTarget",
+    "Home"
 ] as const;
 
 interface WizardFrameProps {
@@ -77,7 +78,7 @@ export default function WizardFrame(props: WizardFrameProps) {
                 <View style={styles.bottom}>
                     <PressComponent 
                         onPress={goNext} 
-                        label={stepIndex === STEP_ROUTES.length - 1 ? "Hoàn Thành" : "Tiếp Theo"} 
+                        label={stepIndex === STEP_ROUTES.length - 2 ? "Hoàn Thành" : "Tiếp Theo"} 
                     />
                 </View>
             </Container>
