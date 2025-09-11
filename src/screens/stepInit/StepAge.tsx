@@ -1,31 +1,40 @@
 // features/WizardScreens.tsx
-import React, { useState, useRef } from "react";
-import { View, Text, StyleSheet, Platform, TextInput, TouchableOpacity, Alert, Keyboard } from "react-native";
-import WheelPicker from "../../components/WheelPicker";
-import WizardFrame from "../../components/WizardFrame";
-import { useWizard } from "../../context/WizardContext";
-import { colors } from "../../constants/colors";
+import React, { useState, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Platform,
+  TextInput,
+  TouchableOpacity,
+  Alert,
+  Keyboard,
+} from 'react-native';
+import WheelPicker from '../../components/WheelPicker';
+import WizardFrame from '../../components/WizardFrame';
+import { useWizard } from '../../context/WizardContext';
+import { colors } from '../../constants/colors';
 
-const GREEN = colors?.green ?? "#22C55E";
-const GREEN_DARK = "#16A34A";
-const EMERALD_50 = "#ECFDF5";
-const EMERALD_100 = "#D1FAE5";
-const SLATE_600 = "#475569";
-const SLATE_400 = "#94A3B8";
+const GREEN = colors?.green ?? '#22C55E';
+const GREEN_DARK = '#16A34A';
+const EMERALD_50 = '#ECFDF5';
+const EMERALD_100 = '#D1FAE5';
+const SLATE_600 = '#475569';
+const SLATE_400 = '#94A3B8';
 
-export const StepAgeScreen = () => {
+const StepAgeScreen = () => {
   const { form, updateForm } = useWizard();
   const [showInput, setShowInput] = useState(false);
-  const [inputYear, setInputYear] = useState(form.age?.toString() || "");
+  const [inputYear, setInputYear] = useState(form.age?.toString() || '');
   const inputRef = useRef<TextInput>(null);
 
   const currentYear = new Date().getFullYear();
   const minValidYear = currentYear - 100; // Tối đa 100 tuổi
-  const maxValidYear = currentYear - 13;  // Tối thiểu 13 tuổi (độ tuổi hợp lý cho app)
-  
+  const maxValidYear = currentYear - 13; // Tối thiểu 13 tuổi (độ tuổi hợp lý cho app)
+
   const years = Array.from(
-    { length: maxValidYear - minValidYear + 1 }, 
-    (_, i) => maxValidYear - i
+    { length: maxValidYear - minValidYear + 1 },
+    (_, i) => maxValidYear - i,
   );
 
   // Tính tuổi từ năm sinh
@@ -40,16 +49,16 @@ export const StepAgeScreen = () => {
   const handleInputSubmit = () => {
     Keyboard.dismiss();
     const year = parseInt(inputYear);
-    
+
     if (isNaN(year)) {
-      Alert.alert("Lỗi", "Vui lòng nhập năm hợp lệ");
+      Alert.alert('Lỗi', 'Vui lòng nhập năm hợp lệ');
       return;
     }
 
     if (year < minValidYear || year > maxValidYear) {
       Alert.alert(
-        "Năm không hợp lệ", 
-        `Vui lòng nhập năm từ ${minValidYear} đến ${maxValidYear}`
+        'Năm không hợp lệ',
+        `Vui lòng nhập năm từ ${minValidYear} đến ${maxValidYear}`,
       );
       return;
     }
@@ -59,26 +68,26 @@ export const StepAgeScreen = () => {
   };
 
   const handleInputCancel = () => {
-    setInputYear(form.age?.toString() || "");
+    setInputYear(form.age?.toString() || '');
     setShowInput(false);
     Keyboard.dismiss();
   };
 
   const handleAgeDisplayPress = () => {
-    setInputYear(form.age?.toString() || "");
+    setInputYear(form.age?.toString() || '');
     setShowInput(true);
     setTimeout(() => inputRef.current?.focus(), 100);
   };
 
   return (
-    <WizardFrame 
+    <WizardFrame
       title="Năm Sinh Của Bạn?"
       subtitle="Thông tin này giúp xác định chính xác nhu cầu dinh dưỡng phù hợp với độ tuổi của bạn"
     >
       <View style={styles.container}>
         {/* Hiển thị tuổi hiện tại - có thể nhấn để nhập trực tiếp */}
         {form.age && (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.ageDisplay}
             onPress={handleAgeDisplayPress}
             activeOpacity={0.7}
@@ -96,10 +105,16 @@ export const StepAgeScreen = () => {
                   placeholder="Nhập năm sinh"
                 />
                 <View style={styles.inputButtons}>
-                  <TouchableOpacity onPress={handleInputSubmit} style={styles.confirmButton}>
+                  <TouchableOpacity
+                    onPress={handleInputSubmit}
+                    style={styles.confirmButton}
+                  >
                     <Text style={styles.buttonText}>✓</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={handleInputCancel} style={styles.cancelButton}>
+                  <TouchableOpacity
+                    onPress={handleInputCancel}
+                    style={styles.cancelButton}
+                  >
                     <Text style={styles.buttonText}>✕</Text>
                   </TouchableOpacity>
                 </View>
@@ -107,7 +122,9 @@ export const StepAgeScreen = () => {
             ) : (
               <>
                 <Text style={styles.ageLabel}>Tuổi hiện tại của bạn</Text>
-                <Text style={styles.ageValue}>{calculateAge(form.age)} tuổi</Text>
+                <Text style={styles.ageValue}>
+                  {calculateAge(form.age)} tuổi
+                </Text>
                 <Text style={styles.yearText}>(Sinh năm {form.age})</Text>
               </>
             )}
@@ -115,16 +132,13 @@ export const StepAgeScreen = () => {
         )}
 
         <View style={styles.wheelContainer}>
-          <WheelPicker
-           value={form.age}
-           onChange={handleYearSelect}
-          />
+          <WheelPicker value={form.age} onChange={handleYearSelect} />
         </View>
 
         <Text style={styles.hintText}>
-          {showInput 
-            ? "Nhập năm sinh và nhấn ✓ để xác nhận" 
-            : "Cuộn để chọn năm sinh hoặc nhấn vào tuổi để nhập trực tiếp"}
+          {showInput
+            ? 'Nhập năm sinh và nhấn ✓ để xác nhận'
+            : 'Cuộn để chọn năm sinh hoặc nhấn vào tuổi để nhập trực tiếp'}
         </Text>
       </View>
     </WizardFrame>
@@ -134,13 +148,13 @@ export const StepAgeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: "center",
+    alignItems: 'center',
     paddingHorizontal: 24,
     paddingTop: 16,
     paddingBottom: 24,
   },
   ageDisplay: {
-    width: "100%",
+    width: '100%',
     backgroundColor: EMERALD_50,
     paddingVertical: 20,
     paddingHorizontal: 20,
@@ -148,11 +162,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: EMERALD_100,
     marginBottom: 24,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
@@ -163,16 +177,16 @@ const styles = StyleSheet.create({
     }),
   },
   inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    width: "100%",
-    justifyContent: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    justifyContent: 'center',
   },
   yearInput: {
     fontSize: 28,
-    fontWeight: "800",
+    fontWeight: '800',
     color: GREEN_DARK,
-    textAlign: "center",
+    textAlign: 'center',
     borderBottomWidth: 2,
     borderBottomColor: GREEN,
     padding: 8,
@@ -180,7 +194,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   inputButtons: {
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: 8,
   },
   confirmButton: {
@@ -188,31 +202,31 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cancelButton: {
     backgroundColor: SLATE_400,
     width: 36,
     height: 36,
     borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   buttonText: {
-    color: "white",
+    color: 'white',
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: 'bold',
   },
   ageLabel: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: '600',
     color: SLATE_600,
     marginBottom: 4,
   },
   ageValue: {
     fontSize: 28,
-    fontWeight: "800",
+    fontWeight: '800',
     color: GREEN_DARK,
     letterSpacing: 0.5,
     marginBottom: 4,
@@ -220,18 +234,18 @@ const styles = StyleSheet.create({
   yearText: {
     fontSize: 14,
     color: SLATE_400,
-    fontWeight: "500",
+    fontWeight: '500',
   },
   wheelContainer: {
     flex: 1,
-    width: "100%",
-    justifyContent: "center",
+    width: '100%',
+    justifyContent: 'center',
     marginBottom: 16,
   },
   hintText: {
     fontSize: 14,
     color: SLATE_400,
-    textAlign: "center",
+    textAlign: 'center',
     marginTop: 8,
     paddingHorizontal: 20,
   },

@@ -2,7 +2,7 @@
 // Clean horizontal ruler — kg only, labels every 10 kg, center green indicator,
 // double-tap readout to input, no Expo deps.
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -12,39 +12,40 @@ import {
   Platform,
   TextInput,
   Pressable,
-} from "react-native";
-import WizardFrame from "../../components/WizardFrame";
-import { useWizard } from "../../context/WizardContext";
-import { colors } from "../../constants/colors";
+} from 'react-native';
+import WizardFrame from '../../components/WizardFrame';
+import { useWizard } from '../../context/WizardContext';
+import { colors } from '../../constants/colors';
 
 /* ===== Theme ===== */
-const GREEN = colors?.green ?? "#22C55E";
-const GREEN_DARK = "#16A34A";
-const SLATE_900 = "#0F172A";
-const SLATE_700 = "#334155";
-const SLATE_600 = "#475569";
-const SLATE_500 = "#64748B";
-const SLATE_400 = "#94A3B8";
-const SLATE_300 = colors?.slate200 ?? "#E2E8F0";
-const EMERALD_25 = "#F4FBF7";
-const EMERALD_100 = "#D1FAE5";
-const WHITE = colors?.white ?? "#FFFFFF";
+const GREEN = colors?.green ?? '#22C55E';
+const GREEN_DARK = '#16A34A';
+const SLATE_900 = '#0F172A';
+const SLATE_700 = '#334155';
+const SLATE_600 = '#475569';
+const SLATE_500 = '#64748B';
+const SLATE_400 = '#94A3B8';
+const SLATE_300 = colors?.slate200 ?? '#E2E8F0';
+const EMERALD_25 = '#F4FBF7';
+const EMERALD_100 = '#D1FAE5';
+const WHITE = colors?.white ?? '#FFFFFF';
 
 /* ===== Config ===== */
 const KG_MIN = 30;
 const KG_MAX = 200;
 
-const { width: SCREEN_W } = Dimensions.get("window");
-const TICK_W = 22;                  // khoảng cách giữa từng kg
-const PAD = SCREEN_W * 0.5;         // để vạch hiện tại nằm giữa màn hình
+const { width: SCREEN_W } = Dimensions.get('window');
+const TICK_W = 22; // khoảng cách giữa từng kg
+const PAD = SCREEN_W * 0.5; // để vạch hiện tại nằm giữa màn hình
 const TICK_H_MINOR = 12;
 const TICK_H_MED = 20;
 const TICK_H_MAJOR = 32;
 const DOUBLE_TAP_MS = 240;
 
-const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+const clamp = (v: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, v));
 
-export const StepWeightScreen = () => {
+const StepWeightScreen = () => {
   const { form, setWeightKg } = useWizard(); // đảm bảo context có weightKg & setWeightKg
   const scrollRef = useRef<ScrollView>(null);
   const isScrolling = useRef(false);
@@ -112,7 +113,7 @@ export const StepWeightScreen = () => {
   /* ===== Ticks ===== */
   const renderTicks = () => {
     const total = KG_MAX - KG_MIN + 1;
-    return Array.from({ length: total }, (_, i) => KG_MIN + i).map((kg) => {
+    return Array.from({ length: total }, (_, i) => KG_MIN + i).map(kg => {
       const isMajor = kg % 10 === 0;
       const isMedium = kg % 5 === 0;
       const h = isMajor ? TICK_H_MAJOR : isMedium ? TICK_H_MED : TICK_H_MINOR;
@@ -140,7 +141,10 @@ export const StepWeightScreen = () => {
   };
 
   return (
-    <WizardFrame title="Cân Nặng Của Bạn" subtitle="Kéo thước ngang để chọn (kg)">
+    <WizardFrame
+      title="Cân Nặng Của Bạn"
+      subtitle="Kéo thước ngang để chọn (kg)"
+    >
       <View style={styles.wrap}>
         {/* Readout (double-tap để nhập) */}
         <Pressable onPress={onReadoutPress}>
@@ -184,14 +188,18 @@ export const StepWeightScreen = () => {
               paddingBottom: 34, // chừa chỗ cho nhãn phía dưới
             }}
             onScrollBeginDrag={onScrollBegin}
-            onMomentumScrollEnd={(e) => onScrollEnd(e.nativeEvent.contentOffset.x)}
-            onScrollEndDrag={(e) => onScrollEnd(e.nativeEvent.contentOffset.x)}
+            onMomentumScrollEnd={e =>
+              onScrollEnd(e.nativeEvent.contentOffset.x)
+            }
+            onScrollEndDrag={e => onScrollEnd(e.nativeEvent.contentOffset.x)}
           >
             {renderTicks()}
           </ScrollView>
         </View>
 
-        <Text style={styles.hint}>↔️ Kéo để chọn — double-tap vào số để nhập nhanh.</Text>
+        <Text style={styles.hint}>
+          ↔️ Kéo để chọn — double-tap vào số để nhập nhanh.
+        </Text>
       </View>
     </WizardFrame>
   );
@@ -201,8 +209,8 @@ export const StepWeightScreen = () => {
 const styles = StyleSheet.create({
   wrap: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "space-around",
+    alignItems: 'center',
+    justifyContent: 'space-around',
     paddingHorizontal: 16,
     paddingBottom: 12,
     backgroundColor: WHITE,
@@ -218,22 +226,27 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginTop: 4,
     ...Platform.select({
-      ios: { shadowColor: GREEN, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 10 },
+      ios: {
+        shadowColor: GREEN,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 10,
+      },
       android: { elevation: 2 },
     }),
   },
   readoutText: {
     fontSize: 36,
-    fontWeight: "800",
+    fontWeight: '800',
     color: GREEN_DARK,
     letterSpacing: 0.3,
-    textAlign: "center",
+    textAlign: 'center',
   },
   readoutInput: {
     fontSize: 36,
-    fontWeight: "800",
+    fontWeight: '800',
     color: GREEN_DARK,
-    textAlign: "center",
+    textAlign: 'center',
     padding: 0,
     margin: 0,
     minWidth: 120,
@@ -241,17 +254,17 @@ const styles = StyleSheet.create({
 
   /* ruler */
   rulerBox: {
-    width: "100%",
-    alignItems: "center",
-    justifyContent: "center",
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 6,
   },
 
   centerIndicator: {
-    position: "absolute",
+    position: 'absolute',
     top: 10,
-    bottom: 44,               // chừa chỗ cho nhãn bên dưới
-    left: SCREEN_W / 2 - 1,   // canh giữa màn hình
+    bottom: 44, // chừa chỗ cho nhãn bên dưới
+    left: SCREEN_W / 2 - 1, // canh giữa màn hình
     width: 2,
     backgroundColor: GREEN,
     borderRadius: 2,
@@ -260,9 +273,9 @@ const styles = StyleSheet.create({
 
   tickItem: {
     width: TICK_W,
-    alignItems: "center",
-    justifyContent: "flex-start",
-    overflow: "visible",
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    overflow: 'visible',
   },
   tickLine: {
     width: 2,
@@ -283,15 +296,15 @@ const styles = StyleSheet.create({
   },
 
   labelWrap: {
-    position: "absolute",
-    bottom: -28,              // đẩy nhãn xuống dưới trục
-    left: -TICK_W * 4.5,      // căn giữa cụm 10 vạch
+    position: 'absolute',
+    bottom: -28, // đẩy nhãn xuống dưới trục
+    left: -TICK_W * 4.5, // căn giữa cụm 10 vạch
     right: -TICK_W * 4.5,
-    alignItems: "center",
+    alignItems: 'center',
   },
   labelText: {
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: '800',
     color: SLATE_700,
     letterSpacing: 0.3,
   },
@@ -299,7 +312,7 @@ const styles = StyleSheet.create({
   hint: {
     color: SLATE_600,
     fontSize: 14,
-    textAlign: "center",
+    textAlign: 'center',
   },
 });
 

@@ -1,40 +1,37 @@
 // features/WizardScreens.tsx
-import React from "react";
-import { View, Text, StyleSheet, Pressable, Platform } from "react-native";
-import WizardFrame from "../../components/WizardFrame";
-import { useWizard } from "../../context/WizardContext";
-import { colors } from "../../constants/colors";
+import React from 'react';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
+import WizardFrame from '../../components/WizardFrame';
+import { useWizard } from '../../context/WizardContext';
+import { colors } from '../../constants/colors';
 
-type TargetType =
-  | "lose"
-  | "maintain"
-  | "gain";
+type TargetType = 'lose' | 'maintain' | 'gain';
 
-export const StepTargetScreen = () => {
+const StepTargetScreen = () => {
   const { form, updateForm } = useWizard();
 
   const options = React.useMemo(
     () => [
       {
-        key: "lose" as TargetType,
-        title: "Giảm cân",
-        desc: "Giảm mỡ thừa, đạt cân nặng lý tưởng",
-        icon: "⬇️"
+        key: 'lose' as TargetType,
+        title: 'Giảm cân',
+        desc: 'Giảm mỡ thừa, đạt cân nặng lý tưởng',
+        icon: '⬇️',
       },
       {
-        key: "gain" as TargetType,
-        title: "Tăng cân",
-        desc: "Tăng cân lành mạnh, cải thiện thể trạng",
-        icon: "⬆️"
+        key: 'gain' as TargetType,
+        title: 'Tăng cân',
+        desc: 'Tăng cân lành mạnh, cải thiện thể trạng',
+        icon: '⬆️',
       },
       {
-        key: "maintain" as TargetType,
-        title: "Duy trì cân nặng",
-        desc: "Giữ cân nặng hiện tại, sống khỏe mạnh",
-        icon: "⚖️"
-      }
+        key: 'maintain' as TargetType,
+        title: 'Duy trì cân nặng',
+        desc: 'Giữ cân nặng hiện tại, sống khỏe mạnh',
+        icon: '⚖️',
+      },
     ],
-    []
+    [],
   );
 
   const onSelect = (key: TargetType) => {
@@ -45,12 +42,12 @@ export const StepTargetScreen = () => {
   };
 
   return (
-    <WizardFrame 
-      title="Mục Tiêu Của Bạn?" 
+    <WizardFrame
+      title="Mục Tiêu Của Bạn?"
       subtitle="Chọn mục tiêu chính để chúng tôi đề xuất kế hoạch phù hợp"
     >
       <View style={styles.group}>
-        {options.map((opt) => {
+        {options.map(opt => {
           const selected = form.target === opt.key;
           return (
             <Pressable
@@ -66,16 +63,18 @@ export const StepTargetScreen = () => {
             >
               <View style={styles.cardContent}>
                 <Text style={styles.icon}>{opt.icon}</Text>
-                
+
                 <View style={styles.textContainer}>
-                  <Text style={[styles.title, selected && styles.titleSelected]}>
+                  <Text
+                    style={[styles.title, selected && styles.titleSelected]}
+                  >
                     {opt.title}
                   </Text>
                   <Text style={[styles.desc, selected && styles.descSelected]}>
                     {opt.desc}
                   </Text>
                 </View>
-                
+
                 {selected && (
                   <View style={styles.selectedIndicator}>
                     <Text style={styles.checkmark}>✓</Text>
@@ -93,7 +92,7 @@ export const StepTargetScreen = () => {
 /* ============= Styles ============= */
 const styles = StyleSheet.create({
   group: {
-    width: "100%",
+    width: '100%',
     gap: 12,
   },
   card: {
@@ -102,9 +101,9 @@ const styles = StyleSheet.create({
     borderColor: colors.slate200,
     borderRadius: 16,
     padding: 16,
-    
+
     // Shadow
-    shadowColor: "#000",
+    shadowColor: '#000',
     shadowOpacity: 0.05,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,
@@ -119,11 +118,11 @@ const styles = StyleSheet.create({
   },
   cardPressed: {
     transform: [{ scale: 0.99 }],
-    opacity: Platform.OS === "ios" ? 0.9 : 1,
+    opacity: Platform.OS === 'ios' ? 0.9 : 1,
   },
   cardContent: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
   },
   icon: {
@@ -135,12 +134,12 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: '600',
     color: colors.slate800,
   },
   titleSelected: {
     color: colors.emerald800,
-    fontWeight: "700",
+    fontWeight: '700',
   },
   desc: {
     fontSize: 13.5,
@@ -155,13 +154,13 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     backgroundColor: colors.green,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   checkmark: {
     color: colors.white,
     fontSize: 14,
-    fontWeight: "bold",
+    fontWeight: 'bold',
   },
 });
 

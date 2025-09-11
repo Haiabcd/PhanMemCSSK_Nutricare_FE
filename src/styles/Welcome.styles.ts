@@ -1,58 +1,40 @@
-import { StyleSheet, Dimensions } from "react-native";
-import { colors } from "../constants/colors";
-import { fontFamilies } from "../constants/fontFamilies";
-const { width, height } = Dimensions.get("window");
+import { Dimensions, StyleSheet } from "react-native";
+import { colors as C } from '../constants/colors';
 
-export const styles = StyleSheet.create({
-    //--------------Background--------------//
+export const { width, height } = Dimensions.get('window');
+
+export const s = StyleSheet.create({
     bgList: {
-        ...StyleSheet.absoluteFillObject,
-        zIndex: 0,
+      ...StyleSheet.absoluteFillObject,
     },
     bgImage: {
-        width,
-        height,
+      width,
+      height,
     },
-    //--------------Top--------------//
-    top: {
-        flex: 4,
-        zIndex: 2,
-        marginTop: 50,
-        alignItems: "center",
-    },
-
     title: {
-        textAlign: "center",
-        marginTop: 15,
+      marginTop: 8,
     },
-    //--------------Bottom (buttons)--------------//
     bottom: {
-        flex: 2,
-        zIndex: 2,
-        width: "100%",
-        justifyContent: "space-around",
-        paddingBottom: 20,
+      position: 'absolute',
+      left: 16,
+      right: 16,
+      bottom: 24,
     },
-
-    btnStart: {
-        backgroundColor: colors.greenLight,
+    btnPrimary: {
+      backgroundColor: C.primary,
     },
-    labelStart: {
-        color: colors.textWhite,
-        fontFamily: fontFamilies.bold
-    },
-    textOr: {
-        alignSelf: "center",
+    btnPrimaryLabel: {
+      color: C.onPrimary,
     },
     termsText: {
-        textAlign: "center",
-        color: colors.textWhite,
-        fontSize: 15,
-        fontFamily: fontFamilies.regular
+      color: C.textWhite,
+      textAlign: 'center',
+      marginTop: 8,
     },
     termsLink: {
-        color: colors.blue,
-        textDecorationLine: "underline"
-    }
-    
-});
+      textDecorationLine: 'underline',
+      fontWeight: '700',
+      color: C.blue,
+    },
+  });
+  

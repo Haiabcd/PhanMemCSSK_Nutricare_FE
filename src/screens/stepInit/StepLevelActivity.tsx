@@ -11,7 +11,7 @@ type ActivityLevel =
   | 'VeryActive'
   | 'ExtremelyActive';
 
-export const StepLevelActivityScreen = () => {
+const StepLevelActivityScreen = () => {
   const { form, updateForm } = useWizard();
 
   const options = React.useMemo(
@@ -20,34 +20,34 @@ export const StepLevelActivityScreen = () => {
         key: 'Sedentary' as ActivityLevel,
         title: 'Ít vận động',
         desc: 'Công việc văn phòng, di chuyển ít, ít hoặc không tập thể dục.',
-        icon: '💺'
+        icon: '💺',
       },
       {
         key: 'LightlyActive' as ActivityLevel,
         title: 'Hoạt động nhẹ',
         desc: 'Công việc có di chuyển nhẹ nhàng, tập thể dục 1-3 lần/tuần.',
-        icon: '🚶'
+        icon: '🚶',
       },
       {
         key: 'ModeratelyActive' as ActivityLevel,
         title: 'Hoạt động trung bình',
         desc: 'Công việc đòi hỏi vận động, tập thể dục 3-5 lần/tuần.',
-        icon: '🏃'
+        icon: '🏃',
       },
       {
         key: 'VeryActive' as ActivityLevel,
         title: 'Hoạt động tích cực',
         desc: 'Công việc thể chất hoặc tập luyện cường độ cao 6-7 lần/tuần.',
-        icon: '💪'
+        icon: '💪',
       },
       {
         key: 'ExtremelyActive' as ActivityLevel,
         title: 'Hoạt động cực cao',
         desc: 'Vận động viên hoặc lao động chân tay nặng nhọc, tập luyện 2+ lần/ngày.',
-        icon: '🔥'
+        icon: '🔥',
       },
     ],
-    []
+    [],
   );
 
   const onSelect = (key: ActivityLevel) => {
@@ -58,12 +58,12 @@ export const StepLevelActivityScreen = () => {
   };
 
   return (
-    <WizardFrame 
-      title="Mức Độ Hoạt Động Của Bạn?" 
+    <WizardFrame
+      title="Mức Độ Hoạt Động Của Bạn?"
       subtitle="Chia sẻ lối sống năng động của bạn để nhận kế hoạch dinh dưỡng được cá nhân hóa"
     >
       <View style={styles.group}>
-        {options.map((opt) => {
+        {options.map(opt => {
           const selected = form.activityLevel === opt.key;
           return (
             <Pressable
@@ -79,16 +79,18 @@ export const StepLevelActivityScreen = () => {
             >
               <View style={styles.cardContent}>
                 <Text style={styles.icon}>{opt.icon}</Text>
-                
+
                 <View style={styles.textContainer}>
-                  <Text style={[styles.title, selected && styles.titleSelected]}>
+                  <Text
+                    style={[styles.title, selected && styles.titleSelected]}
+                  >
                     {opt.title}
                   </Text>
                   <Text style={[styles.desc, selected && styles.descSelected]}>
                     {opt.desc}
                   </Text>
                 </View>
-                
+
                 {selected && (
                   <View style={styles.selectedIndicator}>
                     <Text style={styles.checkmark}>✓</Text>
@@ -104,7 +106,7 @@ export const StepLevelActivityScreen = () => {
 };
 
 /* ============= Styles ============= */
-const { green, white} = colors;
+const { green, white } = colors;
 
 const styles = StyleSheet.create({
   group: {
@@ -117,7 +119,7 @@ const styles = StyleSheet.create({
     borderColor: '#F1F5F9',
     borderRadius: 16,
     padding: 16,
-    
+
     // Shadow
     shadowColor: '#000',
     shadowOpacity: 0.05,
@@ -152,7 +154,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: '600',
-    color: "#1e293b",
+    color: '#1e293b',
     letterSpacing: 0.15,
   },
   titleSelected: {
@@ -162,7 +164,7 @@ const styles = StyleSheet.create({
   desc: {
     fontSize: 13.5,
     lineHeight: 18,
-    color: "#64748b",
+    color: '#64748b',
     fontWeight: '400',
   },
   descSelected: {
@@ -183,3 +185,5 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
+
+export default StepLevelActivityScreen;
