@@ -130,87 +130,114 @@ export default function NutritionGuide() {
         });
     }, [active, q]);
 
-    // ---- 2 cột: không tràn ----
-    const H_PADDING = 12;
-    const GUTTER = 12;
-    const cardWidth = Math.floor((screenW - H_PADDING * 2 - GUTTER) / 2);
+    // ---- 2 cột: kích thước an toàn, KHÔNG tràn ----
+    const H_PADDING = 12;                          // padding ngang duy nhất (ở FlatList)
+    const GUTTER = 12;                             // khoảng cách giữa 2 cột
+    const listW = Math.max(0, screenW - H_PADDING * 2);
+    const cardWidth = Math.floor((listW - GUTTER) / 2);
+    const thumbH = Math.round(cardWidth * 0.62);   // tỉ lệ ảnh ~16:10
 
     return (
-        <Container>
-            <View style={styles.container}>
-                {/* Header */}
-                <View style={styles.header}>
-                    <Text style={styles.headerTitle}>Hướng Dẫn Dinh Dưỡng</Text>
-                </View>
-
-                {/* Search */}
-                <View style={styles.searchWrap}>
-                    <Ionicons name="search" size={18} color="#64748b" />
-                    <TextInput
-                        placeholder="Tìm kiếm nội dung..."
-                        placeholderTextColor="#94a3b8"
-                        value={q}
-                        onChangeText={setQ}
-                        style={styles.searchInput}
-                    />
-                    {q ? (
-                        <Pressable onPress={() => setQ('')} hitSlop={8}>
-                            <Ionicons name="close-circle" size={18} color="#94a3b8" />
-                        </Pressable>
-                    ) : (
-                        <Ionicons name="mic-outline" size={18} color="#94a3b8" />
-                    )}
-                </View>
-
-                {/* Filters */}
-                <View style={styles.filters}>
-                    {FILTERS.map((f) => {
-                        const isActive = active === f.key;
-                        return (
-                            <Pressable
-                                key={f.key}
-                                style={[styles.chip, isActive && styles.chipActive]}
-                                onPress={() => setActive(f.key)}
-                            >
-                                <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
-                                    {f.label}
-                                </Text>
-                            </Pressable>
-                        );
-                    })}
-                </View>
-
-                {/* List 2 cột */}
-                <FlatList
-                    data={filtered}
-                    keyExtractor={(it) => it.id}
-                    numColumns={2}
-                    renderItem={({ item }) => <Card item={item} cardWidth={cardWidth} />}
-                    columnWrapperStyle={{
-                        justifyContent: 'space-between',
-                        paddingHorizontal: H_PADDING,
-                    }}
-                    contentContainerStyle={{ paddingBottom: 24, paddingHorizontal: H_PADDING }}
-                    ItemSeparatorComponent={() => <View style={{ height: GUTTER }} />}
-                    showsVerticalScrollIndicator={false}
-                />
-
-                {/* Chat tròn kéo thả */}
-                <FloatingChat screenW={screenW} screenH={screenH} />
+        <View style={styles.container}>
+            {/* Header */}
+            <View style={styles.header}>
+                <Text style={styles.headerTitle}>Hướng Dẫn Dinh Dưỡng</Text>
             </View>
-        </Container>
+
+            {/* Search */}
+            <View style={styles.searchWrap}>
+                <Ionicons name="search" size={18} color="#64748b" />
+                <TextInput
+                    placeholder="Tìm kiếm nội dung..."
+                    placeholderTextColor="#94a3b8"
+                    value={q}
+                    onChangeText={setQ}
+                    style={styles.searchInput}
+                />
+                {q ? (
+                    <Pressable onPress={() => setQ('')} hitSlop={8}>
+                        <Ionicons name="close-circle" size={18} color="#94a3b8" />
+                    </Pressable>
+                ) : (
+                    <Ionicons name="mic-outline" size={18} color="#94a3b8" />
+                )}
+            </View>
+
+            {/* Filters */}
+            <View style={styles.filters}>
+                {FILTERS.map((f) => {
+                    const isActive = active === f.key;
+                    return (
+                        <Pressable
+                            key={f.key}
+                            style={[styles.chip, isActive && styles.chipActive]}
+                            onPress={() => setActive(f.key)}
+                        >
+                            <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
+                                {f.label}
+                            </Text>
+                        </Pressable>
+                    );
+                })}
+            </View>
+
+            {/* List 2 cột */}
+            <FlatList
+                data={filtered}
+                keyExtractor={(it) => it.id}
+                numColumns={2}
+                renderItem={({ item, index }) => (
+                    <Card
+                        item={item}
+                        cardWidth={cardWidth}
+                        thumbH={thumbH}
+                        isLeft={index % 2 === 0}
+                        gutter={GUTTER}
+                    />
+                )}
+                // Padding NGANG duy nhất ở đây (KHÔNG để ở columnWrapperStyle)
+                contentContainerStyle={{ paddingHorizontal: H_PADDING, paddingBottom: 24 }}
+                // Không dùng space-between để tránh giãn sai khi làm tròn
+                columnWrapperStyle={{}}
+                ItemSeparatorComponent={() => <View style={{ height: GUTTER }} />}
+                showsVerticalScrollIndicator={false}
+            />
+
+            {/* Chat tròn kéo thả */}
+            <FloatingChat screenW={screenW} screenH={screenH} />
+        </View>
     );
 }
 
-function Card({ item, cardWidth }: { item: Item; cardWidth: number }) {
+function Card({
+    item,
+    cardWidth,
+    thumbH,
+    isLeft,
+    gutter,
+}: {
+    item: Item;
+    cardWidth: number;
+    thumbH: number;
+    isLeft: boolean;
+    gutter: number;
+}) {
     const kindLabel =
         item.kind === 'meal' ? 'Món ăn' : item.kind === 'article' ? 'Bài báo' : 'Video';
-    const thumbH = Math.round(cardWidth * 0.62);
 
     return (
-        <View style={[styles.card, { width: cardWidth }]}>
+        <View
+            style={[
+                styles.card,
+                {
+                    width: cardWidth,
+                    marginRight: isLeft ? gutter : 0, // tạo khoảng cách giữa 2 cột
+                    flexShrink: 0,
+                },
+            ]}
+        >
             <View style={[styles.thumbWrap, { height: thumbH }]}>
-                <Image source={{ uri: item.image }} style={styles.thumb} />
+                <Image source={{ uri: item.image }} style={styles.thumb} resizeMode="cover" />
                 <View style={styles.badge}>
                     <Text style={styles.badgeText}>{kindLabel}</Text>
                 </View>

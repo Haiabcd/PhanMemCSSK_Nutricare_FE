@@ -5,11 +5,13 @@ import MealPlan from "../screens/MealPlan";
 import Suggestion from "../screens/Suggestion";
 import Profile from "../screens/Profile";
 import Guide from "../screens/Guide";
+import Track from "../screens/Track";
 
 
 export type MainTabParamList = {
     MealPlan: undefined;
     Suggestions: undefined;
+    Track: undefined;
     Guide: undefined;
     Profile: undefined;
 };
@@ -52,6 +54,7 @@ export default function BottomTabsNavigator() {
         >
             <Tab.Screen name="MealPlan" component={MealPlan} options={{ title: "Meal Plan" }} />
             <Tab.Screen name="Suggestions" component={Suggestion} options={{ title: "Suggestions" }} />
+            <Tab.Screen name="Track" component={Track} options={{ title: "Track" }} />
             <Tab.Screen name="Guide" component={Guide} options={{ title: "Guide" }} />
             <Tab.Screen name="Profile" component={Profile} options={{ title: "Profile" }} />
         </Tab.Navigator>
