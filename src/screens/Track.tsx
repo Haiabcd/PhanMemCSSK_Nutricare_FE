@@ -8,8 +8,10 @@ import {
     TextInput,
     ScrollView,
     ActivityIndicator,
+    Platform, // 👈 thêm Platform
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
+import Container from "../components/Container";
 
 type TabKey = "scan" | "manual" | "history";
 type MealType = "Sáng" | "Trưa" | "Tối" | "Phụ";
@@ -72,178 +74,191 @@ export default function Track() {
     };
 
     return (
-        <View style={styles.screen}>
-            <ScrollView
-                contentContainerStyle={{ padding: 16, alignItems: "center" }}
-                showsVerticalScrollIndicator={false}
-            >
-                <Text style={styles.title}>Theo dõi bữa ăn</Text>
-                <Text style={styles.subtitle}>
-                    Quản lý bữa ăn hàng ngày của bạn một cách hiện đại và tiện lợi
-                </Text>
-
-                {/* Date with calendar icon + stepper */}
-                <View style={styles.dateRow}>
-                    <Pressable style={styles.stepBtn} onPress={() => add("d", -1)}>
-                        <Text style={styles.stepText}>◀</Text>
-                    </Pressable>
-                    <View style={styles.dateField}>
-                        <Text style={styles.dateText}>{fmt(date)}</Text>
-                        <Image
-                            source={{ uri: "https://cdn-icons-png.flaticon.com/512/747/747310.png" }}
-                            style={styles.calendarIcon}
-                        />
-                    </View>
-                    <Pressable style={styles.stepBtn} onPress={() => add("d", +1)}>
-                        <Text style={styles.stepText}>▶</Text>
-                    </Pressable>
+        <Container>
+            <View style={styles.screen}>
+                {/* ===== Header (giống kích thước giao diện trước) ===== */}
+                <View style={styles.header}>
+                    <Text style={styles.headerTitle}>Theo dõi bữa ăn</Text>
+                    <Text style={styles.headerSub}>
+                        Quản lý bữa ăn hàng ngày của bạn một cách hiện đại và tiện lợi
+                    </Text>
                 </View>
 
-                {/* Tabs */}
-                <View style={styles.tabs}>
-                    <Tab label="Scan AI" active={tab === "scan"} onPress={() => setTab("scan")} />
-                    <Tab label="Nhập thủ công" active={tab === "manual"} onPress={() => setTab("manual")} />
-                    <Tab label="Xem lịch sử" active={tab === "history"} onPress={() => setTab("history")} />
-                </View>
-
-                {/* SCAN */}
-                {tab === "scan" && (
-                    <View style={styles.card}>
-                        <Text style={styles.sectionTitle}>Nhập bữa ăn bằng AI</Text>
-                        <Image
-                            source={{
-                                uri: "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/98fb941f-eb1e-49d6-9c4c-7235d38840a5.png",
-                            }}
-                            style={styles.scanImage}
-                        />
-                        <Pressable
-                            style={[styles.successBtn, isScanning && { opacity: 0.6 }]}
-                            onPress={handleScan}
-                            disabled={isScanning}
-                        >
-                            <Text style={styles.successText}>
-                                {isScanning ? "Đang quét..." : "Quét Scan"}
-                            </Text>
-                        </Pressable>
-
-                        {/* Đang quét */}
-                        {isScanning && (
-                            <View style={styles.scanningBox}>
-                                <ActivityIndicator size="large" />
-                                <Text style={styles.scanHint}>Đang phân tích hình ảnh...</Text>
+                {/* Nội dung cuộn */}
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                >
+                    <View style={styles.inner}>
+                        {/* Date with calendar icon + stepper */}
+                        <View style={styles.dateRow}>
+                            <Pressable style={styles.stepBtn} onPress={() => add("d", -1)}>
+                                <Text style={styles.stepText}>◀</Text>
+                            </Pressable>
+                            <View style={styles.dateField}>
+                                <Text style={styles.dateText}>{fmt(date)}</Text>
+                                <Image
+                                    source={{ uri: "https://cdn-icons-png.flaticon.com/512/747/747310.png" }}
+                                    style={styles.calendarIcon}
+                                />
                             </View>
-                        )}
+                            <Pressable style={styles.stepBtn} onPress={() => add("d", +1)}>
+                                <Text style={styles.stepText}>▶</Text>
+                            </Pressable>
+                        </View>
 
-                        {/* Kết quả sau khi quét */}
-                        {showResult && !isScanning && (
-                            <View style={styles.resultBox}>
-                                <Text style={styles.resultTitle}>Kết quả từ AI:</Text>
-                                <Row label="Tên" value="Bữa ăn từ Scan AI" />
-                                <Row label="Calo" value="514 kcal" />
-                                <Row label="Protein" value="27 g" />
-                                <Row label="Carbs" value="35 g" />
-                                <Row label="Fat" value="21 g" />
+                        {/* Tabs */}
+                        <View style={styles.tabs}>
+                            <Tab label="Scan AI" active={tab === "scan"} onPress={() => setTab("scan")} />
+                            <Tab label="Nhập thủ công" active={tab === "manual"} onPress={() => setTab("manual")} />
+                            <Tab label="Xem lịch sử" active={tab === "history"} onPress={() => setTab("history")} />
+                        </View>
 
-                                {/* 👇 ComboBox (Picker) thay cho chip */}
-                                <Text style={[styles.label, { marginTop: 8, marginBottom: 6 }]}>
-                                    Loại bữa:
-                                </Text>
-                                <View style={styles.pickerWrap}>
-                                    <Picker
-                                        selectedValue={mealType}
-                                        onValueChange={(v) => setMealType(v as MealType)}
-                                        style={styles.picker}
-                                    >
-                                        <Picker.Item label="Sáng" value="Sáng" />
-                                        <Picker.Item label="Trưa" value="Trưa" />
-                                        <Picker.Item label="Tối" value="Tối" />
-                                        <Picker.Item label="Phụ" value="Phụ" />
-                                    </Picker>
-                                </View>
-
-                                <Pressable style={[styles.primaryBtn, { marginTop: 10, alignSelf: "center" }]}>
-                                    <Text style={styles.primaryText}>Lưu bữa ăn</Text>
+                        {/* SCAN */}
+                        {tab === "scan" && (
+                            <View style={styles.card}>
+                                <Text style={styles.sectionTitle}>Nhập bữa ăn bằng AI</Text>
+                                <Image
+                                    source={{
+                                        uri: "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/98fb941f-eb1e-49d6-9c4c-7235d38840a5.png",
+                                    }}
+                                    style={styles.scanImage}
+                                />
+                                <Pressable
+                                    style={[styles.successBtn, isScanning && { opacity: 0.6 }]}
+                                    onPress={handleScan}
+                                    disabled={isScanning}
+                                >
+                                    <Text style={styles.successText}>
+                                        {isScanning ? "Đang quét..." : "Quét Scan"}
+                                    </Text>
                                 </Pressable>
-                            </View>
-                        )}
-                    </View>
-                )}
 
-                {/* MANUAL (UI) */}
-                {tab === "manual" && (
-                    <View style={styles.card}>
-                        <Text style={styles.sectionTitle}>Nhập bữa ăn thủ công</Text>
+                                {/* Đang quét */}
+                                {isScanning && (
+                                    <View style={styles.scanningBox}>
+                                        <ActivityIndicator size="large" />
+                                        <Text style={styles.scanHint}>Đang phân tích hình ảnh...</Text>
+                                    </View>
+                                )}
 
-                        <Pressable style={styles.selectBox}>
-                            <Text style={styles.placeholderText}>Chọn từ danh sách</Text>
-                            <Text style={styles.caret}>▾</Text>
-                        </Pressable>
+                                {/* Kết quả sau khi quét */}
+                                {showResult && !isScanning && (
+                                    <View style={styles.resultBox}>
+                                        <Text style={styles.resultTitle}>Kết quả từ AI:</Text>
+                                        <Row label="Tên" value="Bữa ăn từ Scan AI" />
+                                        <Row label="Calo" value="514 kcal" />
+                                        <Row label="Protein" value="27 g" />
+                                        <Row label="Carbs" value="35 g" />
+                                        <Row label="Fat" value="21 g" />
 
-                        <TextInput placeholder="Hoặc nhập tên bữa ăn tuỳ ý" style={styles.input} />
-                        <TextInput placeholder="Calo (kcal)" style={styles.input} keyboardType="numeric" />
-                        <TextInput placeholder="Protein (g)" style={styles.input} keyboardType="numeric" />
-                        <TextInput placeholder="Carbs (g)" style={styles.input} keyboardType="numeric" />
-                        <TextInput placeholder="Fat (g)" style={styles.input} keyboardType="numeric" />
-
-                        <Pressable style={styles.selectBox}>
-                            <Text style={styles.placeholderText}>{mealType}</Text>
-                            <Text style={styles.caret}>▾</Text>
-                        </Pressable>
-
-                        <Text style={styles.blockLabel}>Nguyên liệu</Text>
-                        {ings.map((_, idx) => (
-                            <View key={idx} style={styles.ingRow}>
-                                <TextInput placeholder="Tên nguyên liệu" style={[styles.input, styles.ingName]} />
-                                <TextInput placeholder="Số lượng" style={[styles.input, styles.ingQty]} />
-                                <Pressable style={styles.removeBtn} onPress={() => delIng(idx)}>
-                                    <Text style={{ color: "#ef4444", fontWeight: "700" }}>×</Text>
-                                </Pressable>
-                            </View>
-                        ))}
-                        <Pressable style={styles.ghostBtn} onPress={addIng}>
-                            <Text style={styles.ghostBtnText}>+ Thêm nguyên liệu</Text>
-                        </Pressable>
-
-                        <Pressable style={[styles.primaryBtn, { alignSelf: "center" }]}>
-                            <Text style={styles.primaryText}>Thêm bữa ăn</Text>
-                        </Pressable>
-                    </View>
-                )}
-
-                {/* HISTORY (grouped like before) */}
-                {tab === "history" && (
-                    <View style={{ width: "100%" }}>
-                        <Text style={styles.sectionTitle}>Lịch sử bữa ăn</Text>
-                        {(Object.keys(historyData) as MealType[]).map((type) => (
-                            <View key={type} style={{ marginBottom: 16 }}>
-                                <Text style={styles.groupHeader}>{type}</Text>
-                                {historyData[type].map((m, i) => (
-                                    <View key={i} style={styles.historyCard}>
-                                        <Text style={styles.mealName}>{m.name}</Text>
-                                        <Text>
-                                            Calo: {m.cal} kcal, Protein: {m.p}g, Carbs: {m.c}g, Fat: {m.f}g
+                                        {/* ComboBox (Picker) */}
+                                        <Text style={[styles.label, { marginTop: 8, marginBottom: 6 }]}>
+                                            Loại bữa:
                                         </Text>
-                                        {m.ings?.length ? (
-                                            <Text style={{ marginTop: 4 }}>
-                                                <Text style={{ fontWeight: "700" }}>Nguyên liệu:</Text> {m.ings.join(", ")}
-                                            </Text>
-                                        ) : null}
-                                        <View style={styles.rowBtns}>
-                                            <Pressable style={styles.badgeYellow}>
-                                                <Text style={styles.badgeText}>Sửa (demo)</Text>
-                                            </Pressable>
-                                            <Pressable style={styles.badgeRed}>
-                                                <Text style={styles.badgeText}>Xóa (demo)</Text>
-                                            </Pressable>
+                                        <View style={styles.pickerWrap}>
+                                            <Picker
+                                                selectedValue={mealType}
+                                                onValueChange={(v) => setMealType(v as MealType)}
+                                                style={styles.picker}
+                                                // 👇 giữ text rõ ràng trên iOS, Android
+                                                itemStyle={Platform.OS === "ios" ? { color: "#111827", fontSize: 16 } : undefined}
+                                                {...(Platform.OS === "android"
+                                                    ? { mode: "dropdown", dropdownIconColor: "#6b7280" }
+                                                    : {})}
+                                            >
+                                                <Picker.Item label="Sáng" value="Sáng" />
+                                                <Picker.Item label="Trưa" value="Trưa" />
+                                                <Picker.Item label="Tối" value="Tối" />
+                                                <Picker.Item label="Phụ" value="Phụ" />
+                                            </Picker>
                                         </View>
+
+                                        <Pressable style={[styles.primaryBtn, { marginTop: 10, alignSelf: "center" }]}>
+                                            <Text style={styles.primaryText}>Lưu bữa ăn</Text>
+                                        </Pressable>
+                                    </View>
+                                )}
+                            </View>
+                        )}
+
+                        {/* MANUAL (UI) */}
+                        {tab === "manual" && (
+                            <View style={styles.card}>
+                                <Text style={styles.sectionTitle}>Nhập bữa ăn thủ công</Text>
+
+                                <Pressable style={styles.selectBox}>
+                                    <Text style={styles.placeholderText}>Chọn từ danh sách</Text>
+                                    <Text style={styles.caret}>▾</Text>
+                                </Pressable>
+
+                                <TextInput placeholder="Hoặc nhập tên bữa ăn tuỳ ý" style={styles.input} />
+                                <TextInput placeholder="Calo (kcal)" style={styles.input} keyboardType="numeric" />
+                                <TextInput placeholder="Protein (g)" style={styles.input} keyboardType="numeric" />
+                                <TextInput placeholder="Carbs (g)" style={styles.input} keyboardType="numeric" />
+                                <TextInput placeholder="Fat (g)" style={styles.input} keyboardType="numeric" />
+
+                                <Pressable style={styles.selectBox}>
+                                    <Text style={styles.placeholderText}>{mealType}</Text>
+                                    <Text style={styles.caret}>▾</Text>
+                                </Pressable>
+
+                                <Text style={styles.blockLabel}>Nguyên liệu</Text>
+                                {ings.map((_, idx) => (
+                                    <View key={idx} style={styles.ingRow}>
+                                        <TextInput placeholder="Tên nguyên liệu" style={[styles.input, styles.ingName]} />
+                                        <TextInput placeholder="Số lượng" style={[styles.input, styles.ingQty]} />
+                                        <Pressable style={styles.removeBtn} onPress={() => delIng(idx)}>
+                                            <Text style={{ color: "#ef4444", fontWeight: "700" }}>×</Text>
+                                        </Pressable>
+                                    </View>
+                                ))}
+                                <Pressable style={styles.ghostBtn} onPress={addIng}>
+                                    <Text style={styles.ghostBtnText}>+ Thêm nguyên liệu</Text>
+                                </Pressable>
+
+                                <Pressable style={[styles.primaryBtn, { alignSelf: "center" }]}>
+                                    <Text style={styles.primaryText}>Thêm bữa ăn</Text>
+                                </Pressable>
+                            </View>
+                        )}
+
+                        {/* HISTORY (grouped) */}
+                        {tab === "history" && (
+                            <View style={{ width: "100%" }}>
+                                <Text style={styles.sectionTitle}>Lịch sử bữa ăn</Text>
+                                {(Object.keys(historyData) as MealType[]).map((type) => (
+                                    <View key={type} style={{ marginBottom: 16 }}>
+                                        <Text style={styles.groupHeader}>{type}</Text>
+                                        {historyData[type].map((m, i) => (
+                                            <View key={i} style={styles.historyCard}>
+                                                <Text style={styles.mealName}>{m.name}</Text>
+                                                <Text>
+                                                    Calo: {m.cal} kcal, Protein: {m.p}g, Carbs: {m.c}g, Fat: {m.f}g
+                                                </Text>
+                                                {m.ings?.length ? (
+                                                    <Text style={{ marginTop: 4 }}>
+                                                        <Text style={{ fontWeight: "700" }}>Nguyên liệu:</Text> {m.ings.join(", ")}
+                                                    </Text>
+                                                ) : null}
+                                                <View style={styles.rowBtns}>
+                                                    <Pressable style={styles.badgeYellow}>
+                                                        <Text style={styles.badgeText}>Sửa (demo)</Text>
+                                                    </Pressable>
+                                                    <Pressable style={styles.badgeRed}>
+                                                        <Text style={styles.badgeText}>Xóa (demo)</Text>
+                                                    </Pressable>
+                                                </View>
+                                            </View>
+                                        ))}
                                     </View>
                                 ))}
                             </View>
-                        ))}
+                        )}
                     </View>
-                )}
-            </ScrollView>
-        </View>
+                </ScrollView>
+            </View>
+        </Container>
     );
 }
 
@@ -261,9 +276,7 @@ const Tab = ({
         onPress={onPress}
         style={[styles.tabBtn, { backgroundColor: active ? "#3b82f6" : "#e5e7eb" }]}
     >
-        <Text style={{ color: active ? "#fff" : "#111827", fontWeight: "600" }}>
-            {label}
-        </Text>
+        <Text style={{ color: active ? "#fff" : "#111827", fontWeight: "600" }}>{label}</Text>
     </Pressable>
 );
 
@@ -276,9 +289,26 @@ const Row = ({ label, value }: { label: string; value: string }) => (
 
 /* styles */
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: "#EEF2FF" },
-    title: { fontSize: 26, fontWeight: "800", color: "#4f46e5", marginTop: 4 },
-    subtitle: { color: "#6b7280", marginBottom: 12, textAlign: "center" },
+    header: {
+        backgroundColor: 'transparent',
+        paddingTop: 14,
+        paddingBottom: 14,
+        paddingHorizontal: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#e5efe8',
+        marginTop: 20,
+    },
+    headerTitle: {
+        color: '#0f172a',
+        fontSize: 20,
+        fontWeight: '800',
+        letterSpacing: 0.1,
+    },
+    headerSub: { color: '#6b7280', fontSize: 13, marginTop: 2 },
+
+    /* Scroll content */
+    scrollContent: { paddingBottom: 20 },
+    inner: { paddingHorizontal: 16, paddingTop: 10, alignItems: "center" },
 
     dateRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 },
     stepBtn: {
@@ -393,14 +423,38 @@ const styles = StyleSheet.create({
     label: { color: "#6b7280" },
     value: { fontWeight: "600" },
 
-    // Picker style
+    // Picker
     pickerWrap: {
         borderWidth: 1,
         borderColor: "#e5e7eb",
         borderRadius: 10,
-        overflow: "hidden",
+        backgroundColor: "#fff",
+        // tránh cắt nội dung trên iOS (wheel), giữ dropdown Android gọn gàng
+        overflow: Platform.OS === "android" ? "hidden" : "visible",
+        justifyContent: "center",
+        minHeight: 44,
+        paddingLeft: Platform.OS === "android" ? 4 : 0,
+        paddingRight: Platform.OS === "android" ? 4 : 0,
     },
-    picker: { height: 44, width: "100%" },
+    picker: Platform.select({
+        android: {
+            height: 44,
+            width: "100%",
+            color: "#111827",
+            paddingLeft: 8,
+            paddingRight: 36, // chừa chỗ cho icon mũi tên
+        },
+        ios: {
+            height: 44,
+            width: "100%",
+            color: "#111827",
+        },
+        default: {
+            height: 44,
+            width: "100%",
+            color: "#111827",
+        },
+    }) as any,
 
     // History (grouped)
     groupHeader: {
@@ -434,4 +488,15 @@ const styles = StyleSheet.create({
         borderRadius: 8,
     },
     badgeText: { color: "#fff", fontWeight: "700" },
+
+    // (tuỳ chọn) nút thêm nguyên liệu dạng ghost
+    ghostBtn: {
+        alignSelf: "flex-start",
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        borderRadius: 8,
+        backgroundColor: "#f1f5f9",
+        marginBottom: 10,
+    },
+    ghostBtnText: { color: "#0f172a", fontWeight: "700" },
 });
