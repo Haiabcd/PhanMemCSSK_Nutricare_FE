@@ -36,5 +36,7 @@ export const s = StyleSheet.create({
       fontWeight: '700',
       color: C.blue,
     },
+
+  
   });
   

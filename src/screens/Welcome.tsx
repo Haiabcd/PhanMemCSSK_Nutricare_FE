@@ -1,81 +1,37 @@
 // Welcome.tsx
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Image, FlatList, StatusBar, Text } from 'react-native';
-import { colors as C, colors } from '../constants/colors';
-
-import Container from '../components/Container';
+import React from 'react';
+import { View, Image, StatusBar, Text } from 'react-native';
+import { colors as C } from '../constants/colors';
 import BounceButton from '../components/Welcome/BounceButton';
 import TextComponent from '../components/TextComponent';
 import ViewComponent from '../components/ViewComponent';
-
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
-import { s, width } from '../styles/Welcome.styles';
+import { s } from '../styles/Welcome.styles';
 
-//------------List Image------------//
-const IMAGES = [
-  require('../assets/images/Welcome/Welcome1.png'),
-  require('../assets/images/Welcome/Welcome2.jpg'),
-  require('../assets/images/Welcome/Welcome3.png'),
-  require('../assets/images/Welcome/Welcome4.jpg'),
-];
-//------------Image Transfer Time ------------//
-const AUTO_PLAY_MS = 3000;
+// ======= ẢNH NỀN DUY NHẤT =======
+const BG_IMAGE = require('../assets/images/Welcome/Welcome1.png');
 
 const Welcome = () => {
-  const listRef = useRef<FlatList<number>>(null);
-  const [index, setIndex] = useState(0);
-  const DATA = useMemo(() => IMAGES.map((_, i) => i), []);
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
-  // Auto play slider
-  useEffect(() => {
-    const id = setInterval(() => {
-      const next = (index + 1) % DATA.length;
-      listRef.current?.scrollToOffset({ offset: next * width, animated: true });
-      setIndex(next);
-    }, AUTO_PLAY_MS);
-    return () => clearInterval(id);
-  }, [index, DATA.length]);
-
   return (
-    <Container>
+    <View>
       <StatusBar
         translucent
         backgroundColor="transparent"
         barStyle="light-content"
       />
 
-      {/* Background slider */}
-      <FlatList
-        ref={listRef}
-        data={DATA}
-        keyExtractor={i => String(i)}
-        renderItem={({ item }) => (
-          <Image source={IMAGES[item]} style={s.bgImage} resizeMode="cover" />
-        )}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        scrollEnabled={false}
-        getItemLayout={(_, i) => ({
-          length: width,
-          offset: width * i,
-          index: i,
-        })}
-        onMomentumScrollEnd={e => {
-          const newIndex = Math.round(e.nativeEvent.contentOffset.x / width);
-          setIndex(newIndex);
-        }}
-        style={s.bgList}
-      />
+      {/* Ảnh nền tĩnh (không cuộn) */}
+      <Image source={BG_IMAGE} style={s.bgImage} resizeMode="cover" />
 
       {/* Overlay content */}
-      <View style={s.bgList}>
+      <ViewComponent style={s.bgList} px={15} pt={50}>
         {/* Top brand/title */}
-        <ViewComponent p={16} pt={70} mt={StatusBar.currentHeight ?? 40}>
+        <ViewComponent mt={StatusBar.currentHeight ?? 40}>
           <TextComponent
             text="Nutricare"
             variant="h1"
@@ -95,7 +51,6 @@ const Welcome = () => {
 
         {/* Bottom actions */}
         <ViewComponent style={s.bottom} gap={12}>
-          {/* Bắt đầu ngay */}
           <BounceButton
             label="Bắt đầu ngay"
             containerStyle={[s.btnPrimary]}
@@ -111,14 +66,12 @@ const Welcome = () => {
             align="center"
           />
 
-          {/* Tiếp tục với Google */}
           <BounceButton
             label="Tiếp tục với Google"
             icon="google"
             labelSize={18}
           />
 
-          {/* Tiếp tục với Facebook */}
           <BounceButton
             label="Tiếp tục với Facebook"
             icon="facebook"
@@ -126,7 +79,6 @@ const Welcome = () => {
             labelSize={18}
           />
 
-          {/* Terms */}
           <Text style={s.termsText}>
             Bằng cách tiếp tục, bạn đồng ý với{' '}
             <Text style={s.termsLink}>Điều khoản sử dụng</Text>
@@ -135,8 +87,8 @@ const Welcome = () => {
             {' của chúng tôi'}
           </Text>
         </ViewComponent>
-      </View>
-    </Container>
+      </ViewComponent>
+    </View>
   );
 };
 

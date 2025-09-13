@@ -11,8 +11,7 @@ import StepTargetScreen from '../screens/stepInit/StepTarget';
 import StepLevelActivityScreen from '../screens/stepInit/StepLevelActivity';
 import StepConditionScreen from '../screens/stepInit/StepCondition';
 import StepAllergiesScreen from '../screens/stepInit/StepAllergy';
-import BottomNavigator from './BottomNavigator';
-import { StepDoneScreen } from '../screens/stepInit/StepDone';
+import StepDoneScreen from '../screens/stepInit/StepDone';
 
 export type WizardStackParamList = {
   StepName: undefined;
@@ -25,7 +24,6 @@ export type WizardStackParamList = {
   StepCondition: undefined;
   StepAllergy: undefined;
   Done: undefined;
-  Home: undefined;
 };
 
 const Stack = createNativeStackNavigator<WizardStackParamList>();
@@ -35,7 +33,7 @@ export default function WizardNavigator() {
     <WizardProvider>
       <Stack.Navigator
         screenOptions={{ headerShown: false }}
-        initialRouteName="Home"
+        initialRouteName="StepName"
       >
         <Stack.Screen name="StepName" component={StepNameScreen} />
         <Stack.Screen name="StepGender" component={StepGenderScreen} />
@@ -49,8 +47,7 @@ export default function WizardNavigator() {
           component={StepLevelActivityScreen}
         />
         <Stack.Screen name="StepTarget" component={StepTargetScreen} />
-        {/* <Stack.Screen name="Done" component={StepDoneScreen} /> */}
-        <Stack.Screen name="Home" component={BottomNavigator} />
+        <Stack.Screen name="Done" component={StepDoneScreen} />
       </Stack.Navigator>
     </WizardProvider>
   );

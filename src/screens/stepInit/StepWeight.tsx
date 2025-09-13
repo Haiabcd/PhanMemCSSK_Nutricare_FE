@@ -1,7 +1,3 @@
-// features/WizardScreens.tsx (StepWeightScreen)
-// Clean horizontal ruler — kg only, labels every 10 kg, center green indicator,
-// double-tap readout to input, no Expo deps.
-
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
@@ -20,12 +16,10 @@ import { colors } from '../../constants/colors';
 /* ===== Theme ===== */
 const GREEN = colors?.green ?? '#22C55E';
 const GREEN_DARK = '#16A34A';
-const SLATE_900 = '#0F172A';
 const SLATE_700 = '#334155';
 const SLATE_600 = '#475569';
 const SLATE_500 = '#64748B';
 const SLATE_400 = '#94A3B8';
-const SLATE_300 = colors?.slate200 ?? '#E2E8F0';
 const EMERALD_25 = '#F4FBF7';
 const EMERALD_100 = '#D1FAE5';
 const WHITE = colors?.white ?? '#FFFFFF';
@@ -36,23 +30,21 @@ const KG_MAX = 200;
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const TICK_W = 22; // khoảng cách giữa từng kg
-const PAD = SCREEN_W * 0.5; // để vạch hiện tại nằm giữa màn hình
+const PAD = Math.max(0, SCREEN_W * 0.5 - TICK_W * 0.5); // *** canh giữa đúng tâm vạch ***
 const TICK_H_MINOR = 12;
 const TICK_H_MED = 20;
 const TICK_H_MAJOR = 32;
-const DOUBLE_TAP_MS = 240;
 
 const clamp = (v: number, min: number, max: number) =>
   Math.max(min, Math.min(max, v));
 
 const StepWeightScreen = () => {
-  const { form, setWeightKg } = useWizard(); // đảm bảo context có weightKg & setWeightKg
+  const { form, setWeightKg } = useWizard(); // cần có weightKg & setWeightKg trong context
   const scrollRef = useRef<ScrollView>(null);
   const isScrolling = useRef(false);
   const [initialized, setInitialized] = useState(false);
 
-  // double-tap to edit
-  const lastTapRef = useRef(0);
+  // tap to edit
   const [isEditing, setIsEditing] = useState(false);
   const [inputVal, setInputVal] = useState(String(form.weightKg ?? 60));
   const inputRef = useRef<TextInput>(null);
@@ -65,6 +57,7 @@ const StepWeightScreen = () => {
     const current = clamp(Math.round(form.weightKg ?? 60), KG_MIN, KG_MAX);
     const idx = current - KG_MIN;
     requestAnimationFrame(() => {
+      // Với PAD = SCREEN_W/2 - TICK_W/2, offset idx*TICK_W là tâm vạch ở giữa màn hình
       scrollRef.current?.scrollTo({ x: idx * TICK_W, animated: false });
       setInitialized(true);
     });
@@ -82,7 +75,7 @@ const StepWeightScreen = () => {
     setWeightKg?.(kg);
   };
 
-  /* ===== Double-tap readout ===== */
+  /* ===== Tap readout to edit ===== */
   useEffect(() => {
     if (isEditing) {
       setInputVal(String(form.weightKg ?? 60));
@@ -91,12 +84,11 @@ const StepWeightScreen = () => {
     }
   }, [isEditing, form.weightKg]);
 
-  const onReadoutPress = () => {
-    const now = Date.now();
-    if (now - (lastTapRef.current || 0) < DOUBLE_TAP_MS) {
-      setIsEditing(true);
-    }
-    lastTapRef.current = now;
+  const onReadoutPress = () => setIsEditing(true);
+
+  // Chỉ nhận số 0–3 ký tự
+  const onChangeNumeric = (next: string) => {
+    if (/^\d{0,3}$/.test(next)) setInputVal(next);
   };
 
   const commitInput = () => {
@@ -120,7 +112,6 @@ const StepWeightScreen = () => {
 
       return (
         <View key={kg} style={styles.tickItem}>
-          {/* Vạch hướng lên trên */}
           <View
             style={[
               styles.tickLine,
@@ -129,7 +120,6 @@ const StepWeightScreen = () => {
               isMajor && styles.tickLineMajor,
             ]}
           />
-          {/* Nhãn ở mốc 10kg, đặt phía dưới */}
           {isMajor && (
             <View style={styles.labelWrap}>
               <Text style={styles.labelText}>{kg}</Text>
@@ -143,18 +133,20 @@ const StepWeightScreen = () => {
   return (
     <WizardFrame
       title="Cân Nặng Của Bạn"
-      subtitle="Kéo thước ngang để chọn (kg)"
+      subtitle="Cân nặng (kg) chính xác giúp tính toán nhu cầu dinh dưỡng phù hợp nhất"
     >
       <View style={styles.wrap}>
-        {/* Readout (double-tap để nhập) */}
+        {/* Readout (tap để nhập) */}
         <Pressable onPress={onReadoutPress}>
           <View style={styles.readoutCard}>
             {isEditing ? (
               <TextInput
                 ref={inputRef}
                 value={inputVal}
-                onChangeText={setInputVal}
-                keyboardType="number-pad"
+                onChangeText={onChangeNumeric}
+                keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
+                // @ts-ignore: gợi ý bàn phím numeric nếu RN hỗ trợ
+                inputMode="numeric"
                 returnKeyType="done"
                 onSubmitEditing={commitInput}
                 onBlur={commitInput}
@@ -162,6 +154,7 @@ const StepWeightScreen = () => {
                 selectionColor={GREEN_DARK}
                 placeholder="Nhập kg"
                 style={styles.readoutInput}
+                selectTextOnFocus
               />
             ) : (
               <Text style={styles.readoutText}>{display}</Text>
@@ -172,7 +165,13 @@ const StepWeightScreen = () => {
         {/* Ruler */}
         <View style={styles.rulerBox}>
           {/* Vạch giữa màu xanh — không bắt touch */}
-          <View pointerEvents="none" style={styles.centerIndicator} />
+          <View
+            pointerEvents="none"
+            style={[
+              styles.centerIndicator,
+              { left: Math.round(SCREEN_W / 2) - 1 }, // anti-blur, canh pixel
+            ]}
+          />
 
           <ScrollView
             ref={scrollRef}
@@ -180,10 +179,11 @@ const StepWeightScreen = () => {
             showsHorizontalScrollIndicator={false}
             bounces={false}
             snapToInterval={TICK_W}
+            snapToAlignment="start"
             decelerationRate="fast"
             scrollEventThrottle={16}
             contentContainerStyle={{
-              paddingHorizontal: PAD,
+              paddingHorizontal: PAD, // *** nửa màn - nửa ô ***
               paddingTop: 8,
               paddingBottom: 34, // chừa chỗ cho nhãn phía dưới
             }}
@@ -198,7 +198,7 @@ const StepWeightScreen = () => {
         </View>
 
         <Text style={styles.hint}>
-          ↔️ Kéo để chọn — double-tap vào số để nhập nhanh.
+          ↔️ Kéo để chọn — chạm vào số để nhập trực tiếp (chỉ số).
         </Text>
       </View>
     </WizardFrame>
@@ -264,7 +264,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 10,
     bottom: 44, // chừa chỗ cho nhãn bên dưới
-    left: SCREEN_W / 2 - 1, // canh giữa màn hình
     width: 2,
     backgroundColor: GREEN,
     borderRadius: 2,

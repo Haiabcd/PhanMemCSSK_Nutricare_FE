@@ -6,7 +6,7 @@ import { colors } from '../constants/colors';
 type Variant = 'none' | 'card' | 'surface';
 
 interface Props {
-  children: ReactNode;
+  children?: ReactNode;
   // layout
   row?: boolean;
   flex?: number;

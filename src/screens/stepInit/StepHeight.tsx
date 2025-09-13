@@ -1,7 +1,3 @@
-// features/WizardScreens.tsx (StepHeightScreen)
-// Clean horizontal ruler — cm only, labels every 10 cm, center green indicator,
-// double-tap readout to input, no Expo deps.
-
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
@@ -20,15 +16,12 @@ import { colors } from '../../constants/colors';
 /* ===== Theme ===== */
 const GREEN = colors?.green ?? '#22C55E';
 const GREEN_DARK = '#16A34A';
-const SLATE_900 = '#0F172A';
 const SLATE_700 = '#334155';
 const SLATE_600 = '#475569';
 const SLATE_500 = '#64748B';
 const SLATE_400 = '#94A3B8';
-const SLATE_300 = colors?.slate200 ?? '#E2E8F0';
 const EMERALD_25 = '#F4FBF7';
 const EMERALD_100 = '#D1FAE5';
-const WHITE = colors?.white ?? '#FFFFFF';
 
 /* ===== Config ===== */
 const CM_MIN = 80;
@@ -36,11 +29,10 @@ const CM_MAX = 250;
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const TICK_W = 22; // khoảng cách giữa từng cm
-const PAD = SCREEN_W * 0.5; // để vạch hiện tại nằm giữa màn hình
+const PAD = Math.max(0, SCREEN_W * 0.5 - TICK_W * 0.5); // *** fix canh giữa ***
 const TICK_H_MINOR = 12;
 const TICK_H_MED = 20;
 const TICK_H_MAJOR = 32;
-const DOUBLE_TAP_MS = 240;
 
 const clamp = (v: number, min: number, max: number) =>
   Math.max(min, Math.min(max, v));
@@ -51,8 +43,7 @@ const StepHeightScreen = () => {
   const isScrolling = useRef(false);
   const [initialized, setInitialized] = useState(false);
 
-  // double-tap to edit
-  const lastTapRef = useRef(0);
+  // tap to edit
   const [isEditing, setIsEditing] = useState(false);
   const [inputVal, setInputVal] = useState(String(form.heightCm));
   const inputRef = useRef<TextInput>(null);
@@ -64,6 +55,7 @@ const StepHeightScreen = () => {
     if (isScrolling.current || initialized) return;
     const idx = clamp(Math.round(form.heightCm), CM_MIN, CM_MAX) - CM_MIN;
     requestAnimationFrame(() => {
+      // Với PAD đã trừ nửa ô, offset i*TICK_W sẽ đặt đúng tâm vạch
       scrollRef.current?.scrollTo({ x: idx * TICK_W, animated: false });
       setInitialized(true);
     });
@@ -76,12 +68,13 @@ const StepHeightScreen = () => {
 
   const onScrollEnd = (x: number) => {
     isScrolling.current = false;
+    // Vì snap là bội số của TICK_W nên chỉ cần round(x/TICK_W)
     const idx = Math.round(x / TICK_W);
     const cm = clamp(CM_MIN + idx, CM_MIN, CM_MAX);
     setHeightCm(cm);
   };
 
-  /* ===== Double-tap readout ===== */
+  /* ===== Tap readout to edit ===== */
   useEffect(() => {
     if (isEditing) {
       setInputVal(String(form.heightCm));
@@ -90,12 +83,11 @@ const StepHeightScreen = () => {
     }
   }, [isEditing, form.heightCm]);
 
-  const onReadoutPress = () => {
-    const now = Date.now();
-    if (now - (lastTapRef.current || 0) < DOUBLE_TAP_MS) {
-      setIsEditing(true);
-    }
-    lastTapRef.current = now;
+  const onReadoutPress = () => setIsEditing(true);
+
+  // chỉ nhận số (0–3 chữ số)
+  const onChangeNumeric = (next: string) => {
+    if (/^\d{0,3}$/.test(next)) setInputVal(next);
   };
 
   const commitInput = () => {
@@ -119,7 +111,6 @@ const StepHeightScreen = () => {
 
       return (
         <View key={cm} style={styles.tickItem}>
-          {/* Vạch hướng lên trên */}
           <View
             style={[
               styles.tickLine,
@@ -128,7 +119,6 @@ const StepHeightScreen = () => {
               isMajor && styles.tickLineMajor,
             ]}
           />
-          {/* Nhãn ở mốc 10cm, đặt phía dưới */}
           {isMajor && (
             <View style={styles.labelWrap}>
               <Text style={styles.labelText}>{cm}</Text>
@@ -142,18 +132,20 @@ const StepHeightScreen = () => {
   return (
     <WizardFrame
       title="Chiều Cao Của Bạn"
-      subtitle="Kéo thước ngang để chọn (cm)"
+      subtitle="Chiều cao (cm) chính xác giúp tính toán nhu cầu calo chuẩn xác hơn"
     >
       <View style={styles.wrap}>
-        {/* Readout (double-tap để nhập) */}
+        {/* Readout (tap để nhập) */}
         <Pressable onPress={onReadoutPress}>
           <View style={styles.readoutCard}>
             {isEditing ? (
               <TextInput
                 ref={inputRef}
                 value={inputVal}
-                onChangeText={setInputVal}
-                keyboardType="number-pad"
+                onChangeText={onChangeNumeric}
+                keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
+                // @ts-ignore - giúp bàn phím ưu tiên layout số
+                inputMode="numeric"
                 returnKeyType="done"
                 onSubmitEditing={commitInput}
                 onBlur={commitInput}
@@ -161,6 +153,7 @@ const StepHeightScreen = () => {
                 selectionColor={GREEN_DARK}
                 placeholder="Nhập cm"
                 style={styles.readoutInput}
+                selectTextOnFocus
               />
             ) : (
               <Text style={styles.readoutText}>{formatHeight}</Text>
@@ -170,8 +163,14 @@ const StepHeightScreen = () => {
 
         {/* Ruler */}
         <View style={styles.rulerBox}>
-          {/* Vạch giữa màu xanh — không bắt touch */}
-          <View pointerEvents="none" style={styles.centerIndicator} />
+          {/* Vạch giữa màu xanh */}
+          <View
+            pointerEvents="none"
+            style={[
+              styles.centerIndicator,
+              { left: Math.round(SCREEN_W / 2) - 1 }, // canh pixel đẹp
+            ]}
+          />
 
           <ScrollView
             ref={scrollRef}
@@ -179,12 +178,13 @@ const StepHeightScreen = () => {
             showsHorizontalScrollIndicator={false}
             bounces={false}
             snapToInterval={TICK_W}
+            snapToAlignment="start"
             decelerationRate="fast"
             scrollEventThrottle={16}
             contentContainerStyle={{
-              paddingHorizontal: PAD,
+              paddingHorizontal: PAD, // *** key: nửa màn - nửa ô ***
               paddingTop: 8,
-              paddingBottom: 34, // chừa chỗ cho nhãn phía dưới
+              paddingBottom: 34, // chừa chỗ cho nhãn
             }}
             onScrollBeginDrag={onScrollBegin}
             onMomentumScrollEnd={e =>
@@ -197,7 +197,7 @@ const StepHeightScreen = () => {
         </View>
 
         <Text style={styles.hint}>
-          ↔️ Kéo để chọn — double-tap vào số để nhập nhanh.
+          ↔️ Kéo để chọn — chạm vào số để nhập trực tiếp (chỉ số).
         </Text>
       </View>
     </WizardFrame>
@@ -258,7 +258,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 10,
     bottom: 44,
-    left: SCREEN_W / 2 - 1,
     width: 2,
     backgroundColor: GREEN,
     zIndex: 2,
@@ -290,8 +289,8 @@ const styles = StyleSheet.create({
 
   labelWrap: {
     position: 'absolute',
-    bottom: -28, // đẩy nhãn xuống dưới trục
-    left: -TICK_W * 4.5, // căn giữa cụm 10 vạch
+    bottom: -28,
+    left: -TICK_W * 4.5,
     right: -TICK_W * 4.5,
     alignItems: 'center',
   },
