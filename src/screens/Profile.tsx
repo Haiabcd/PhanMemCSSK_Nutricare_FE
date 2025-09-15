@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     View,
     Text,
@@ -9,9 +9,14 @@ import {
     StyleSheet,
     Switch,
     Alert,
+    Animated,
+    Easing,
+    Modal,
+    Platform,
 } from 'react-native';
 import McIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Container from '../components/Container';
+import { useNavigation } from '@react-navigation/native';
 
 /** ----------------- Types ----------------- */
 type Profile = {
@@ -22,6 +27,8 @@ type Profile = {
     gender: 'Nam' | 'Nữ' | 'Khác';
     goal: 'Giảm cân lành mạnh' | 'Giữ cân' | 'Tăng cân';
     activity: 'Ít vận động' | 'Vận động nhẹ' | 'Vận động vừa' | 'Vận động nhiều' | 'Rất nhiều';
+    illness: string;
+    allergy: string;
 };
 
 const DEFAULT_PROFILE: Profile = {
@@ -32,6 +39,8 @@ const DEFAULT_PROFILE: Profile = {
     gender: 'Nam',
     goal: 'Tăng cân',
     activity: 'Vận động nhẹ',
+    illness: 'Không có',
+    allergy: 'Không có',
 };
 
 const ACTIVITY_OPTIONS: Profile['activity'][] = [
@@ -42,6 +51,72 @@ const ACTIVITY_OPTIONS: Profile['activity'][] = [
     'Rất nhiều',
 ];
 
+/* =======================
+   ToastCenter (đẹp + to)
+   ======================= */
+type ToastKind = 'success' | 'danger';
+
+function ToastCenter({
+    visible,
+    title,
+    subtitle,
+    kind = 'success',
+}: {
+    visible: boolean;
+    title: string;
+    subtitle?: string;
+    kind?: ToastKind;
+}) {
+    const opacity = useRef(new Animated.Value(0)).current;
+    const scale = useRef(new Animated.Value(0.9)).current;
+
+    useEffect(() => {
+        if (visible) {
+            Animated.parallel([
+                Animated.timing(opacity, { toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+                Animated.spring(scale, { toValue: 1, friction: 7, tension: 80, useNativeDriver: true }),
+            ]).start();
+        } else {
+            Animated.parallel([
+                Animated.timing(opacity, { toValue: 0, duration: 160, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+                Animated.timing(scale, { toValue: 0.95, duration: 160, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+            ]).start();
+        }
+    }, [visible, opacity, scale]);
+
+    if (!visible) return null;
+
+    const color = kind === 'success' ? '#16a34a' : '#ef4444';
+    const tint = kind === 'success' ? '#d1fae5' : '#fee2e2';
+
+    return (
+        <Animated.View
+            pointerEvents="none"
+            style={[styles.toastOverlay, { opacity }]}
+        >
+            <Animated.View style={[styles.toastCard, { transform: [{ scale }] }]}>
+                {/* icon + text */}
+                <View style={styles.toastBody}>
+                    <View style={[styles.toastIconWrap, { backgroundColor: tint }]}>
+                        <McIcon name={kind === 'success' ? 'check' : 'trash-can-outline'} size={26} color={color} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.toastTitle} numberOfLines={2}>{title}</Text>
+                        {!!subtitle && <Text style={styles.toastSubtitle} numberOfLines={2}>{subtitle}</Text>}
+                    </View>
+                </View>
+
+                {/* chân card */}
+                <View style={styles.toastBottomRow}>
+                    <View style={[styles.toastDot, { backgroundColor: color, opacity: 0.25 }]} />
+                    <View style={[styles.toastDot, { backgroundColor: color, opacity: 0.45 }]} />
+                    <View style={[styles.toastDot, { backgroundColor: color, opacity: 0.25 }]} />
+                </View>
+            </Animated.View>
+        </Animated.View>
+    );
+}
+
 export default function ProfileScreen() {
     const [data, setData] = useState<Profile>(DEFAULT_PROFILE);
     const [draft, setDraft] = useState<Profile>(DEFAULT_PROFILE);
@@ -49,28 +124,125 @@ export default function ProfileScreen() {
 
     // Cài đặt chung
     const [allowNotif, setAllowNotif] = useState<boolean>(true);
+    const navigation = useNavigation<any>();
+
+    // Toast state
+    const [toast, setToast] = useState<{ title: string; subtitle?: string; kind?: ToastKind } | null>(null);
+
+    // ====== START: Picker Modal ======
+    // danh sách gợi ý — bạn có thể chỉnh theo nhu cầu
+    const SUGGESTED_ILLNESSES = [
+        'Tăng huyết áp', 'Đái tháo đường', 'Tim mạch', 'Hen suyễn', 'Rối loạn mỡ máu',
+        'Suy giáp', 'Cường giáp', 'Loét dạ dày', 'Viêm đại tràng', 'Gout',
+        'Bệnh thận mạn', 'Gan nhiễm mỡ', 'Trầm cảm', 'Lo âu'
+    ];
+    const SUGGESTED_ALLERGIES = [
+        'Hải sản', 'Sữa bò', 'Đậu phộng', 'Trứng', 'Lúa mì (gluten)',
+        'Đậu nành', 'Mè (vừng)', 'Tôm cua', 'Cá', 'Quả hạch'
+    ];
+
+    type PickerType = 'illness' | 'allergy';
+    const [pickerOpen, setPickerOpen] = useState(false);
+    const [pickerType, setPickerType] = useState<PickerType>('illness');
+    const [pickerSelected, setPickerSelected] = useState<string[]>([]);
+    const [pickerSearch, setPickerSearch] = useState('');
+
+    const strToArr = (v: string) =>
+        v && v.trim() && v.trim() !== 'Không có'
+            ? v.split(',').map(s => s.trim()).filter(Boolean)
+            : [];
+
+    const arrToStr = (arr: string[]) => (arr.length ? arr.join(', ') : 'Không có');
+
+    // bỏ dấu + thường hoá để tìm kiếm thân thiện tiếng Việt
+    const normalizeVN = (s: string) =>
+        s
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .trim();
+
+    const openPicker = (type: PickerType) => {
+        setPickerType(type);
+        const current = type === 'illness' ? draft.illness : draft.allergy;
+        setPickerSelected(strToArr(current));
+        setPickerSearch(''); // reset từ khoá mỗi lần mở
+        setPickerOpen(true);
+    };
+
+    const togglePick = (item: string) => {
+        setPickerSelected(prev => {
+            if (prev.includes(item)) return prev.filter(i => i !== item);
+            return [...prev, item];
+        });
+    };
+
+    const applyPicker = () => {
+        const value = arrToStr(pickerSelected);
+        if (pickerType === 'illness') setDraft(prev => ({ ...prev, illness: value }));
+        else setDraft(prev => ({ ...prev, allergy: value }));
+        setPickerOpen(false);
+    };
+
+    const currentOptions = pickerType === 'illness' ? SUGGESTED_ILLNESSES : SUGGESTED_ALLERGIES;
+    const filteredOptions = pickerSearch.trim()
+        ? currentOptions.filter(it => normalizeVN(it).includes(normalizeVN(pickerSearch)))
+        : currentOptions;
+    // ====== END: Picker Modal ======
+
+    // helper: show toast to đẹp + auto ẩn + callback
+    const showToast = (opts: { title: string; subtitle?: string; kind?: ToastKind; duration?: number }, cb?: () => void) => {
+        const { title, subtitle, kind = 'success', duration = 1400 } = opts;
+        setToast({ title, subtitle, kind });
+        setTimeout(() => {
+            setToast(null);
+            cb && cb();
+        }, duration);
+    };
 
     const onOpenEdit = () => { setDraft(data); setShowEdit(true); };
     const onCancel = () => setShowEdit(false);
     const onSave = () => { setData(draft); setShowEdit(false); };
 
     const onLogout = () => {
-        // TODO: thay bằng logic đăng xuất thực tế
-        Alert.alert('Đăng xuất', 'Bạn đã đăng xuất (demo).');
+        Alert.alert(
+            'Đăng xuất',
+            'Bạn có chắc chắn muốn đăng xuất?',
+            [
+                { text: 'Hủy', style: 'cancel' },
+                {
+                    text: 'Đăng xuất',
+                    style: 'destructive',
+                    onPress: () => {
+                        showToast(
+                            { title: 'Đăng xuất thành công', subtitle: 'Hẹn gặp lại bạn sớm nhé!', kind: 'success' },
+                            () => {
+                                navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
+                            }
+                        );
+                    },
+                },
+            ],
+        );
     };
 
     const onDeleteAccount = () => {
         Alert.alert(
             'Xóa tài khoản',
-            'Hành động này không thể hoàn tác. Bạn chắc chắn muốn xóa tài khoản?',
+            'Bạn có chắc muốn xóa tài khoản?',
             [
                 { text: 'Hủy', style: 'cancel' },
                 {
                     text: 'Xóa',
                     style: 'destructive',
                     onPress: () => {
-                        // TODO: gọi API xóa tài khoản & dọn dẹp dữ liệu cục bộ
-                        Alert.alert('Đã xóa', 'Tài khoản của bạn đã được xóa (demo).');
+                        // TODO: gọi API xóa & dọn dẹp cục bộ nếu có
+                        showToast(
+                            { title: 'Đã xóa tài khoản', subtitle: 'Tài khoản của bạn đã được xóa thành công.', kind: 'success' },
+                            () => {
+                                navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
+                            }
+                        );
                     },
                 },
             ],
@@ -79,13 +251,21 @@ export default function ProfileScreen() {
 
     return (
         <Container>
-            {/* ===== Header KHÔNG cuộn (CHANGED: đưa ra ngoài ScrollView) ===== */}
+            {/* Toast nổi giữa màn hình, phủ overlay mờ */}
+            <ToastCenter
+                visible={!!toast}
+                title={toast?.title ?? ''}
+                subtitle={toast?.subtitle}
+                kind={toast?.kind ?? 'success'}
+            />
+
+            {/* ===== Header giữ cố định ===== */}
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Hồ sơ Cá nhân</Text>
                 <Text style={styles.headerSub}>Quản lý thông tin và mục tiêu dinh dưỡng của bạn</Text>
             </View>
 
-            {/* ===== Nội dung CÓ cuộn ===== */}
+            {/* ===== Nội dung cuộn ===== */}
             <ScrollView
                 style={styles.screen}
                 contentContainerStyle={styles.scrollContent}
@@ -110,9 +290,11 @@ export default function ProfileScreen() {
                     <InfoItem icon="weight-kilogram" label="Cân nặng" value={`${data.weight} kg`} />
                     <InfoItem icon="bullseye-arrow" label="Mục tiêu" value={data.goal} />
                     <InfoItem icon="run-fast" label="Mức độ vận động" value={data.activity} />
+                    <InfoItem icon="hospital-box-outline" label="Bệnh nền" value={data.illness} />
+                    <InfoItem icon="allergy" label="Dị ứng" value={data.allergy} />
                 </View>
 
-                {/* Edit Form (hiện trên, đẩy nút xuống) */}
+                {/* Edit Form (nếu muốn bật lên) */}
                 {showEdit && (
                     <View style={[styles.cardBase, styles.shadow, styles.editCard]}>
                         <Text style={styles.editTitle}>Chỉnh Sửa Thông Tin</Text>
@@ -192,11 +374,45 @@ export default function ProfileScreen() {
                             <View style={{ flex: 1 }} />
                         </View>
 
+                        <View style={styles.row}>
+                            {/* Bệnh nền: input mở Modal tick + search */}
+                            <View style={styles.field}>
+                                <Text style={styles.label}>Bệnh nền</Text>
+                                <Pressable onPress={() => openPicker('illness')}>
+                                    <View pointerEvents="none">
+                                        <TextInput
+                                            value={draft.illness}
+                                            editable={false}
+                                            placeholder="VD: Tăng huyết áp, Tiểu đường"
+                                            style={[styles.input, styles.inputPicker]}
+                                            placeholderTextColor="#94a3b8"
+                                        />
+                                    </View>
+                                </Pressable>
+                            </View>
+
+                            {/* Dị ứng: input mở Modal tick + search */}
+                            <View style={styles.field}>
+                                <Text style={styles.label}>Dị ứng</Text>
+                                <Pressable onPress={() => openPicker('allergy')}>
+                                    <View pointerEvents="none">
+                                        <TextInput
+                                            value={draft.allergy}
+                                            editable={false}
+                                            placeholder="VD: Hải sản, Sữa bò"
+                                            style={[styles.input, styles.inputPicker]}
+                                            placeholderTextColor="#94a3b8"
+                                        />
+                                    </View>
+                                </Pressable>
+                            </View>
+                        </View>
+
                         <View style={styles.editActions}>
-                            <Pressable style={styles.saveBtn} onPress={onSave}>
+                            <Pressable style={styles.saveBtn} onPress={() => { setData(draft); setShowEdit(false); }}>
                                 <Text style={styles.saveBtnText}>Lưu Thay Đổi</Text>
                             </Pressable>
-                            <Pressable style={styles.cancelBtn} onPress={onCancel}>
+                            <Pressable style={styles.cancelBtn} onPress={() => setShowEdit(false)}>
                                 <Text style={styles.cancelBtnText}>Hủy</Text>
                             </Pressable>
                         </View>
@@ -229,7 +445,7 @@ export default function ProfileScreen() {
                         <Switch
                             value={allowNotif}
                             onValueChange={setAllowNotif}
-                            thumbColor={allowNotif ? '#fff' : '#fff'}
+                            thumbColor="#fff"
                             trackColor={{ false: '#e5e7eb', true: '#86efac' }}
                         />
                     </View>
@@ -260,6 +476,86 @@ export default function ProfileScreen() {
                     </Pressable>
                 </View>
             </ScrollView>
+
+            {/* ====== Picker Modal (tick + ô tìm kiếm) ====== */}
+            <Modal
+                visible={pickerOpen}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setPickerOpen(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalCard}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>
+                                {pickerType === 'illness' ? 'Chọn bệnh nền' : 'Chọn dị ứng'}
+                            </Text>
+                            <Pressable onPress={() => setPickerOpen(false)} hitSlop={8}>
+                                <McIcon name="close" size={20} color="#64748b" />
+                            </Pressable>
+                        </View>
+
+                        {/* Ô tìm kiếm */}
+                        <View style={styles.searchRow}>
+                            <McIcon name="magnify" size={18} color="#64748b" />
+                            <TextInput
+                                value={pickerSearch}
+                                onChangeText={setPickerSearch}
+                                placeholder="Tìm kiếm…"
+                                placeholderTextColor="#94a3b8"
+                                style={styles.searchInput}
+                                autoCorrect={false}
+                                autoCapitalize="none"
+                                returnKeyType="search"
+                            />
+                            {pickerSearch.length > 0 && (
+                                <Pressable onPress={() => setPickerSearch('')} hitSlop={8}>
+                                    <McIcon name="close-circle" size={18} color="#94a3b8" />
+                                </Pressable>
+                            )}
+                        </View>
+
+                        <ScrollView
+                            style={styles.optionsList}
+                            contentContainerStyle={styles.optionsListContent}
+                            showsVerticalScrollIndicator={false}
+                            keyboardShouldPersistTaps="handled"
+                        >
+                            {filteredOptions.map(item => {
+                                const checked = pickerSelected.includes(item);
+                                return (
+                                    <Pressable
+                                        key={item}
+                                        onPress={() => togglePick(item)}
+                                        style={[styles.optionRow, checked && styles.optionRowChecked]}
+                                    >
+                                        <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
+                                            {checked && <McIcon name="check-bold" size={14} color="#fff" />}
+                                        </View>
+                                        <Text style={[styles.optionTxt, checked && styles.optionTxtChecked]}>
+                                            {item}
+                                        </Text>
+                                    </Pressable>
+                                );
+                            })}
+                            {filteredOptions.length === 0 && (
+                                <View style={styles.noResult}>
+                                    <Text style={{ color: '#64748b', fontWeight: '700' }}>Không tìm thấy mục phù hợp</Text>
+                                </View>
+                            )}
+                        </ScrollView>
+
+                        <View style={styles.modalActions}>
+                            <Pressable style={[styles.modalBtn, styles.modalCancel]} onPress={() => setPickerOpen(false)}>
+                                <Text style={styles.modalCancelTxt}>Hủy</Text>
+                            </Pressable>
+                            <Pressable style={[styles.modalBtn, styles.modalSave]} onPress={applyPicker}>
+                                <Text style={styles.modalSaveTxt}>Lưu</Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </Container>
     );
 }
@@ -337,7 +633,7 @@ const styles = StyleSheet.create({
     },
     scrollContent: { paddingBottom: 28 },
 
-    // Header giữ cố định (phẳng & tối giản)
+    // Header giữ cố định
     header: {
         backgroundColor: 'transparent',
         paddingTop: 14,
@@ -347,23 +643,10 @@ const styles = StyleSheet.create({
         borderBottomColor: colors.border,
         marginTop: 20
     },
-    headerTitle: {
-        color: colors.text,
-        fontSize: 20,
-        fontWeight: '800',
-        letterSpacing: 0.1,
-    },
-    headerSub: {
-        color: colors.sub,
-        fontSize: 13,
-        marginTop: 2,
-    },
+    headerTitle: { color: colors.text, fontSize: 20, fontWeight: '800', letterSpacing: 0.1 },
+    headerSub: { color: colors.sub, fontSize: 13, marginTop: 2 },
 
-    avatarWrap: {
-        alignItems: 'center',
-        marginTop: 16,
-        marginBottom: 14,
-    },
+    avatarWrap: { alignItems: 'center', marginTop: 16, marginBottom: 14 },
     avatar: {
         width: 92, height: 92, borderRadius: 999, borderWidth: 4, borderColor: '#ecfdf5',
         backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 8, elevation: 3,
@@ -372,7 +655,7 @@ const styles = StyleSheet.create({
 
     grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, marginTop: 6, marginBottom: 4 },
 
-    /* Base to reuse */
+    /* Base */
     cardBase: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: colors.border },
     shadow: { shadowColor: '#0b3d1f', shadowOpacity: 0.08, shadowRadius: 8, elevation: 3 },
 
@@ -391,6 +674,10 @@ const styles = StyleSheet.create({
     input: {
         height: 46, borderRadius: 14, borderWidth: 1, borderColor: '#dbece2',
         paddingHorizontal: 12, backgroundColor: colors.inputBg, color: colors.text, fontWeight: '700',
+    },
+    inputPicker: {
+        borderColor: '#c7e2ff',
+        backgroundColor: '#f4faff',
     },
     select: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     selectText: { color: colors.text, fontWeight: '700' },
@@ -416,51 +703,191 @@ const styles = StyleSheet.create({
     primaryBtnText: { color: '#fff', fontWeight: '900' },
 
     // -------- Cài đặt chung --------
-    settingsCard: {
-        marginHorizontal: 16,
-        marginTop: 12,
-        marginBottom: 24,
-        padding: 14,
-        borderRadius: 18,
+    settingsCard: { marginHorizontal: 16, marginTop: 12, marginBottom: 24, padding: 14, borderRadius: 18 },
+    settingsTitle: { fontSize: 16, fontWeight: '900', color: colors.text, marginBottom: 8 },
+    settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
+    settingPress: { borderTopWidth: 1, borderTopColor: '#f1f5f9' },
+    settingLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
+    settingIcon: { width: 24, height: 24, borderRadius: 999, backgroundColor: colors.chip, alignItems: 'center', justifyContent: 'center' },
+    settingLabel: { color: colors.text, fontSize: 14, fontWeight: '800' },
+    settingSub: { color: '#64748b', fontSize: 12, marginTop: 2 },
+
+    /* ===== Toast styles (đẹp) ===== */
+    toastOverlay: {
+        position: 'absolute',
+        inset: 0 as any,
+        backgroundColor: 'rgba(2,6,23,0.25)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 999,
+        paddingHorizontal: 24,
     },
-    settingsTitle: {
-        fontSize: 16,
-        fontWeight: '900',
-        color: colors.text,
-        marginBottom: 8,
+    toastCard: {
+        width: '92%',
+        maxWidth: 420,
+        backgroundColor: '#ffffff',
+        borderRadius: 24,
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOpacity: 0.2,
+        shadowRadius: 16,
+        elevation: 8,
+        borderWidth: 3,
+        borderColor: '#3b82f6',
     },
-    settingRow: {
+    toastBody: {
+        paddingVertical: 18,
+        paddingHorizontal: 16,
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 10,
+        gap: 12,
     },
-    settingPress: {
-        borderTopWidth: 1,
-        borderTopColor: '#f1f5f9',
-    },
-    settingLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        flexShrink: 1,
-    },
-    settingIcon: {
-        width: 24,
-        height: 24,
+    toastIconWrap: {
+        width: 46,
+        height: 46,
         borderRadius: 999,
-        backgroundColor: colors.chip,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    settingLabel: {
-        color: colors.text,
-        fontSize: 14,
-        fontWeight: '800',
+    toastTitle: {
+        color: '#0f172a',
+        fontWeight: '900',
+        fontSize: 16.5,
+        marginBottom: 2,
     },
-    settingSub: {
-        color: '#64748b',
-        fontSize: 12,
-        marginTop: 2,
+    toastSubtitle: {
+        color: '#475569',
+        fontSize: 13.5,
+        fontWeight: '600',
+    },
+    toastBottomRow: {
+        paddingHorizontal: 16,
+        paddingBottom: 14,
+        flexDirection: 'row',
+        gap: 6,
+        justifyContent: 'center',
+    },
+    toastDot: {
+        width: 28,
+        height: 4,
+        borderRadius: 999,
+        backgroundColor: '#16a34a',
+    },
+
+    /* ===== Modal Picker styles ===== */
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(2,6,23,0.35)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+    },
+    modalCard: {
+        width: '100%',
+        maxWidth: 520,
+        backgroundColor: '#fff',
+        borderRadius: 16,
+        padding: 14,
+        borderWidth: 2,
+        borderColor: '#3b82f6',
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000',
+                shadowOpacity: 0.15,
+                shadowRadius: 12,
+                shadowOffset: { width: 0, height: 6 },
+            },
+            android: { elevation: 6 },
+        }),
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 8,
+    },
+    modalTitle: { fontSize: 16, fontWeight: '900', color: '#0f172a' },
+
+    searchRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        borderWidth: 1,
+        borderColor: '#c7e2ff',
+        backgroundColor: '#f4faff',
+        borderRadius: 10,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        marginBottom: 8,
+    },
+    searchInput: {
+        flex: 1,
+        color: '#0f172a',
+        fontWeight: '700',
+        paddingVertical: 0,
+    },
+
+    optionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingVertical: 10,
+        paddingHorizontal: 8,
+        borderRadius: 10,
+    },
+    optionRowChecked: {
+        backgroundColor: '#eff6ff',
+    },
+    checkbox: {
+        width: 20,
+        height: 20,
+        borderRadius: 6,
+        borderWidth: 2,
+        borderColor: '#3b82f6',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#fff',
+    },
+    checkboxChecked: {
+        backgroundColor: '#3b82f6',
+        borderColor: '#3b82f6',
+    },
+    optionTxt: { color: '#0f172a', fontWeight: '700' },
+    optionTxtChecked: { color: '#1e293b' },
+    modalActions: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: 10,
+        marginTop: 10,
+    },
+    modalBtn: {
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: 10,
+        borderWidth: 1,
+    },
+    modalCancel: {
+        backgroundColor: '#f8fafc',
+        borderColor: '#e2e8f0',
+    },
+    modalSave: {
+        backgroundColor: '#3b82f6',
+        borderColor: '#2563eb',
+    },
+    modalCancelTxt: { color: '#334155', fontWeight: '800' },
+    modalSaveTxt: { color: '#fff', fontWeight: '900' },
+
+    optionsList: {
+        height: 280,
+    },
+    optionsListContent: {
+        paddingVertical: 4,
+        minHeight: 280,
+    },
+    noResult: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 14,
     },
 });
