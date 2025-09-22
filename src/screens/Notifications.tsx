@@ -1,11 +1,14 @@
 // screens/NotificationScreen.tsx
 import React from 'react';
-import { StyleSheet, FlatList, View, Pressable } from 'react-native';
+import { StyleSheet, FlatList, View, Pressable, Image } from 'react-native';
 import Container from '../components/Container';
 import TextComponent from '../components/TextComponent';
 import ViewComponent from '../components/ViewComponent';
 import { colors as C } from '../constants/colors';
 import Entypo from 'react-native-vector-icons/Entypo';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { PlanStackParamList } from '../navigation/PlanNavigator';
 
 type Notification = {
     id: string;
@@ -13,37 +16,36 @@ type Notification = {
     title: string;
     message: string;
     time: string;
-    day: string; // ví dụ: "Hôm nay", "Hôm qua"
+    day: string; // "Hôm nay", "Hôm qua"...
 };
 
 const DATA: Notification[] = [
-    {
-        id: '1',
-        type: 'meal',
-        title: 'Đến giờ ăn trưa',
-        message: 'Hãy bổ sung bữa trưa để duy trì năng lượng.',
-        time: '11:45',
-        day: 'Hôm nay',
-    },
-    {
-        id: '2',
-        type: 'water',
-        title: 'Uống nước',
-        message: 'Đã 2 giờ bạn chưa uống nước.',
-        time: '10:30',
-        day: 'Hôm nay',
-    },
-    {
-        id: '3',
-        type: 'suggestion',
-        title: 'Gợi ý món ăn',
-        message: 'Salad gà áp chảo ít dầu cho bữa tối.',
-        time: '20:00',
-        day: 'Hôm qua',
-    },
+    { id: '1', type: 'meal', title: 'Đến giờ ăn trưa', message: 'Hãy bổ sung bữa trưa để duy trì năng lượng.', time: '11:45', day: 'Hôm nay' },
+    { id: '2', type: 'water', title: 'Uống nước', message: 'Đã 2 giờ bạn chưa uống nước.', time: '10:30', day: 'Hôm nay' },
+    { id: '3', type: 'suggestion', title: 'Gợi ý món ăn', message: 'Salad gà áp chảo ít dầu cho bữa tối.', time: '20:00', day: 'Hôm qua' },
 ];
 
+/* ============== Avatar fallback ============== */
+function Avatar({ name, photoUri }: { name: string; photoUri?: string | null }) {
+    const initials = name
+        .split(' ')
+        .map(n => n[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase();
+
+    if (photoUri) return <Image source={{ uri: photoUri }} style={s.avatar} />;
+
+    return (
+        <ViewComponent center style={s.avatarFallback} flex={0}>
+            <TextComponent text={initials} variant="subtitle" weight="bold" tone="primary" />
+        </ViewComponent>
+    );
+}
+
 export default function NotificationScreen() {
+    const navigation = useNavigation<NativeStackNavigationProp<PlanStackParamList>>();
+
     // Gom nhóm theo ngày
     const grouped = DATA.reduce((acc, item) => {
         if (!acc[item.day]) acc[item.day] = [];
@@ -54,23 +56,36 @@ export default function NotificationScreen() {
     const sections = Object.entries(grouped);
 
     const onOpenSettings = () => {
-        console.log('Đi đến cài đặt thông báo');
         // TODO: navigation.navigate('NotificationSettings')
+        console.log('Đi đến cài đặt thông báo');
     };
 
     return (
         <Container>
-            {/* Header */}
+            <ViewComponent row between alignItems="center" mt={20}>
+                <ViewComponent row alignItems="center" gap={10} flex={0}>
+                    <Avatar name="Anh Hải" />
+                    <ViewComponent flex={0}>
+                        <TextComponent text="Xin chào," variant="caption" tone="muted" />
+                        <TextComponent text="Anh Hải" variant="subtitle" weight="bold" />
+                    </ViewComponent>
+                </ViewComponent>
+
+                <Pressable style={s.iconContainer} onPress={() => { }}>
+                    <Entypo name="bell" size={20} color={C.primary} />
+                </Pressable>
+            </ViewComponent>
+
+            <View style={s.line} />
+
             <ViewComponent row between alignItems="center" mb={16}>
                 <TextComponent text="Thông báo" variant="h2" weight="bold" />
-                <Pressable onPress={onOpenSettings} hitSlop={10}>
-                    <Entypo name="cog" size={22} color={C.primary} />
-                </Pressable>
             </ViewComponent>
 
             <FlatList
                 data={sections}
                 keyExtractor={([day]) => day}
+                contentContainerStyle={{ paddingBottom: 24 }}
                 renderItem={({ item: [day, notis] }) => (
                     <View style={{ marginBottom: 28 }}>
                         {/* Tiêu đề ngày */}
@@ -121,6 +136,27 @@ export default function NotificationScreen() {
 }
 
 const s = StyleSheet.create({
+    iconContainer: {
+        width: 42,
+        height: 42,
+        borderRadius: 12,
+        backgroundColor: C.bg,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: C.border,
+    },
+    avatarFallback: {
+        width: 52,
+        height: 52,
+        borderRadius: 999,
+        backgroundColor: C.bg,
+        borderWidth: 1,
+        borderColor: C.border,
+    },
+    avatar: { width: 52, height: 52, borderRadius: 999 },
+    line: { height: 2, backgroundColor: C.border, marginVertical: 12 },
+
     card: {
         backgroundColor: C.white,
         borderWidth: 1,

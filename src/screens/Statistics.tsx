@@ -1,23 +1,14 @@
-// screens/Statistics.tsx
 import React, { useState } from 'react';
-import {
-    StyleSheet,
-    ScrollView,
-    Pressable,
-    View,
-    Platform,
-    Modal,
-    Image,
-} from 'react-native';
+import { ScrollView, Pressable, Platform, Modal, Image, Dimensions } from 'react-native';
 import { LineChart, PieChart } from 'react-native-chart-kit';
 import Entypo from 'react-native-vector-icons/Entypo';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import Container from '../components/Container';
 import TextComponent from '../components/TextComponent';
 import ViewComponent from '../components/ViewComponent';
 import { colors as C } from '../constants/colors';
 
-const screenWidth = 340; // bạn có thể thay bằng Dimensions.get('window').width - margin
+const { width: SCREEN_W } = Dimensions.get('window');
+const chartW = Math.min(360, SCREEN_W - 32);
 
 /* Avatar fallback */
 function Avatar({ name, photoUri }: { name: string; photoUri?: string | null }) {
@@ -27,30 +18,33 @@ function Avatar({ name, photoUri }: { name: string; photoUri?: string | null }) 
         .join('')
         .slice(0, 2)
         .toUpperCase();
-    if (photoUri)
-        return <Image source={{ uri: photoUri }} style={s.avatar} />;
-    return (
-        <ViewComponent center style={s.avatarFallback} flex={0}>
-            <TextComponent
-                text={initials}
-                variant="subtitle"
-                weight="bold"
-                tone="primary"
+
+    if (photoUri) {
+        return (
+            <Image
+                source={{ uri: photoUri }}
+                style={{ width: 52, height: 52, borderRadius: 999 }}
             />
+        );
+    }
+
+    return (
+        <ViewComponent
+            center
+            radius={999}
+            border
+            borderColor={C.border}
+            backgroundColor={C.bg}
+            style={{ width: 52, height: 52 }}
+            flex={0}
+        >
+            <TextComponent text={initials} variant="subtitle" weight="bold" tone="primary" />
         </ViewComponent>
     );
 }
 
 const fmtVNFull = (d: Date) => {
-    const dow = [
-        'Chủ nhật',
-        'Thứ 2',
-        'Thứ 3',
-        'Thứ 4',
-        'Thứ 5',
-        'Thứ 6',
-        'Thứ 7',
-    ][d.getDay()];
+    const dow = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'][d.getDay()];
     const dd = `${d.getDate()}`.padStart(2, '0');
     const mm = `${d.getMonth() + 1}`.padStart(2, '0');
     return `${dow}, ${dd} Tháng ${mm}`;
@@ -72,7 +66,7 @@ export default function Statistics() {
     const labels7 = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 
     return (
-        <Container>
+        <ViewComponent p={16} style={{ flex: 1, backgroundColor: C.white }}>
             {/* Header */}
             <ViewComponent row between alignItems="center" mt={20}>
                 <ViewComponent row alignItems="center" gap={10} flex={0}>
@@ -83,124 +77,143 @@ export default function Statistics() {
                     </ViewComponent>
                 </ViewComponent>
 
-                <Pressable style={s.iconContainer}>
-                    <Entypo name="bar-graph" size={20} color={C.primary} />
+                <Pressable>
+                    <ViewComponent
+                        center
+                        radius={12}
+                        border
+                        borderColor={C.border}
+                        backgroundColor={C.bg}
+                        style={{ width: 42, height: 42 }}
+                        flex={0}
+                    >
+                        <Entypo name="bar-graph" size={20} color={C.primary} />
+                    </ViewComponent>
                 </Pressable>
             </ViewComponent>
 
-            <View style={s.line} />
+            {/* Divider */}
+            <ViewComponent style={{ height: 2, backgroundColor: C.border }} my={12} />
 
             {/* Date + segmented control */}
             <ViewComponent center mb={12}>
                 <Pressable onPress={() => setShowPicker(true)}>
                     <ViewComponent row center gap={8} flex={0}>
                         <Entypo name="calendar" size={18} color={C.primary} />
-                        <TextComponent
-                            text={fmtVNFull(date)}
-                            variant="subtitle"
-                            weight="bold"
-                        />
+                        <TextComponent text={fmtVNFull(date)} variant="subtitle" weight="bold" />
                     </ViewComponent>
                 </Pressable>
 
                 <ViewComponent
-                    row
-                    gap={6}
-                    mt={8}
-                    p={4}
-                    radius={999}
-                    border
+                    row gap={6} mt={8} p={4} radius={999} border
                     borderColor={C.primaryBorder}
                     backgroundColor={C.primarySurface}
                     flex={0}
                 >
-                    {(['day', 'week', 'month'] as const).map(opt => (
-                        <Pressable
-                            key={opt}
-                            onPress={() => setRange(opt)}
-                            style={[s.segmentBtn, range === opt && s.segmentBtnActive]}
-                        >
-                            <TextComponent
-                                text={
-                                    opt === 'day'
-                                        ? 'Theo ngày'
-                                        : opt === 'week'
-                                            ? 'Theo tuần'
-                                            : 'Theo tháng'
-                                }
-                                size={12}
-                                weight="bold"
-                                color={range === opt ? C.onPrimary : C.text}
-                            />
-                        </Pressable>
-                    ))}
+                    {(['day', 'week', 'month'] as const).map(opt => {
+                        const active = range === opt;
+                        return (
+                            <Pressable key={opt} onPress={() => setRange(opt)}>
+                                <ViewComponent
+                                    center
+                                    radius={999}
+                                    style={{ minWidth: 100, height: 40, paddingHorizontal: 12 }}
+                                    backgroundColor={active ? C.primary : undefined}
+                                    flex={0}
+                                >
+                                    <TextComponent
+                                        text={opt === 'day' ? 'Theo ngày' : opt === 'week' ? 'Theo tuần' : 'Theo tháng'}
+                                        size={12}
+                                        weight="bold"
+                                        color={active ? C.onPrimary : C.text}
+                                    />
+                                </ViewComponent>
+                            </Pressable>
+                        );
+                    })}
                 </ViewComponent>
             </ViewComponent>
 
             {/* DatePicker modal */}
-            <Modal
-                visible={showPicker}
-                transparent
-                animationType="slide"
-                onRequestClose={() => setShowPicker(false)}
-            >
-                <Pressable style={s.pickerSheet} onPress={() => setShowPicker(false)}>
-                    <Pressable style={s.pickerBox}>
-                        <DateTimePicker
-                            value={date}
-                            mode="date"
-                            display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
-                            onChange={(event, d) => {
-                                if (Platform.OS === 'android') {
-                                    setShowPicker(false);
-                                    if (event.type === 'set' && d) setDate(d);
-                                } else if (d) {
-                                    setDate(d);
-                                }
-                            }}
-                        />
-                        {Platform.OS === 'ios' && (
-                            <Pressable onPress={() => setShowPicker(false)} style={s.doneBtn}>
-                                <TextComponent text="Xong" weight="bold" color={C.onPrimary} />
-                            </Pressable>
-                        )}
-                    </Pressable>
+            <Modal visible={showPicker} transparent animationType="slide" onRequestClose={() => setShowPicker(false)}>
+                <Pressable onPress={() => setShowPicker(false)}>
+                    <ViewComponent
+                        style={{ backgroundColor: 'rgba(0,0,0,0.35)' }}
+                        justifyContent="flex-end"
+                        p={0}
+                        pb={0}
+                        flex={1}
+                    >
+                        <Pressable>
+                            <ViewComponent
+                                backgroundColor={C.white}
+                                radius={16}
+                                border
+                                borderColor={C.border}
+                                style={{ borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingTop: 8, paddingBottom: 12 }}
+                            >
+                                <DateTimePicker
+                                    value={date}
+                                    mode="date"
+                                    display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
+                                    onChange={(event, d) => {
+                                        if (Platform.OS === 'android') {
+                                            setShowPicker(false);
+                                            if ((event as any).type === 'set' && d) setDate(d);
+                                        } else if (d) {
+                                            setDate(d);
+                                        }
+                                    }}
+                                />
+                                {Platform.OS === 'ios' && (
+                                    <Pressable onPress={() => setShowPicker(false)}>
+                                        <ViewComponent
+                                            center
+                                            radius={999}
+                                            backgroundColor={C.primary}
+                                            style={{ alignSelf: 'center', marginTop: 8, paddingHorizontal: 18, paddingVertical: 10 }}
+                                            flex={0}
+                                        >
+                                            <TextComponent text="Xong" weight="bold" color={C.onPrimary} />
+                                        </ViewComponent>
+                                    </Pressable>
+                                )}
+                            </ViewComponent>
+                        </Pressable>
+                    </ViewComponent>
                 </Pressable>
             </Modal>
 
             {/* Nội dung */}
             <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
                 {/* Pie dinh dưỡng */}
-                <ViewComponent variant="card" p={20} mb={12} style={s.card}>
+                <ViewComponent variant="card" p={20} mb={12} radius={20}>
                     <TextComponent text="Dinh dưỡng hôm nay" variant="h3" weight="bold" tone="primary" />
                     <PieChart
                         data={macros}
-                        width={screenWidth}
+                        width={chartW}
                         height={180}
-                        chartConfig={{
-                            color: () => C.primary,
-                        }}
+                        chartConfig={{ color: () => C.primary }}
                         accessor="value"
                         backgroundColor="transparent"
-                        hasLegend={true}
+                        hasLegend
                         absolute
                     />
-                    <TextComponent mt={6} text="1800 / 2100 kcal" tone="muted" align="center" />
+                    <ViewComponent mt={6}>
+                        <TextComponent text="1800 / 2100 kcal" tone="muted" align="center" />
+                    </ViewComponent>
                 </ViewComponent>
 
                 {/* Calo */}
-                <ViewComponent variant="card" p={20} mb={12} style={s.card}>
+                <ViewComponent variant="card" p={20} mb={12} radius={20}>
                     <TextComponent text="Xu hướng Calo" variant="h3" weight="bold" tone="primary" />
                     <LineChart
-                        data={{
-                            labels: labels7,
-                            datasets: [{ data: caloriesTrend }],
-                        }}
-                        width={screenWidth}
+                        data={{ labels: labels7, datasets: [{ data: caloriesTrend }] }}
+                        width={chartW}
                         height={200}
                         chartConfig={{
-                            backgroundGradientFrom: '#fff',
-                            backgroundGradientTo: '#fff',
+                            backgroundGradientFrom: C.white,
+                            backgroundGradientTo: C.white,
                             color: () => C.primary,
                             labelColor: () => C.text,
                         }}
@@ -210,18 +223,15 @@ export default function Statistics() {
                 </ViewComponent>
 
                 {/* Nước */}
-                <ViewComponent variant="card" p={20} mb={12} style={s.card}>
+                <ViewComponent variant="card" p={20} mb={12} radius={20}>
                     <TextComponent text="Uống nước" variant="h3" weight="bold" tone="primary" />
                     <LineChart
-                        data={{
-                            labels: labels7,
-                            datasets: [{ data: waterTrend }],
-                        }}
-                        width={screenWidth}
+                        data={{ labels: labels7, datasets: [{ data: waterTrend }] }}
+                        width={chartW}
                         height={200}
                         chartConfig={{
-                            backgroundGradientFrom: '#fff',
-                            backgroundGradientTo: '#fff',
+                            backgroundGradientFrom: C.white,
+                            backgroundGradientTo: C.white,
                             color: () => C.info,
                             labelColor: () => C.text,
                         }}
@@ -231,109 +241,45 @@ export default function Statistics() {
                 </ViewComponent>
 
                 {/* Health */}
-                <ViewComponent variant="card" p={20} mb={12} style={s.card}>
+                <ViewComponent variant="card" p={20} mb={12} radius={20}>
                     <TextComponent text="Chỉ số sức khỏe" variant="h3" weight="bold" tone="primary" />
-                    <ViewComponent row between mt={12}>
-                        <View style={s.healthBox}>
-                            <TextComponent text="Cân nặng" tone="muted" />
-                            <TextComponent text="60 kg" weight="bold" />
-                        </View>
-                        <View style={s.healthBox}>
-                            <TextComponent text="BMI" tone="muted" />
-                            <TextComponent text="21.3" weight="bold" />
-                        </View>
-                        <View style={s.healthBox}>
-                            <TextComponent text="Mỡ cơ thể" tone="muted" />
-                            <TextComponent text="15%" weight="bold" />
-                        </View>
+                    <ViewComponent row between mt={12} gap={8}>
+                        {[
+                            { label: 'Cân nặng', value: '60 kg' },
+                            { label: 'BMI', value: '21.3' },
+                            { label: 'Mỡ cơ thể', value: '15%' },
+                        ].map(item => (
+                            <ViewComponent
+                                key={item.label}
+                                flex={1}
+                                p={14}
+                                radius={14}
+                                border
+                                borderColor={C.border}
+                                backgroundColor={C.bg}
+                                alignItems="center"
+                            >
+                                <TextComponent text={item.label} tone="muted" />
+                                <TextComponent text={item.value} weight="bold" />
+                            </ViewComponent>
+                        ))}
                     </ViewComponent>
                 </ViewComponent>
 
                 {/* Insight */}
-                <ViewComponent variant="card" p={20} mb={28} style={s.card}>
+                <ViewComponent variant="card" p={20} mb={28} radius={20}>
                     <TextComponent text="Đề xuất" variant="h3" weight="bold" tone="primary" />
-                    <TextComponent mt={10} text="👉 Bạn thường thiếu chất xơ, hãy bổ sung rau xanh." />
-                    <TextComponent mt={6} text="💧 3 ngày gần đây bạn uống dưới 2L nước." />
-                    <TextComponent mt={6} text="🔥 Tuần này bạn tập luyện nhiều hơn 20% so với tuần trước." />
+                    <ViewComponent mt={10}>
+                        <TextComponent text="👉 Bạn thường thiếu chất xơ, hãy bổ sung rau xanh." />
+                    </ViewComponent>
+                    <ViewComponent mt={6}>
+                        <TextComponent text="💧 3 ngày gần đây bạn uống dưới 2L nước." />
+                    </ViewComponent>
+                    <ViewComponent mt={6}>
+                        <TextComponent text="🔥 Tuần này bạn tập luyện nhiều hơn 20% so với tuần trước." />
+                    </ViewComponent>
                 </ViewComponent>
             </ScrollView>
-        </Container>
+        </ViewComponent>
     );
 }
-
-const s = StyleSheet.create({
-    iconContainer: {
-        width: 42,
-        height: 42,
-        borderRadius: 12,
-        backgroundColor: C.bg,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: C.border,
-    },
-    avatarFallback: {
-        width: 52,
-        height: 52,
-        borderRadius: 999,
-        backgroundColor: C.bg,
-        borderWidth: 1,
-        borderColor: C.border,
-    },
-    avatar: { width: 52, height: 52, borderRadius: 999 },
-
-    line: { height: 2, backgroundColor: C.border, marginVertical: 12 },
-
-    segmentBtn: {
-        minWidth: 100,
-        height: 40,
-        borderRadius: 999,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: 12,
-    },
-    segmentBtnActive: { backgroundColor: C.primary },
-
-    pickerSheet: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.35)',
-        justifyContent: 'flex-end',
-    },
-    pickerBox: {
-        backgroundColor: C.white,
-        borderTopLeftRadius: 16,
-        borderTopRightRadius: 16,
-        paddingTop: 8,
-        paddingBottom: 12,
-        borderTopWidth: 1,
-        borderColor: C.border,
-    },
-    doneBtn: {
-        alignSelf: 'center',
-        marginTop: 8,
-        backgroundColor: C.primary,
-        paddingHorizontal: 18,
-        paddingVertical: 10,
-        borderRadius: 999,
-    },
-    card: {
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: C.border,
-        backgroundColor: C.white,
-        shadowColor: '#000',
-        shadowOpacity: 0.05,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 4 },
-    },
-    healthBox: {
-        flex: 1,
-        marginHorizontal: 4,
-        padding: 14,
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: C.border,
-        backgroundColor: C.bg,
-        alignItems: 'center',
-    },
-});

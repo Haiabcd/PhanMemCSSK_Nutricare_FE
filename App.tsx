@@ -7,7 +7,7 @@ import Statistics from "./src/screens/Statistics";
 
 function App() {
   return (
-    <Statistics />
+    <AppNavigator />
   );
 }
 

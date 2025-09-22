@@ -2,7 +2,7 @@ import React from 'react';
 import { View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import MealPlan from '../screens/MealPlan';
+import PlanNavigator from './PlanNavigator';
 import Suggestion from '../screens/Suggestion';
 import Profile from '../screens/Profile';
 import Guide from '../screens/Guide';
@@ -60,9 +60,11 @@ export default function BottomTabsNavigator() {
     >
       <Tab.Screen
         name="MealPlan"
-        component={MealPlan}
+        component={PlanNavigator}
         options={{ tabBarLabel: 'Kế hoạch' }}
       />
+
+
       <Tab.Screen
         name="Suggestions"
         component={Suggestion}
