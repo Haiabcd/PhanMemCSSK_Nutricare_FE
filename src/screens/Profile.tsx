@@ -15,7 +15,11 @@ import {
     Platform,
 } from 'react-native';
 import McIcon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Entypo from 'react-native-vector-icons/Entypo';
 import Container from '../components/Container';
+import TextComponent from '../components/TextComponent';
+import ViewComponent from '../components/ViewComponent';
+import { colors as C } from '../constants/colors';
 import { useNavigation } from '@react-navigation/native';
 
 /** ----------------- Types ----------------- */
@@ -117,6 +121,35 @@ function ToastCenter({
     );
 }
 
+/* ===== Avatar fallback (giống MealPlan) ===== */
+function Avatar({
+    name,
+    photoUri,
+}: {
+    name: string;
+    photoUri?: string | null;
+}) {
+    const initials = name
+        .split(' ')
+        .map(n => n[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase();
+
+    if (photoUri) return <Image source={{ uri: photoUri }} style={s.avatar} />;
+
+    return (
+        <ViewComponent center style={s.avatarFallback} flex={0}>
+            <TextComponent
+                text={initials}
+                variant="subtitle"
+                weight="bold"
+                tone="primary"
+            />
+        </ViewComponent>
+    );
+}
+
 export default function ProfileScreen() {
     const [data, setData] = useState<Profile>(DEFAULT_PROFILE);
     const [draft, setDraft] = useState<Profile>(DEFAULT_PROFILE);
@@ -130,7 +163,6 @@ export default function ProfileScreen() {
     const [toast, setToast] = useState<{ title: string; subtitle?: string; kind?: ToastKind } | null>(null);
 
     // ====== START: Picker Modal ======
-    // danh sách gợi ý — bạn có thể chỉnh theo nhu cầu
     const SUGGESTED_ILLNESSES = [
         'Tăng huyết áp', 'Đái tháo đường', 'Tim mạch', 'Hen suyễn', 'Rối loạn mỡ máu',
         'Suy giáp', 'Cường giáp', 'Loét dạ dày', 'Viêm đại tràng', 'Gout',
@@ -154,7 +186,6 @@ export default function ProfileScreen() {
 
     const arrToStr = (arr: string[]) => (arr.length ? arr.join(', ') : 'Không có');
 
-    // bỏ dấu + thường hoá để tìm kiếm thân thiện tiếng Việt
     const normalizeVN = (s: string) =>
         s
             .normalize('NFD')
@@ -166,7 +197,7 @@ export default function ProfileScreen() {
         setPickerType(type);
         const current = type === 'illness' ? draft.illness : draft.allergy;
         setPickerSelected(strToArr(current));
-        setPickerSearch(''); // reset từ khoá mỗi lần mở
+        setPickerSearch('');
         setPickerOpen(true);
     };
 
@@ -190,7 +221,7 @@ export default function ProfileScreen() {
         : currentOptions;
     // ====== END: Picker Modal ======
 
-    // helper: show toast to đẹp + auto ẩn + callback
+    // helper: show toast
     const showToast = (opts: { title: string; subtitle?: string; kind?: ToastKind; duration?: number }, cb?: () => void) => {
         const { title, subtitle, kind = 'success', duration = 1400 } = opts;
         setToast({ title, subtitle, kind });
@@ -258,6 +289,26 @@ export default function ProfileScreen() {
                 subtitle={toast?.subtitle}
                 kind={toast?.kind ?? 'success'}
             />
+
+            {/* ===== Header đồng bộ với MealPlan (Avatar + Xin chào + Chuông) ===== */}
+            <ViewComponent row between alignItems="center" mt={20}>
+                <ViewComponent row alignItems="center" gap={10} flex={0}>
+                    <Avatar name="Anh Hải" />
+                    <ViewComponent flex={0}>
+                        <TextComponent text="Xin chào," variant="caption" tone="muted" />
+                        <TextComponent text="Anh Hải" variant="subtitle" weight="bold" />
+                    </ViewComponent>
+                </ViewComponent>
+
+                <Pressable
+                    style={s.iconContainer}
+                    onPress={() => navigation.navigate('Notification')}
+                >
+                    <Entypo name="bell" size={20} color={C.primary} />
+                </Pressable>
+            </ViewComponent>
+
+            <View style={s.line} />
 
             {/* ===== Header giữ cố định ===== */}
             <View style={styles.header}>
@@ -636,7 +687,6 @@ const styles = StyleSheet.create({
     // Header giữ cố định
     header: {
         backgroundColor: 'transparent',
-        paddingTop: 14,
         paddingBottom: 14,
         paddingHorizontal: 16,
         borderBottomWidth: 1,
@@ -712,7 +762,7 @@ const styles = StyleSheet.create({
     settingLabel: { color: colors.text, fontSize: 14, fontWeight: '800' },
     settingSub: { color: '#64748b', fontSize: 12, marginTop: 2 },
 
-    /* ===== Toast styles (đẹp) ===== */
+    /* ===== Toast styles ===== */
     toastOverlay: {
         position: 'absolute',
         inset: 0 as any,
@@ -890,4 +940,28 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         paddingVertical: 14,
     },
+});
+
+/* ===== styles header đồng bộ MealPlan ===== */
+const s = StyleSheet.create({
+    iconContainer: {
+        width: 42,
+        height: 42,
+        borderRadius: 12,
+        backgroundColor: C.bg,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: C.border,
+    },
+    avatarFallback: {
+        width: 52,
+        height: 52,
+        borderRadius: 999,
+        backgroundColor: C.bg,
+        borderWidth: 1,
+        borderColor: C.border,
+    },
+    avatar: { width: 52, height: 52, borderRadius: 999 },
+    line: { height: 2, backgroundColor: C.border, marginVertical: 12 },
 });

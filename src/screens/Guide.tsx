@@ -15,7 +15,14 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import McIcon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Entypo from 'react-native-vector-icons/Entypo';
 import Container from '../components/Container';
+import TextComponent from '../components/TextComponent';
+import ViewComponent from '../components/ViewComponent';
+import { colors as C } from '../constants/colors';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { PlanStackParamList } from '../navigation/PlanNavigator';
 
 type Kind = 'all' | 'meal' | 'article' | 'video';
 
@@ -50,10 +57,29 @@ const DATA: Item[] = [
     { id: '8', title: 'Nguồn Protein Tốt', desc: 'Khám phá các nguồn protein thực vật & động vật có lợi.', kind: 'article', image: 'https://images.unsplash.com/photo-1505575972945-280e1d0d4c57?q=80&w=800&auto=format&fit=crop', cta: 'ĐỌC BÀI' },
 ];
 
+/* ===== Avatar fallback (đồng bộ kích thước với MealPlan) ===== */
+function Avatar({ name, photoUri }: { name: string; photoUri?: string | null }) {
+    const initials = name
+        .split(' ')
+        .map(n => n[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase();
+
+    if (photoUri) return <Image source={{ uri: photoUri }} style={s.avatar} />;
+
+    return (
+        <ViewComponent center style={s.avatarFallback} flex={0}>
+            <TextComponent text={initials} variant="subtitle" weight="bold" tone="primary" />
+        </ViewComponent>
+    );
+}
+
 export default function NutritionGuide() {
     const [active, setActive] = useState<Kind>('all');
     const [q, setQ] = useState('');
     const { width: screenW, height: screenH } = useWindowDimensions();
+    const navigation = useNavigation<NativeStackNavigationProp<PlanStackParamList>>();
 
     const filtered = useMemo(() => {
         const qLower = q.trim().toLowerCase();
@@ -67,16 +93,39 @@ export default function NutritionGuide() {
         });
     }, [active, q]);
 
+    // CHIỀU CAO CỐ ĐỊNH CHO KHỐI DANH SÁCH — tránh “giật” khi số lượng item thay đổi
+    const CONTENT_HEIGHT = Math.max(420, Math.floor(screenH * 0.69));
+
     return (
         <Container>
-            {/* Header */}
+            {/* ===== Header đồng bộ với MealPlan (Avatar + Xin chào + Chuông) ===== */}
+            <ViewComponent row between alignItems="center" mt={20}>
+                <ViewComponent row alignItems="center" gap={10} flex={0}>
+                    <Avatar name="Anh Hải" />
+                    <ViewComponent flex={0}>
+                        <TextComponent text="Xin chào," variant="caption" tone="muted" />
+                        <TextComponent text="Anh Hải" variant="subtitle" weight="bold" />
+                    </ViewComponent>
+                </ViewComponent>
+
+                <Pressable
+                    style={s.iconContainer}
+                    onPress={() => navigation.navigate('Notification')}
+                >
+                    <Entypo name="bell" size={20} color={C.primary} />
+                </Pressable>
+            </ViewComponent>
+
+            <View style={s.line} />
+
+            {/* Header tiêu đề trang */}
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Hướng Dẫn Dinh Dưỡng</Text>
                 <Text style={styles.headerSub}>Hướng dẫn dinh dưỡng giúp bạn chạm đến mục tiêu</Text>
             </View>
 
-            {/* Khối trắng bao nội dung — NGẮN LẠI nhờ maxHeight, list cuộn bên trong */}
-            <View style={[styles.contentBlock, { maxHeight: Math.max(420, screenH * 0.79) }]}>
+            {/* Khối trắng bao nội dung — CỐ ĐỊNH CHIỀU CAO */}
+            <View style={[styles.contentBlock, { height: CONTENT_HEIGHT }]}>
                 {/* Search */}
                 <View style={styles.searchWrap}>
                     <Ionicons name="search" size={18} color="#64748b" />
@@ -114,17 +163,27 @@ export default function NutritionGuide() {
                     })}
                 </View>
 
-                {/* GRID 2 cột — mỗi ô bằng nhau, không mất chữ */}
-                <FlatList
-                    data={filtered}
-                    keyExtractor={(it) => it.id}
-                    numColumns={2}
-                    renderItem={({ item }) => <Card item={item} />}
-                    columnWrapperStyle={styles.columnWrap}
-                    contentContainerStyle={styles.listContent}
-                    style={styles.list}
-                    showsVerticalScrollIndicator={false}
-                />
+                {/* Holder để FlatList chiếm phần còn lại, giữ block không đổi chiều cao */}
+                <View style={styles.listHolder}>
+                    <FlatList
+                        data={filtered}
+                        keyExtractor={(it) => it.id}
+                        numColumns={2}
+                        renderItem={({ item }) => <Card item={item} />}
+                        columnWrapperStyle={styles.columnWrap}
+                        contentContainerStyle={styles.listContent}
+                        style={styles.list}
+                        showsVerticalScrollIndicator={false}
+                        ListEmptyComponent={
+                            <View style={styles.emptyWrap}>
+                                <Text style={styles.emptyTitle}>Không tìm thấy kết quả</Text>
+                                <Text style={styles.emptySub}>
+                                    Thử thay đổi bộ lọc hoặc từ khóa khác nhé.
+                                </Text>
+                            </View>
+                        }
+                    />
+                </View>
             </View>
 
             {/* Chat nổi */}
@@ -140,7 +199,7 @@ function Card({ item }: { item: Item }) {
     return (
         <View style={styles.cardWrap}>
             <View style={styles.card}>
-                {/* Ảnh thấp hơn để dành chỗ cho chữ */}
+                {/* Ảnh */}
                 <View style={styles.thumbWrap}>
                     <Image source={{ uri: item.image }} style={styles.thumb} resizeMode="cover" />
                     <View style={styles.badge}>
@@ -153,13 +212,12 @@ function Card({ item }: { item: Item }) {
                     )}
                 </View>
 
-                {/* Body fill còn lại, CTA bám đáy */}
+                {/* Body */}
                 <View style={styles.cardBody}>
                     <View>
                         <Text style={styles.cardTitle} numberOfLines={2}>
                             {item.title}
                         </Text>
-                        {/* Cho phép tối đa 3 dòng để không “mất chữ” nhưng ô vẫn đều */}
                         <Text style={styles.cardDesc} numberOfLines={3} ellipsizeMode="tail">
                             {item.desc}
                         </Text>
@@ -261,9 +319,33 @@ function FloatingChat({ screenW, screenH }: { screenW: number; screenH: number }
     );
 }
 
-// ================== STYLES ==================
+/* ========== STYLES ========== */
+const s = StyleSheet.create({
+    // Header đồng bộ MealPlan
+    iconContainer: {
+        width: 42,
+        height: 42,
+        borderRadius: 12,
+        backgroundColor: C.bg,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: C.border,
+    },
+    avatarFallback: {
+        width: 52,
+        height: 52,
+        borderRadius: 999,
+        backgroundColor: C.bg,
+        borderWidth: 1,
+        borderColor: C.border,
+    },
+    avatar: { width: 52, height: 52, borderRadius: 999 },
+    line: { height: 2, backgroundColor: C.border, marginVertical: 12 },
+});
+
 const styles = StyleSheet.create({
-    // Header
+    // Header tiêu đề trang
     header: {
         backgroundColor: 'transparent',
         paddingTop: 14,
@@ -271,7 +353,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         borderBottomWidth: 1,
         borderBottomColor: '#e5efe8',
-        marginTop: 20,
+        marginTop: 0,
     },
     headerTitle: {
         color: '#0f172a',
@@ -281,7 +363,6 @@ const styles = StyleSheet.create({
     },
     headerSub: { color: '#6b7280', fontSize: 13, marginTop: 2 },
 
-    // Khối trắng bao nội dung (ngắn lại nhờ maxHeight ở trên)
     contentBlock: {
         flexGrow: 0,
         minHeight: 0,
@@ -296,6 +377,9 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         elevation: 2,
         overflow: 'hidden',
+        // quan trọng để layout theo cột & không bị co
+        flexDirection: 'column',
+        flexShrink: 0,
     },
 
     searchWrap: {
@@ -345,25 +429,17 @@ const styles = StyleSheet.create({
     chipText: { color: '#0f172a', fontWeight: '800', fontSize: 13 },
     chipTextActive: { color: '#fff' },
 
-    // FlatList area
-    list: {
-        flexGrow: 0,     // để list không ép contentBlock cao ra
-    },
-    listContent: {
-        paddingTop: 6,
-        paddingBottom: 12,
-    },
-    columnWrap: {
-        paddingHorizontal: 12,
-        justifyContent: 'space-between',
+    // holder để FlatList chiếm hết phần còn lại
+    listHolder: {
+        flex: 1,
+        minHeight: 0,
     },
 
-    // Mỗi ô bằng nhau (chiều cao cố định), không mất chữ nhờ ảnh thấp & desc tối đa 3 dòng
-    cardWrap: {
-        width: '48%',
-        height: 280,     // có thể chỉnh 260/300 tuỳ ý
-        marginBottom: 12,
-    },
+    list: { flex: 1 },
+    listContent: { paddingTop: 6, paddingBottom: 12 },
+    columnWrap: { paddingHorizontal: 12, justifyContent: 'space-between' },
+
+    cardWrap: { width: '48%', height: 280, marginBottom: 12 },
     card: {
         flex: 1,
         backgroundColor: '#fff',
@@ -378,11 +454,7 @@ const styles = StyleSheet.create({
         elevation: 2,
     },
 
-    // Ảnh thấp hơn để dành chỗ cho text (aspectRatio lớn -> height nhỏ)
-    thumbWrap: {
-        width: '100%',
-        aspectRatio: 1.9, // từ 1.6 -> 1.9 (ảnh thấp hơn)
-    },
+    thumbWrap: { width: '100%', aspectRatio: 1.9 },
     thumb: { width: '100%', height: '100%' },
     badge: {
         position: 'absolute',
@@ -410,12 +482,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.12)',
     },
 
-    // Body còn lại, CTA bám đáy
-    cardBody: {
-        flex: 1,
-        padding: 12,
-        justifyContent: 'space-between',
-    },
+    cardBody: { flex: 1, padding: 12, justifyContent: 'space-between' },
     cardTitle: { fontSize: 16, fontWeight: '900', color: '#0f172a', letterSpacing: 0.15 },
     cardDesc: { fontSize: 13, color: '#334155', lineHeight: 18 },
 
@@ -444,6 +511,16 @@ const styles = StyleSheet.create({
         borderColor: '#f9a8d4',
     },
     ctaText: { color: '#be185d', fontWeight: '900', fontSize: 12, letterSpacing: 0.2 },
+
+    // Empty state nằm bên trong block cố định
+    emptyWrap: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 18,
+    },
+    emptyTitle: { fontWeight: '900', color: '#0f172a', marginBottom: 6 },
+    emptySub: { color: '#64748b' },
 
     // Chat nổi
     chatBall: {
