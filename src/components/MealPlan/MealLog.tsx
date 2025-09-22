@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Entypo from 'react-native-vector-icons/Entypo';
@@ -152,6 +152,42 @@ const demoPlanFor = (date: Date): PlanDay => {
   };
 };
 
+/* ========= POOL gợi ý để “Đổi món” theo từng bữa ========= */
+const IMG = (u: string) => withParams(u, 'auto=format&fit=crop&w=1200&q=80');
+
+const ALT_POOL: Record<'sáng' | 'trưa' | 'vặt' | 'tối', MealItem[]> = {
+  sáng: [
+    { id: 'b1', title: 'Yến mạch chuối', kcal: 320, img: IMG('https://images.unsplash.com/photo-1517677208171-0bc6725a3e60') },
+    { id: 'b2', title: 'Bánh mì trứng ốp', kcal: 350, img: IMG('https://images.unsplash.com/photo-1551183053-bf91a1d81141') },
+    { id: 'b3', title: 'Sữa chua granola', kcal: 290, img: IMG('https://images.unsplash.com/photo-1512058564366-18510be2db19') },
+  ],
+  trưa: [
+    { id: 'l1', title: 'Cơm gà áp chảo', kcal: 520, img: IMG('https://images.unsplash.com/photo-1540189549336-e6e99c3679fe') },
+    { id: 'l2', title: 'Bún thịt nạc rau', kcal: 480, img: IMG('https://images.unsplash.com/photo-1526318472351-c75fcf070305') },
+    { id: 'l3', title: 'Pasta sốt cà chua', kcal: 510, img: IMG('https://images.unsplash.com/photo-1521389508051-d7ffb5dc8bbf') },
+  ],
+  vặt: [
+    { id: 's1', title: 'Sữa chua uống', kcal: 120, img: IMG('https://images.unsplash.com/photo-1563630423918-6f955d9bf0da') },
+    { id: 's2', title: 'Hạnh nhân rang', kcal: 160, img: IMG('https://images.unsplash.com/photo-1601004890684-d8cbf643f5f2') },
+    { id: 's3', title: 'Chuối chín', kcal: 100, img: IMG('https://images.unsplash.com/photo-1571772805064-207c8435df79') },
+  ],
+  tối: [
+    { id: 'd1', title: 'Ức gà nướng rau', kcal: 430, img: IMG('https://images.unsplash.com/photo-1512621776951-a57141f2eefd') },
+    { id: 'd2', title: 'Mì soba bò áp chảo', kcal: 520, img: IMG('https://images.unsplash.com/photo-1546069901-ba9599a7e63c') },
+    { id: 'd3', title: 'Đậu hũ sốt nấm', kcal: 410, img: IMG('https://images.unsplash.com/photo-1526318472351-c75fcf070305') },
+  ],
+};
+
+function normalizeSectionName(name: string): 'sáng' | 'trưa' | 'vặt' | 'tối' | undefined {
+  const lower = name.toLowerCase();
+  if (lower.includes('sáng')) return 'sáng';
+  if (lower.includes('trưa')) return 'trưa';
+  if (lower.includes('tối')) return 'tối';
+  // “Đồ ăn vặt”
+  if (lower.includes('vặt') || lower.includes('snack') || lower.includes('ăn vặt')) return 'vặt';
+  return undefined;
+}
+
 /* ========= subcomponents ========= */
 function SectionHeader({ name, kcal }: { name: string; kcal: number }) {
   const lower = name.toLowerCase();
@@ -177,7 +213,6 @@ function SectionHeader({ name, kcal }: { name: string; kcal: number }) {
         )}
         <TextComponent text={name} size={16} color={C.text} weight="bold" />
       </RowComponent>
-      {/* kcal chuyển sang teal để giảm “full green” */}
       <TextComponent
         text={`${kcal} cal`}
         color={ACCENT}
@@ -224,7 +259,7 @@ function MealItemCard({
           />
         )}
 
-        {/* Tick chọn: dùng teal làm màu chính để bớt “full green” */}
+        {/* Tick chọn */}
         <Pressable onPress={onToggle} style={st.tickWrap}>
           <View style={[st.tickCircle, checked ? st.tickOn : st.tickOff]}>
             <MaterialCommunityIcons
@@ -235,7 +270,7 @@ function MealItemCard({
           </View>
         </Pressable>
 
-        {/* Kcal badge: nền tealSurface + border teal */}
+        {/* Kcal badge */}
         <View style={st.kcalBadge}>
           <MaterialCommunityIcons name="fire" size={12} color={ACCENT} />
           <TextComponent
@@ -256,7 +291,7 @@ function MealItemCard({
           </RowComponent>
         ) : null}
 
-        {/* Actions: primary = green, secondary = teal */}
+        {/* Actions */}
         <RowComponent gap={10} flex={0}>
           <Pressable style={[st.btn, st.btnPrimary]} onPress={onChange}>
             <RowComponent
@@ -355,10 +390,17 @@ export default function MealLog({
   date,
   onChangeDate,
   getPlanForDate = demoPlanFor,
-  onDetail
+  onDetail,
 }: MealLogProps) {
   const plan = useMemo(() => getPlanForDate(date), [date, getPlanForDate]);
-  const sections = plan.sections;
+
+  // Local state để có thể thay món tại chỗ
+  const [sectionsState, setSectionsState] = useState<Section[]>(plan.sections);
+
+  // Nếu đổi ngày => reset lại món theo plan mới
+  useEffect(() => {
+    setSectionsState(plan.sections);
+  }, [plan]);
 
   // tick chọn món
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -369,6 +411,41 @@ export default function MealLog({
       return next;
     });
   }, []);
+
+  // Chọn pool theo tên section
+  const poolFor = (sectionName: string): MealItem[] | undefined => {
+    const key = normalizeSectionName(sectionName);
+    return key ? ALT_POOL[key] : undefined;
+  };
+
+  // Đổi món tại vị trí (sectionIdx, itemIdx)
+  const swapItem = (sectionIdx: number, itemIdx: number) => {
+    setSectionsState(prev => {
+      const next = prev.map(s => ({ ...s, items: [...s.items] }));
+      const sec = next[sectionIdx];
+      if (!sec) return prev;
+
+      const pool = poolFor(sec.name);
+      if (!pool || pool.length === 0) return prev;
+
+      const cur = sec.items[itemIdx];
+      // Tìm món khác món hiện tại (xoay vòng đơn giản)
+      let pick = pool[0];
+      // Nếu pool có >1, tìm món id khác cur.id
+      if (pool.length > 1) {
+        const idx = pool.findIndex(p => p.id === cur?.id);
+        pick = pool[(idx >= 0 ? idx + 1 : 0) % pool.length];
+      }
+
+      // Thay thế, giữ nguyên weightLine nếu muốn
+      sec.items[itemIdx] = {
+        ...pick,
+        weightLine: cur?.weightLine,
+      };
+
+      return next;
+    });
+  };
 
   return (
     <View>
@@ -385,16 +462,16 @@ export default function MealLog({
         </>
       )}
 
-      {sections.map(sec => (
+      {sectionsState.map((sec, si) => (
         <View key={sec.id} style={{ marginTop: 14 }}>
           <SectionHeader name={sec.name} kcal={kcalTotalOf([sec])} />
-          {sec.items.map(it => (
+          {sec.items.map((it, ii) => (
             <MealItemCard
-              key={it.id}
+              key={`${it.id}-${ii}`}
               it={it}
               checked={selected.has(it.id)}
               onToggle={() => toggle(it.id)}
-              onChange={() => { }}
+              onChange={() => swapItem(si, ii)}
               onDetail={onDetail}
             />
           ))}
@@ -489,9 +566,7 @@ const st = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Primary vẫn green để thể hiện hành động chính
   btnPrimary: { backgroundColor: C.green },
-  // Secondary chuyển sang hệ teal
   btnGhost: {
     backgroundColor: ACCENT_SURFACE,
     borderWidth: 1,
