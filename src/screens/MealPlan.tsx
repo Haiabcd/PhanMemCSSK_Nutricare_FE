@@ -207,7 +207,11 @@ const MealPlan = () => {
         <ViewComponent variant="card" p={12} mb={12}>
           <TextComponent text="Nhật ký ăn uống" variant="h3" tone="primary" />
           <ViewComponent mt={12}>
-            <MealLog range={range} date={date} onChangeDate={setDate} />
+            <MealLog
+              range={range}
+              date={date}
+              onChangeDate={setDate}
+              onDetail={() => navigation.navigate('MealLogDetail')} />
           </ViewComponent>
         </ViewComponent>
 

@@ -31,6 +31,7 @@ export interface MealLogProps {
   date: Date;
   onChangeDate: (d: Date) => void;
   getPlanForDate?: (d: Date) => PlanDay;
+  onDetail: () => void;
 }
 
 /* ========= helpers ========= */
@@ -354,6 +355,7 @@ export default function MealLog({
   date,
   onChangeDate,
   getPlanForDate = demoPlanFor,
+  onDetail
 }: MealLogProps) {
   const plan = useMemo(() => getPlanForDate(date), [date, getPlanForDate]);
   const sections = plan.sections;
@@ -392,8 +394,8 @@ export default function MealLog({
               it={it}
               checked={selected.has(it.id)}
               onToggle={() => toggle(it.id)}
-              onChange={() => {}}
-              onDetail={() => {}}
+              onChange={() => { }}
+              onDetail={onDetail}
             />
           ))}
         </View>
