@@ -18,6 +18,9 @@ import MealLog from '../components/MealPlan/MealLog';
 import { colors as C } from '../constants/colors';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { PlanStackParamList } from '../navigation/PlanNavigator';
 /* ================== Avatar fallback ================== */
 function Avatar({
   name,
@@ -62,9 +65,11 @@ const fmtVNFull = (d: Date) => {
   return `${dow}, ${dd} Tháng ${mm}`;
 };
 
+
 const MealPlan = () => {
   const [range, setRange] = useState<'day' | 'week'>('day');
   const [date, setDate] = useState<Date>(new Date());
+  const navigation = useNavigation<NativeStackNavigationProp<PlanStackParamList>>();
 
   // Modal DatePicker chung cho cả iOS & Android
   const [showPicker, setShowPicker] = useState(false);
@@ -82,7 +87,10 @@ const MealPlan = () => {
           </ViewComponent>
         </ViewComponent>
 
-        <Pressable style={s.iconContainer}>
+        <Pressable
+          style={s.iconContainer}
+          onPress={() => navigation.navigate('Notification')}
+        >
           <Entypo name="bell" size={20} color={C.primary} />
         </Pressable>
       </ViewComponent>
@@ -191,6 +199,7 @@ const MealPlan = () => {
               fiber: { cur: 8, total: 27 },
             }}
             modeLabel="Cân Bằng"
+            onPressStatistics={() => navigation.navigate('Statistics')}
           />
         </ViewComponent>
 
@@ -198,7 +207,11 @@ const MealPlan = () => {
         <ViewComponent variant="card" p={12} mb={12}>
           <TextComponent text="Nhật ký ăn uống" variant="h3" tone="primary" />
           <ViewComponent mt={12}>
-            <MealLog range={range} date={date} onChangeDate={setDate} />
+            <MealLog
+              range={range}
+              date={date}
+              onChangeDate={setDate}
+              onDetail={() => navigation.navigate('MealLogDetail')} />
           </ViewComponent>
         </ViewComponent>
 

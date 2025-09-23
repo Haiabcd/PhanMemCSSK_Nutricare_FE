@@ -1,10 +1,9 @@
 import React, { useEffect, useRef } from 'react';
-import { StyleSheet, Animated, Easing, View } from 'react-native';
+import { StyleSheet, Animated, Easing, View, Pressable } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import ViewComponent from '../ViewComponent';
 import TextComponent from '../TextComponent';
 import { colors as C } from '../../constants/colors';
-
 /** ===== Types ===== */
 type Macro = { cur: number; total: number };
 
@@ -21,6 +20,7 @@ export type CaloriesNutritionCardProps = {
   modeLabel?: string;
   style?: any;
   titleStyle?: any;
+  onPressStatistics?: () => void;
 };
 
 /** ===== Animated horizontal progress ===== */
@@ -117,6 +117,7 @@ export default function CaloriesNutritionCard({
   modeLabel,
   style,
   titleStyle,
+  onPressStatistics,
 }: CaloriesNutritionCardProps) {
   const remain = Math.max(0, target - eaten);
   const eatenPct = target ? Math.max(0, Math.min(1, eaten / target)) : 0;
@@ -158,20 +159,11 @@ export default function CaloriesNutritionCard({
           color={C.textWhite}
           style={titleStyle}
         />
-        <ViewComponent
-          px={10}
-          py={6}
-          radius={999}
-          border
-          borderColor={C.slate50}
-        >
-          <TextComponent
-            text="Thống kê"
-            color={C.textWhite}
-            weight="bold"
-            size={14}
-          />
-        </ViewComponent>
+        <Pressable onPress={onPressStatistics}>
+          <ViewComponent px={10} py={6} radius={999} border borderColor={C.slate50}>
+            <TextComponent text="Thống kê" color={C.textWhite} weight="bold" size={14} />
+          </ViewComponent>
+        </Pressable>
       </ViewComponent>
 
       {/* Body */}

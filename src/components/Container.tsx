@@ -12,7 +12,7 @@ interface Props {
 
 const Container = (props: Props) => {
 
-    const { children, style} = props;
+    const { children, style } = props;
 
 
     return (

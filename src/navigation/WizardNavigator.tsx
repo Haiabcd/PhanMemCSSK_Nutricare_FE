@@ -33,7 +33,7 @@ export default function WizardNavigator() {
     <WizardProvider>
       <Stack.Navigator
         screenOptions={{ headerShown: false }}
-        initialRouteName="Done"
+        initialRouteName="StepName"
       >
         <Stack.Screen name="StepName" component={StepNameScreen} />
         <Stack.Screen name="StepGender" component={StepGenderScreen} />
