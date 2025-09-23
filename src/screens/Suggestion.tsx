@@ -20,7 +20,7 @@ import { colors as C } from '../constants/colors';
 
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { PlanStackParamList } from '../navigation/PlanNavigator';
+import type { SuggestionStackParamList } from '../navigation/SuggestionNavigator';
 
 /* ================== Avatar fallback (đồng bộ MealPlan) ================== */
 function Avatar({ name, photoUri }: { name: string; photoUri?: string | null }) {
@@ -51,10 +51,11 @@ const RECIPES: Recipe[] = [
 ];
 
 // ==== Component ====
-export default function NutritionGuide(): JSX.Element {
-  const navigation = useNavigation<NativeStackNavigationProp<PlanStackParamList>>();
+export default function NutritionGuide() {
+  const navigation = useNavigation<NativeStackNavigationProp<SuggestionStackParamList>>();
   const { height: screenH } = useWindowDimensions();
-  const CONTENT_HEIGHT = Math.max(420, Math.floor(screenH * 0.69)); // cố định block, tránh “giật”
+  const CONTENT_HEIGHT = Math.max(420, Math.floor(screenH * 0.69));
+
 
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -117,7 +118,7 @@ export default function NutritionGuide(): JSX.Element {
                 </View>
               </View>
 
-              <Pressable style={styles.ctaBtn} onPress={() => { }}>
+              <Pressable style={styles.ctaBtn} onPress={() => { navigation.navigate('MealLogDetail'); }}>
                 <Text style={styles.ctaText}>XEM CÔNG THỨC</Text>
               </Pressable>
             </View>
@@ -138,7 +139,7 @@ export default function NutritionGuide(): JSX.Element {
             <TextComponent text="Anh Hải" variant="subtitle" weight="bold" />
           </ViewComponent>
         </ViewComponent>
-        <Pressable style={s.iconContainer} onPress={() => navigation.navigate('Notification')}>
+        <Pressable style={s.iconContainer}>
           <Entypo name="bell" size={20} color={C.primary} />
         </Pressable>
       </ViewComponent>

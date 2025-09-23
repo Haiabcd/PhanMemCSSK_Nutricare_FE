@@ -3,16 +3,16 @@ import { View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import PlanNavigator from './PlanNavigator';
-import Suggestion from '../screens/Suggestion';
+import SuggestionNavigator from './SuggestionNavigator';
 import Profile from '../screens/Profile';
-import Guide from '../screens/Guide';
 import Track from '../screens/Track';
 import { colors } from '../constants/colors';
 import GuideNavigator from './GuideNavigator';
 
+
 export type MainTabParamList = {
   MealPlan: undefined;
-  Suggestions: undefined;
+  SuggestionNavigator: undefined;
   Track: undefined;
   GuideNavigator: undefined;
   Profile: undefined;
@@ -40,7 +40,7 @@ export default function BottomTabsNavigator() {
             case 'MealPlan':
               iconName = 'event-note';
               break;
-            case 'Suggestions':
+            case 'SuggestionNavigator':
               iconName = 'restaurant';
               break;
             case 'GuideNavigator':
@@ -67,8 +67,8 @@ export default function BottomTabsNavigator() {
 
 
       <Tab.Screen
-        name="Suggestions"
-        component={Suggestion}
+        name="SuggestionNavigator"
+        component={SuggestionNavigator}
         options={{ tabBarLabel: 'Gợi ý' }}
       />
 
