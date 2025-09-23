@@ -691,7 +691,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         borderBottomWidth: 1,
         borderBottomColor: colors.border,
-        marginTop: 20
+        marginTop: 14
     },
     headerTitle: { color: colors.text, fontSize: 20, fontWeight: '800', letterSpacing: 0.1 },
     headerSub: { color: colors.sub, fontSize: 13, marginTop: 2 },

@@ -8,12 +8,13 @@ import Profile from '../screens/Profile';
 import Guide from '../screens/Guide';
 import Track from '../screens/Track';
 import { colors } from '../constants/colors';
+import GuideNavigator from './GuideNavigator';
 
 export type MainTabParamList = {
   MealPlan: undefined;
   Suggestions: undefined;
   Track: undefined;
-  Guide: undefined;
+  GuideNavigator: undefined;
   Profile: undefined;
 };
 
@@ -42,7 +43,7 @@ export default function BottomTabsNavigator() {
             case 'Suggestions':
               iconName = 'restaurant';
               break;
-            case 'Guide':
+            case 'GuideNavigator':
               iconName = 'menu-book';
               break;
             case 'Profile':
@@ -105,8 +106,8 @@ export default function BottomTabsNavigator() {
       />
 
       <Tab.Screen
-        name="Guide"
-        component={Guide}
+        name="GuideNavigator"
+        component={GuideNavigator}
         options={{ tabBarLabel: 'Cẩm nang' }}
       />
       <Tab.Screen

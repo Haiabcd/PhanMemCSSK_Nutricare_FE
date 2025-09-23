@@ -374,8 +374,8 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e2e8f0',
     marginTop: 0,
   },
-  headerTitle: { color: '#0f172a', fontSize: 20, fontWeight: '800', letterSpacing: 0.1 },
-  headerSub: { color: '#6b7280', fontSize: 13, marginTop: 2 },
+  headerTitle: { color: '#0f172a', fontSize: 20, fontWeight: '800', letterSpacing: 0.1, marginHorizontal: 16 },
+  headerSub: { color: '#6b7280', fontSize: 13, marginTop: 2, marginHorizontal: 16 },
 
   scrollContent: { paddingBottom: 0 },
   inner: { paddingHorizontal: 16, paddingTop: 10, alignItems: 'center' },

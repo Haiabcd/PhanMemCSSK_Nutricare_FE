@@ -1,4 +1,3 @@
-// NutritionGuide.tsx
 import React, { useMemo, useRef, useState } from 'react';
 import {
     View,
@@ -11,7 +10,6 @@ import {
     useWindowDimensions,
     Animated,
     PanResponder,
-    Alert,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import McIcon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -22,7 +20,7 @@ import ViewComponent from '../components/ViewComponent';
 import { colors as C } from '../constants/colors';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { PlanStackParamList } from '../navigation/PlanNavigator';
+import type { GuideStackParamList } from '../navigation/GuideNavigator';
 
 type Kind = 'all' | 'meal' | 'article' | 'video';
 
@@ -75,11 +73,143 @@ function Avatar({ name, photoUri }: { name: string; photoUri?: string | null }) 
     );
 }
 
+function Card({ item }: { item: Item }) {
+    const kindLabel =
+        item.kind === 'meal' ? 'Món ăn' : item.kind === 'article' ? 'Bài báo' : 'Video';
+
+    return (
+        <View style={styles.cardWrap}>
+            <View style={styles.card}>
+                {/* Ảnh */}
+                <View style={styles.thumbWrap}>
+                    <Image source={{ uri: item.image }} style={styles.thumb} resizeMode="cover" />
+                    <View style={styles.badge}>
+                        <Text style={styles.badgeText}>{kindLabel}</Text>
+                    </View>
+                    {item.kind === 'video' && (
+                        <View style={styles.playOverlay}>
+                            <Ionicons name="play" size={20} color="#fff" />
+                        </View>
+                    )}
+                </View>
+
+                {/* Body */}
+                <View style={styles.cardBody}>
+                    <View>
+                        <Text style={styles.cardTitle} numberOfLines={2}>
+                            {item.title}
+                        </Text>
+                        <Text style={styles.cardDesc} numberOfLines={3} ellipsizeMode="tail">
+                            {item.desc}
+                        </Text>
+
+                        <View style={styles.metaRow}>
+                            {typeof item.cal === 'number' && (
+                                <View style={styles.metaPill}>
+                                    <McIcon name="fire" size={14} color="#ef4444" />
+                                    <Text style={styles.metaText}>{item.cal} kcal</Text>
+                                </View>
+                            )}
+                            {typeof item.protein === 'number' && (
+                                <View style={styles.metaPill}>
+                                    <McIcon name="food-drumstick" size={14} color="#16a34a" />
+                                    <Text style={styles.metaText}>{item.protein}g protein</Text>
+                                </View>
+                            )}
+                            {!!item.weightLine && (
+                                <Text style={styles.metaLoose} numberOfLines={1}>
+                                    {item.weightLine}
+                                </Text>
+                            )}
+                            {!!item.meta && (
+                                <Text style={styles.metaLoose} numberOfLines={1}>
+                                    {item.meta}
+                                </Text>
+                            )}
+                        </View>
+                    </View>
+
+                    <Pressable style={styles.ctaBtn} onPress={() => { }}>
+                        <Text style={styles.ctaText}>{item.cta ?? 'XEM THÊM'}</Text>
+                    </Pressable>
+                </View>
+            </View>
+        </View>
+    );
+}
+
+function FloatingChat({
+    screenW,
+    screenH,
+    navigation,
+}: {
+    screenW: number;
+    screenH: number;
+    navigation: NativeStackNavigationProp<GuideStackParamList>;
+}) {
+    const SIZE = 56;
+    const MARGIN = 12;
+
+    const pos = useRef(
+        new Animated.ValueXY({
+            x: screenW - SIZE - MARGIN,
+            y: Math.max(MARGIN, Math.min(screenH * 0.65, screenH - SIZE - MARGIN)),
+        })
+    ).current;
+
+    const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onPanResponderGrant: () => {
+                pos.extractOffset();
+            },
+            onPanResponderMove: Animated.event([null, { dx: pos.x, dy: pos.y }], {
+                useNativeDriver: false,
+            }),
+            onPanResponderRelease: () => {
+                pos.flattenOffset();
+                const cur = { x: (pos.x as any).__getValue(), y: (pos.y as any).__getValue() };
+                const snapX = cur.x + SIZE / 2 > screenW / 2 ? screenW - SIZE - MARGIN : MARGIN;
+                const boundedY = clamp(cur.y, MARGIN, screenH - SIZE - MARGIN);
+                Animated.spring(pos, {
+                    toValue: { x: snapX, y: boundedY },
+                    useNativeDriver: false,
+                    bounciness: 8,
+                }).start();
+            },
+        })
+    ).current;
+
+    const onPressChat = () => {
+        navigation.navigate('ChatAI');
+    };
+
+    return (
+        <Animated.View
+            style={[
+                styles.chatBall,
+                { width: SIZE, height: SIZE, borderRadius: SIZE / 2 },
+                pos.getLayout(),
+            ]}
+            pointerEvents="box-none"
+            {...panResponder.panHandlers}
+        >
+            <Pressable style={styles.chatInner} onPress={onPressChat}>
+                <Ionicons name="chatbubble-ellipses" size={24} color="#fff" />
+            </Pressable>
+        </Animated.View>
+    );
+}
+
+
+
 export default function NutritionGuide() {
     const [active, setActive] = useState<Kind>('all');
     const [q, setQ] = useState('');
     const { width: screenW, height: screenH } = useWindowDimensions();
-    const navigation = useNavigation<NativeStackNavigationProp<PlanStackParamList>>();
+    const navigation = useNavigation<NativeStackNavigationProp<GuideStackParamList>>();
 
     const filtered = useMemo(() => {
         const qLower = q.trim().toLowerCase();
@@ -110,7 +240,7 @@ export default function NutritionGuide() {
 
                 <Pressable
                     style={s.iconContainer}
-                    onPress={() => navigation.navigate('Notification')}
+                // onPress={() => navigation.navigate('Notification')}
                 >
                     <Entypo name="bell" size={20} color={C.primary} />
                 </Pressable>
@@ -187,135 +317,8 @@ export default function NutritionGuide() {
             </View>
 
             {/* Chat nổi */}
-            <FloatingChat screenW={screenW} screenH={screenH} />
+            <FloatingChat screenW={screenW} screenH={screenH} navigation={navigation} />
         </Container>
-    );
-}
-
-function Card({ item }: { item: Item }) {
-    const kindLabel =
-        item.kind === 'meal' ? 'Món ăn' : item.kind === 'article' ? 'Bài báo' : 'Video';
-
-    return (
-        <View style={styles.cardWrap}>
-            <View style={styles.card}>
-                {/* Ảnh */}
-                <View style={styles.thumbWrap}>
-                    <Image source={{ uri: item.image }} style={styles.thumb} resizeMode="cover" />
-                    <View style={styles.badge}>
-                        <Text style={styles.badgeText}>{kindLabel}</Text>
-                    </View>
-                    {item.kind === 'video' && (
-                        <View style={styles.playOverlay}>
-                            <Ionicons name="play" size={20} color="#fff" />
-                        </View>
-                    )}
-                </View>
-
-                {/* Body */}
-                <View style={styles.cardBody}>
-                    <View>
-                        <Text style={styles.cardTitle} numberOfLines={2}>
-                            {item.title}
-                        </Text>
-                        <Text style={styles.cardDesc} numberOfLines={3} ellipsizeMode="tail">
-                            {item.desc}
-                        </Text>
-
-                        <View style={styles.metaRow}>
-                            {typeof item.cal === 'number' && (
-                                <View style={styles.metaPill}>
-                                    <McIcon name="fire" size={14} color="#ef4444" />
-                                    <Text style={styles.metaText}>{item.cal} kcal</Text>
-                                </View>
-                            )}
-                            {typeof item.protein === 'number' && (
-                                <View style={styles.metaPill}>
-                                    <McIcon name="food-drumstick" size={14} color="#16a34a" />
-                                    <Text style={styles.metaText}>{item.protein}g protein</Text>
-                                </View>
-                            )}
-                            {!!item.weightLine && (
-                                <Text style={styles.metaLoose} numberOfLines={1}>
-                                    {item.weightLine}
-                                </Text>
-                            )}
-                            {!!item.meta && (
-                                <Text style={styles.metaLoose} numberOfLines={1}>
-                                    {item.meta}
-                                </Text>
-                            )}
-                        </View>
-                    </View>
-
-                    <Pressable style={styles.ctaBtn} onPress={() => { }}>
-                        <Text style={styles.ctaText}>{item.cta ?? 'XEM THÊM'}</Text>
-                    </Pressable>
-                </View>
-            </View>
-        </View>
-    );
-}
-
-/** Chat nổi kéo thả */
-function FloatingChat({ screenW, screenH }: { screenW: number; screenH: number }) {
-    const SIZE = 56;
-    const MARGIN = 12;
-
-    const pos = useRef(
-        new Animated.ValueXY({
-            x: screenW - SIZE - MARGIN,
-            y: Math.max(MARGIN, Math.min(screenH * 0.65, screenH - SIZE - MARGIN)),
-        })
-    ).current;
-
-    const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
-
-    const panResponder = useRef(
-        PanResponder.create({
-            onStartShouldSetPanResponder: () => true,
-            onPanResponderGrant: () => {
-                pos.extractOffset();
-            },
-            onPanResponderMove: Animated.event([null, { dx: pos.x, dy: pos.y }], {
-                useNativeDriver: false,
-            }),
-            onPanResponderRelease: () => {
-                pos.flattenOffset();
-                const cur = { x: (pos.x as any).__getValue(), y: (pos.y as any).__getValue() };
-                const snapX = cur.x + SIZE / 2 > screenW / 2 ? screenW - SIZE - MARGIN : MARGIN;
-                const boundedY = clamp(cur.y, MARGIN, screenH - SIZE - MARGIN);
-                Animated.spring(pos, {
-                    toValue: { x: snapX, y: boundedY },
-                    useNativeDriver: false,
-                    bounciness: 8,
-                }).start();
-            },
-        })
-    ).current;
-
-    const onPressChat = () => {
-        Alert.alert('Chat', 'Mở màn hình chat tại đây.');
-    };
-
-    return (
-        <Animated.View
-            style={[
-                styles.chatBall,
-                {
-                    width: SIZE,
-                    height: SIZE,
-                    borderRadius: SIZE / 2,
-                },
-                pos.getLayout(),
-            ]}
-            pointerEvents="box-none"
-            {...panResponder.panHandlers}
-        >
-            <Pressable style={styles.chatInner} onPress={onPressChat}>
-                <Ionicons name="chatbubble-ellipses" size={24} color="#fff" />
-            </Pressable>
-        </Animated.View>
     );
 }
 
