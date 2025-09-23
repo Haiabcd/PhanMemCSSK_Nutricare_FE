@@ -290,12 +290,12 @@ export default function Track() {
           animationType="slide"
           onRequestClose={() => setShowPicker(false)}
         >
-          <View style={s.pickerSheet}>
+          <View>
             {/* backdrop */}
             <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowPicker(false)} />
 
             {/* hộp chọn ngày */}
-            <View style={s.pickerBox}>
+            <View>
               <DateTimePicker
                 value={date}
                 mode="date"
@@ -303,7 +303,7 @@ export default function Track() {
                 themeVariant="light"
                 onChange={(_, d) => { if (d) setDate(d); }}
               />
-              <Pressable onPress={() => setShowPicker(false)} style={s.doneBtn}>
+              <Pressable onPress={() => setShowPicker(false)}>
                 <Text style={{ color: C.onPrimary, fontWeight: '700' }}>Xong</Text>
               </Pressable>
             </View>

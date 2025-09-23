@@ -70,11 +70,30 @@ function Avatar({ name, photoUri }: { name: string; photoUri?: string | null }) 
 }
 
 /* ================== Card ================== */
-function Card({ item }: { item: Item }) {
+function Card({
+    item,
+    navigation, // <-- thêm navigation
+}: {
+    item: Item;
+    navigation: NativeStackNavigationProp<GuideStackParamList>;
+}) {
     const kindLabel = item.kind === 'meal' ? 'Món ăn' : item.kind === 'article' ? 'Bài báo' : 'Video';
+
+    // điều hướng theo loại nội dung
+    const handlePress = () => {
+        if (item.kind === 'meal') {
+            navigation.navigate('MealLogDetail', { item });
+        } else if (item.kind === 'article') {
+            navigation.navigate('Newspaper', { item });
+        } else if (item.kind === 'video') {
+            navigation.navigate('Video', { item });
+        }
+    };
+
     return (
         <View style={styles.cardWrap}>
-            <View style={styles.card}>
+            {/* bấm cả card cũng đi đến màn chi tiết */}
+            <Pressable style={styles.card} onPress={handlePress}>
                 <View style={styles.thumbWrap}>
                     <Image source={{ uri: item.image }} style={styles.thumb} resizeMode="cover" />
                     <View style={styles.badge}><Text style={styles.badgeText}>{kindLabel}</Text></View>
@@ -105,11 +124,12 @@ function Card({ item }: { item: Item }) {
                         </View>
                     </View>
 
-                    <Pressable style={styles.ctaBtn}>
+                    {/* CTA giữ nguyên nhưng cũng gọi handlePress */}
+                    <Pressable style={styles.ctaBtn} onPress={handlePress}>
                         <Text style={styles.ctaText}>{item.cta ?? 'XEM THÊM'}</Text>
                     </Pressable>
                 </View>
-            </View>
+            </Pressable>
         </View>
     );
 }
@@ -239,7 +259,9 @@ export default function NutritionGuide() {
                             data={filtered}
                             keyExtractor={it => it.id}
                             numColumns={2}
-                            renderItem={({ item }) => <Card item={item} />}
+                            renderItem={({ item }) => (
+                                <Card item={item} navigation={navigation} /> // <-- truyền navigation vào Card
+                            )}
                             columnWrapperStyle={styles.columnWrap}
                             contentContainerStyle={[styles.listContent, { flexGrow: 1 }]}
                             style={styles.list}
