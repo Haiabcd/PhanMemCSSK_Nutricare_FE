@@ -10,17 +10,18 @@ import {
   ActivityIndicator,
   Platform,
   KeyboardAvoidingView,
+  Modal,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import Container from '../components/Container';
 
-/* ===== đồng bộ header với app ===== */
 import Entypo from 'react-native-vector-icons/Entypo';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { PlanStackParamList } from '../navigation/PlanNavigator';
 import { colors as C } from '../constants/colors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 type TabKey = 'scan' | 'manual' | 'history';
 type MealType = 'Sáng' | 'Trưa' | 'Tối' | 'Phụ';
@@ -36,24 +37,25 @@ function Avatar({ name, photoUri }: { name: string; photoUri?: string | null }) 
   );
 }
 
+/* ===== Format ngày giống MealPlan ===== */
+const fmtVNFull = (d: Date) => {
+  const dow = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'][d.getDay()];
+  const dd = `${d.getDate()}`.padStart(2, '0');
+  const mm = `${d.getMonth() + 1}`.padStart(2, '0');
+  return `${dow}, ${dd} Tháng ${mm}`;
+};
+
 export default function Track() {
   const navigation = useNavigation<NativeStackNavigationProp<PlanStackParamList>>();
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
 
-  // Date + calendar (fake)
+  // Date state
   const [date, setDate] = useState(new Date());
-  const fmt = (d: Date) =>
-    `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-  const add = (key: 'd' | 'm' | 'y', n: number) => {
-    setDate(prev => {
-      const d = new Date(prev);
-      if (key === 'd') d.setDate(d.getDate() + n);
-      if (key === 'm') d.setMonth(d.getMonth() + n);
-      if (key === 'y') d.setFullYear(d.getFullYear() + n);
-      return d;
-    });
-  };
+
+  // Modal DatePicker (giống MealPlan)
+  const [showPicker, setShowPicker] = useState(false);
+  const openPicker = () => setShowPicker(true);
 
   // Tabs
   const [tab, setTab] = useState<TabKey>('scan');
@@ -72,7 +74,7 @@ export default function Track() {
   const [isScanning, setIsScanning] = useState(false);
   const [mealType, setMealType] = useState<MealType>('Sáng');
 
-  // Demo history data (grouped)
+  // Demo history data
   const historyData: Record<
     MealType,
     { name: string; cal: number; p: number; c: number; f: number; ings?: string[] }[]
@@ -108,7 +110,6 @@ export default function Track() {
             <Text style={s.name}>Anh Hải</Text>
           </View>
         </View>
-
         <Pressable style={s.iconContainer} onPress={() => navigation.navigate('Notification')}>
           <Entypo name="bell" size={20} color={C.primary} />
         </Pressable>
@@ -116,13 +117,14 @@ export default function Track() {
       <View style={[s.line, styles.fullBleed]} />
 
       <View style={{ flex: 1 }}>
-        {/* ===== Tiêu đề màn ===== */}
-        <View style={[styles.header, styles.fullBleed]}>
-          <Text style={styles.headerTitle}>Theo dõi bữa ăn</Text>
-          <Text style={styles.headerSub}>Quản lý bữa ăn hàng ngày của bạn một cách hiện đại và tiện lợi</Text>
+        {/* ===== Khối lịch giống MealPlan ===== */}
+        <View style={[styles.calendarWrap, styles.fullBleed]}>
+          <Pressable onPress={openPicker} style={styles.calendarBtn}>
+            <Entypo name="calendar" size={18} color={C.primary} />
+            <Text style={styles.calendarText}>{fmtVNFull(date)}</Text>
+          </Pressable>
         </View>
 
-        {/* Tránh bị che bởi bàn phím & tab bar/bottom safe area */}
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -135,26 +137,8 @@ export default function Track() {
             keyboardShouldPersistTaps="handled"
             contentInsetAdjustmentBehavior="always"
           >
-            {/* Nội dung full-bleed để triệt tiêu padding của Container */}
             <View style={[styles.inner, styles.fullBleed]}>
-              {/* Date + stepper */}
-              <View style={styles.dateRow}>
-                <Pressable style={styles.stepBtn} onPress={() => add('d', -1)}>
-                  <Text style={styles.stepText}>◀</Text>
-                </Pressable>
-                <View style={styles.dateField}>
-                  <Text style={styles.dateText}>{fmt(date)}</Text>
-                  <Image
-                    source={{ uri: 'https://cdn-icons-png.flaticon.com/512/747/747310.png' }}
-                    style={styles.calendarIcon}
-                  />
-                </View>
-                <Pressable style={styles.stepBtn} onPress={() => add('d', +1)}>
-                  <Text style={styles.stepText}>▶</Text>
-                </Pressable>
-              </View>
-
-              {/* Tabs */}
+              {/* Tabs kiểu chip */}
               <View style={styles.tabs}>
                 <Tab label="Scan AI" active={tab === 'scan'} onPress={() => onChangeTab('scan')} />
                 <Tab label="Nhập thủ công" active={tab === 'manual'} onPress={() => onChangeTab('manual')} />
@@ -296,6 +280,51 @@ export default function Track() {
           </ScrollView>
         </KeyboardAvoidingView>
       </View>
+
+      {/* ===== DatePicker modal (chuẩn MealPlan) ===== */}
+      {/* ===== DatePicker (chuẩn MealPlan) ===== */}
+      {Platform.OS === 'ios' && (
+        <Modal
+          visible={showPicker}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowPicker(false)}
+        >
+          <View style={s.pickerSheet}>
+            {/* backdrop */}
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowPicker(false)} />
+
+            {/* hộp chọn ngày */}
+            <View style={s.pickerBox}>
+              <DateTimePicker
+                value={date}
+                mode="date"
+                display="inline"
+                themeVariant="light"
+                onChange={(_, d) => { if (d) setDate(d); }}
+              />
+              <Pressable onPress={() => setShowPicker(false)} style={s.doneBtn}>
+                <Text style={{ color: C.onPrimary, fontWeight: '700' }}>Xong</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {Platform.OS === 'android' && showPicker && (
+        <DateTimePicker
+          value={date}
+          mode="date"
+          display="calendar"
+          onChange={(event, d) => {
+            // Đóng ngay sau khi chọn hoặc hủy
+            setShowPicker(false);
+            if (event.type === 'set' && d) setDate(d);
+          }}
+        />
+      )}
+
+
     </Container>
   );
 }
@@ -360,9 +389,8 @@ const s = StyleSheet.create({
   name: { color: '#0f172a', fontSize: 16, fontWeight: '800' },
 });
 
-/* ====== styles chính (đồng bộ palette với NutritionGuide) ====== */
+/* ====== styles chính ====== */
 const styles = StyleSheet.create({
-  // full-bleed: triệt tiêu padding ngang của Container (mặc định 16)
   fullBleed: { marginHorizontal: -16 },
 
   header: {
@@ -377,36 +405,25 @@ const styles = StyleSheet.create({
   headerTitle: { color: '#0f172a', fontSize: 20, fontWeight: '800', letterSpacing: 0.1, marginHorizontal: 16 },
   headerSub: { color: '#6b7280', fontSize: 13, marginTop: 2, marginHorizontal: 16 },
 
+  /* Lịch giống MealPlan */
+  calendarWrap: { alignItems: 'center', marginBottom: 8, paddingTop: 4, paddingBottom: 4 },
+  calendarBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: C.primaryBorder,
+    backgroundColor: C.primarySurface,
+  },
+  calendarText: { fontWeight: '800', color: '#0f172a' },
+
   scrollContent: { paddingBottom: 0 },
   inner: { paddingHorizontal: 16, paddingTop: 10, alignItems: 'center' },
 
-  // date row (gọn)
-  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  stepBtn: {
-    backgroundColor: '#f1f5f9',
-    width: 34,
-    height: 34,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  stepText: { fontSize: 18, fontWeight: '700', color: '#334155' },
-  dateField: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  dateText: { fontWeight: '600', color: '#0f172a' },
-  calendarIcon: { width: 18, height: 18, marginLeft: 8, opacity: 0.75 },
-
-  // tabs kiểu chip — 3 nút đều nhau
+  // tabs
   tabs: {
     flexDirection: 'row',
     alignSelf: 'stretch',
@@ -452,7 +469,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { textAlign: 'center', fontSize: 18, fontWeight: '700', marginBottom: 10 },
 
-  // controls rút gọn
+  // inputs
   selectBox: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -493,7 +510,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
 
-  // buttons theo màu chủ đạo app
   primaryBtn: {
     backgroundColor: C.primary,
     paddingVertical: 10,
@@ -525,7 +541,6 @@ const styles = StyleSheet.create({
   label: { color: '#6b7280' },
   value: { fontWeight: '600' },
 
-  // picker rút ngắn (đồng bộ input)
   pickerWrap: {
     borderWidth: 1,
     borderColor: '#e2e8f0',
@@ -568,7 +583,6 @@ const styles = StyleSheet.create({
   badgeRed: { backgroundColor: '#ef4444', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8 },
   badgeText: { color: '#fff', fontWeight: '700' },
 
-  // ghost
   ghostBtn: {
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
@@ -580,4 +594,28 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
   },
   ghostBtnText: { color: '#0f172a', fontWeight: '700' },
+
+  /* Styles cho DatePicker Modal (MealPlan) */
+  pickerSheet: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'flex-end',
+  },
+  pickerBox: {
+    backgroundColor: C.white,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+    borderTopWidth: 1,
+    borderColor: C.border,
+  },
+  doneBtn: {
+    alignSelf: 'center',
+    marginTop: 8,
+    backgroundColor: C.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
 });

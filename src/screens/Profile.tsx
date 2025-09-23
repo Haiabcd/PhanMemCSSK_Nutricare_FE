@@ -55,9 +55,7 @@ const ACTIVITY_OPTIONS: Profile['activity'][] = [
     'Rất nhiều',
 ];
 
-/* =======================
-   ToastCenter (đẹp + to)
-   ======================= */
+/* =======================  ToastCenter  ======================= */
 type ToastKind = 'success' | 'danger';
 
 function ToastCenter({
@@ -94,12 +92,8 @@ function ToastCenter({
     const tint = kind === 'success' ? '#d1fae5' : '#fee2e2';
 
     return (
-        <Animated.View
-            pointerEvents="none"
-            style={[styles.toastOverlay, { opacity }]}
-        >
+        <Animated.View pointerEvents="none" style={[styles.toastOverlay, { opacity }]}>
             <Animated.View style={[styles.toastCard, { transform: [{ scale }] }]}>
-                {/* icon + text */}
                 <View style={styles.toastBody}>
                     <View style={[styles.toastIconWrap, { backgroundColor: tint }]}>
                         <McIcon name={kind === 'success' ? 'check' : 'trash-can-outline'} size={26} color={color} />
@@ -109,8 +103,6 @@ function ToastCenter({
                         {!!subtitle && <Text style={styles.toastSubtitle} numberOfLines={2}>{subtitle}</Text>}
                     </View>
                 </View>
-
-                {/* chân card */}
                 <View style={styles.toastBottomRow}>
                     <View style={[styles.toastDot, { backgroundColor: color, opacity: 0.25 }]} />
                     <View style={[styles.toastDot, { backgroundColor: color, opacity: 0.45 }]} />
@@ -121,57 +113,31 @@ function ToastCenter({
     );
 }
 
-/* ===== Avatar fallback (giống MealPlan) ===== */
-function Avatar({
-    name,
-    photoUri,
-}: {
-    name: string;
-    photoUri?: string | null;
-}) {
-    const initials = name
-        .split(' ')
-        .map(n => n[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase();
-
-    if (photoUri) return <Image source={{ uri: photoUri }} style={s.avatar} />;
-
+/* ===== Avatar fallback (đồng bộ MealPlan) ===== */
+function HeaderAvatar({ name, photoUri }: { name: string; photoUri?: string | null }) {
+    const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+    if (photoUri) return <Image source={{ uri: photoUri }} style={styles.headerAvatar} />;
     return (
-        <ViewComponent center style={s.avatarFallback} flex={0}>
-            <TextComponent
-                text={initials}
-                variant="subtitle"
-                weight="bold"
-                tone="primary"
-            />
+        <ViewComponent center style={styles.headerAvatarFallback} flex={0}>
+            <TextComponent text={initials} variant="subtitle" weight="bold" tone="primary" />
         </ViewComponent>
     );
 }
 
+/* =======================  Screen  ======================= */
 export default function ProfileScreen() {
     const [data, setData] = useState<Profile>(DEFAULT_PROFILE);
     const [draft, setDraft] = useState<Profile>(DEFAULT_PROFILE);
     const [showEdit, setShowEdit] = useState(false);
 
-    // Cài đặt chung
     const [allowNotif, setAllowNotif] = useState<boolean>(true);
     const navigation = useNavigation<any>();
 
-    // Toast state
     const [toast, setToast] = useState<{ title: string; subtitle?: string; kind?: ToastKind } | null>(null);
 
-    // ====== START: Picker Modal ======
-    const SUGGESTED_ILLNESSES = [
-        'Tăng huyết áp', 'Đái tháo đường', 'Tim mạch', 'Hen suyễn', 'Rối loạn mỡ máu',
-        'Suy giáp', 'Cường giáp', 'Loét dạ dày', 'Viêm đại tràng', 'Gout',
-        'Bệnh thận mạn', 'Gan nhiễm mỡ', 'Trầm cảm', 'Lo âu'
-    ];
-    const SUGGESTED_ALLERGIES = [
-        'Hải sản', 'Sữa bò', 'Đậu phộng', 'Trứng', 'Lúa mì (gluten)',
-        'Đậu nành', 'Mè (vừng)', 'Tôm cua', 'Cá', 'Quả hạch'
-    ];
+    // ===== Picker Modal state =====
+    const SUGGESTED_ILLNESSES = ['Tăng huyết áp', 'Đái tháo đường', 'Tim mạch', 'Hen suyễn', 'Rối loạn mỡ máu', 'Suy giáp', 'Cường giáp', 'Loét dạ dày', 'Viêm đại tràng', 'Gout', 'Bệnh thận mạn', 'Gan nhiễm mỡ', 'Trầm cảm', 'Lo âu'];
+    const SUGGESTED_ALLERGIES = ['Hải sản', 'Sữa bò', 'Đậu phộng', 'Trứng', 'Lúa mì (gluten)', 'Đậu nành', 'Mè (vừng)', 'Tôm cua', 'Cá', 'Quả hạch'];
 
     type PickerType = 'illness' | 'allergy';
     const [pickerOpen, setPickerOpen] = useState(false);
@@ -179,19 +145,10 @@ export default function ProfileScreen() {
     const [pickerSelected, setPickerSelected] = useState<string[]>([]);
     const [pickerSearch, setPickerSearch] = useState('');
 
-    const strToArr = (v: string) =>
-        v && v.trim() && v.trim() !== 'Không có'
-            ? v.split(',').map(s => s.trim()).filter(Boolean)
-            : [];
-
+    const strToArr = (v: string) => (v && v.trim() && v.trim() !== 'Không có' ? v.split(',').map(s => s.trim()).filter(Boolean) : []);
     const arrToStr = (arr: string[]) => (arr.length ? arr.join(', ') : 'Không có');
 
-    const normalizeVN = (s: string) =>
-        s
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .toLowerCase()
-            .trim();
+    const normalizeVN = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
     const openPicker = (type: PickerType) => {
         setPickerType(type);
@@ -200,14 +157,7 @@ export default function ProfileScreen() {
         setPickerSearch('');
         setPickerOpen(true);
     };
-
-    const togglePick = (item: string) => {
-        setPickerSelected(prev => {
-            if (prev.includes(item)) return prev.filter(i => i !== item);
-            return [...prev, item];
-        });
-    };
-
+    const togglePick = (item: string) => setPickerSelected(prev => (prev.includes(item) ? prev.filter(i => i !== item) : [...prev, item]));
     const applyPicker = () => {
         const value = arrToStr(pickerSelected);
         if (pickerType === 'illness') setDraft(prev => ({ ...prev, illness: value }));
@@ -219,120 +169,68 @@ export default function ProfileScreen() {
     const filteredOptions = pickerSearch.trim()
         ? currentOptions.filter(it => normalizeVN(it).includes(normalizeVN(pickerSearch)))
         : currentOptions;
-    // ====== END: Picker Modal ======
 
-    // helper: show toast
+    // Toast helper
     const showToast = (opts: { title: string; subtitle?: string; kind?: ToastKind; duration?: number }, cb?: () => void) => {
         const { title, subtitle, kind = 'success', duration = 1400 } = opts;
         setToast({ title, subtitle, kind });
-        setTimeout(() => {
-            setToast(null);
-            cb && cb();
-        }, duration);
+        setTimeout(() => { setToast(null); cb && cb(); }, duration);
     };
 
     const onOpenEdit = () => { setDraft(data); setShowEdit(true); };
-    const onCancel = () => setShowEdit(false);
-    const onSave = () => { setData(draft); setShowEdit(false); };
-
     const onLogout = () => {
-        Alert.alert(
-            'Đăng xuất',
-            'Bạn có chắc chắn muốn đăng xuất?',
-            [
-                { text: 'Hủy', style: 'cancel' },
-                {
-                    text: 'Đăng xuất',
-                    style: 'destructive',
-                    onPress: () => {
-                        showToast(
-                            { title: 'Đăng xuất thành công', subtitle: 'Hẹn gặp lại bạn sớm nhé!', kind: 'success' },
-                            () => {
-                                navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
-                            }
-                        );
-                    },
-                },
-            ],
-        );
+        Alert.alert('Đăng xuất', 'Bạn có chắc chắn muốn đăng xuất?', [
+            { text: 'Hủy', style: 'cancel' },
+            {
+                text: 'Đăng xuất', style: 'destructive', onPress: () => {
+                    showToast({ title: 'Đăng xuất thành công', subtitle: 'Hẹn gặp lại bạn sớm nhé!' }, () => {
+                        navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
+                    });
+                }
+            },
+        ]);
     };
-
     const onDeleteAccount = () => {
-        Alert.alert(
-            'Xóa tài khoản',
-            'Bạn có chắc muốn xóa tài khoản?',
-            [
-                { text: 'Hủy', style: 'cancel' },
-                {
-                    text: 'Xóa',
-                    style: 'destructive',
-                    onPress: () => {
-                        // TODO: gọi API xóa & dọn dẹp cục bộ nếu có
-                        showToast(
-                            { title: 'Đã xóa tài khoản', subtitle: 'Tài khoản của bạn đã được xóa thành công.', kind: 'success' },
-                            () => {
-                                navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
-                            }
-                        );
-                    },
-                },
-            ],
-        );
+        Alert.alert('Xóa tài khoản', 'Bạn có chắc muốn xóa tài khoản?', [
+            { text: 'Hủy', style: 'cancel' },
+            {
+                text: 'Xóa', style: 'destructive', onPress: () => {
+                    showToast({ title: 'Đã xóa tài khoản', subtitle: 'Tài khoản của bạn đã được xóa thành công.' }, () => {
+                        navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
+                    });
+                }
+            },
+        ]);
     };
 
     return (
         <Container>
-            {/* Toast nổi giữa màn hình, phủ overlay mờ */}
-            <ToastCenter
-                visible={!!toast}
-                title={toast?.title ?? ''}
-                subtitle={toast?.subtitle}
-                kind={toast?.kind ?? 'success'}
-            />
+            {/* Toast */}
+            <ToastCenter visible={!!toast} title={toast?.title ?? ''} subtitle={toast?.subtitle} kind={toast?.kind ?? 'success'} />
 
-            {/* ===== Header đồng bộ với MealPlan (Avatar + Xin chào + Chuông) ===== */}
+            {/* Header (avatar + chào + chuông) */}
             <ViewComponent row between alignItems="center" mt={20}>
                 <ViewComponent row alignItems="center" gap={10} flex={0}>
-                    <Avatar name="Anh Hải" />
+                    <HeaderAvatar name="Anh Hải" />
                     <ViewComponent flex={0}>
                         <TextComponent text="Xin chào," variant="caption" tone="muted" />
                         <TextComponent text="Anh Hải" variant="subtitle" weight="bold" />
                     </ViewComponent>
                 </ViewComponent>
-
-                <Pressable
-                    style={s.iconContainer}
-                    onPress={() => navigation.navigate('Notification')}
-                >
+                <Pressable style={styles.iconContainer} onPress={() => navigation.navigate('Notification')}>
                     <Entypo name="bell" size={20} color={C.primary} />
                 </Pressable>
             </ViewComponent>
 
-            <View style={s.line} />
-
-            {/* ===== Header giữ cố định ===== */}
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Hồ sơ Cá nhân</Text>
-                <Text style={styles.headerSub}>Quản lý thông tin và mục tiêu dinh dưỡng của bạn</Text>
-            </View>
-
-            {/* ===== Nội dung cuộn ===== */}
-            <ScrollView
-                style={styles.screen}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                showsHorizontalScrollIndicator={false}
-            >
-                {/* Avatar */}
+            {/* Nội dung cuộn */}
+            <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                {/* Avatar lớn + tên hiển thị */}
                 <View style={styles.avatarWrap}>
-                    <Image
-                        source={{ uri: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?q=80&w=600' }}
-                        style={styles.avatar}
-                    />
+                    <Image source={{ uri: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?q=80&w=600' }} style={styles.bigAvatar} />
                     <Text style={styles.displayName}>{data.name}</Text>
                 </View>
 
-                {/* Summary (2 cột) */}
+                {/* Grid thông tin */}
                 <View style={styles.grid}>
                     <InfoItem icon="card-account-details-outline" label="Tên" value={data.name} />
                     <InfoItem icon="calendar" label="Tuổi" value={`${data.age}`} />
@@ -345,7 +243,7 @@ export default function ProfileScreen() {
                     <InfoItem icon="allergy" label="Dị ứng" value={data.allergy} />
                 </View>
 
-                {/* Edit Form (nếu muốn bật lên) */}
+                {/* Form chỉnh sửa (tùy chọn) */}
                 {showEdit && (
                     <View style={[styles.cardBase, styles.shadow, styles.editCard]}>
                         <Text style={styles.editTitle}>Chỉnh Sửa Thông Tin</Text>
@@ -353,107 +251,50 @@ export default function ProfileScreen() {
                         <View style={styles.row}>
                             <View style={styles.field}>
                                 <Text style={styles.label}>Tên</Text>
-                                <TextInput
-                                    value={draft.name}
-                                    onChangeText={(t) => setDraft({ ...draft, name: t })}
-                                    placeholder="Nhập họ tên"
-                                    style={styles.input}
-                                    placeholderTextColor="#94a3b8"
-                                />
+                                <TextInput value={draft.name} onChangeText={(t) => setDraft({ ...draft, name: t })} placeholder="Nhập họ tên" style={styles.input} placeholderTextColor="#94a3b8" />
                             </View>
                             <View style={styles.field}>
                                 <Text style={styles.label}>Tuổi</Text>
-                                <TextInput
-                                    value={draft.age}
-                                    keyboardType="number-pad"
-                                    onChangeText={(t) => setDraft({ ...draft, age: t })}
-                                    placeholder="VD: 25"
-                                    style={styles.input}
-                                    placeholderTextColor="#94a3b8"
-                                />
+                                <TextInput value={draft.age} keyboardType="number-pad" onChangeText={(t) => setDraft({ ...draft, age: t })} placeholder="VD: 25" style={styles.input} placeholderTextColor="#94a3b8" />
                             </View>
                         </View>
 
                         <View style={styles.row}>
-                            <Dropdown
-                                label="Giới tính"
-                                value={draft.gender}
-                                options={['Nam', 'Nữ', 'Khác']}
-                                onChange={(v) => setDraft({ ...draft, gender: v as Profile['gender'] })}
-                            />
+                            <Dropdown label="Giới tính" value={draft.gender} options={['Nam', 'Nữ', 'Khác']} onChange={(v) => setDraft({ ...draft, gender: v as Profile['gender'] })} />
                             <View style={styles.field}>
                                 <Text style={styles.label}>Chiều cao (cm)</Text>
-                                <TextInput
-                                    value={draft.height}
-                                    keyboardType="number-pad"
-                                    onChangeText={(t) => setDraft({ ...draft, height: t })}
-                                    placeholder="VD: 175"
-                                    style={styles.input}
-                                    placeholderTextColor="#94a3b8"
-                                />
+                                <TextInput value={draft.height} keyboardType="number-pad" onChangeText={(t) => setDraft({ ...draft, height: t })} placeholder="VD: 175" style={styles.input} placeholderTextColor="#94a3b8" />
                             </View>
                         </View>
 
                         <View style={styles.row}>
                             <View style={styles.field}>
                                 <Text style={styles.label}>Cân nặng (kg)</Text>
-                                <TextInput
-                                    value={draft.weight}
-                                    keyboardType="number-pad"
-                                    onChangeText={(t) => setDraft({ ...draft, weight: t })}
-                                    placeholder="VD: 70"
-                                    style={styles.input}
-                                    placeholderTextColor="#94a3b8"
-                                />
+                                <TextInput value={draft.weight} keyboardType="number-pad" onChangeText={(t) => setDraft({ ...draft, weight: t })} placeholder="VD: 70" style={styles.input} placeholderTextColor="#94a3b8" />
                             </View>
-
-                            <Dropdown
-                                label="Mục tiêu"
-                                value={draft.goal}
-                                options={['Giảm cân lành mạnh', 'Giữ cân', 'Tăng cân']}
-                                onChange={(v) => setDraft({ ...draft, goal: v as Profile['goal'] })}
-                            />
+                            <Dropdown label="Mục tiêu" value={draft.goal} options={['Giảm cân lành mạnh', 'Giữ cân', 'Tăng cân']} onChange={(v) => setDraft({ ...draft, goal: v as Profile['goal'] })} />
                         </View>
 
                         <View style={styles.row}>
-                            <Dropdown
-                                label="Mức độ vận động"
-                                value={draft.activity}
-                                options={ACTIVITY_OPTIONS}
-                                onChange={(v) => setDraft({ ...draft, activity: v as Profile['activity'] })}
-                            />
+                            <Dropdown label="Mức độ vận động" value={draft.activity} options={ACTIVITY_OPTIONS} onChange={(v) => setDraft({ ...draft, activity: v as Profile['activity'] })} />
                             <View style={{ flex: 1 }} />
                         </View>
 
                         <View style={styles.row}>
-                            {/* Bệnh nền: input mở Modal tick + search */}
                             <View style={styles.field}>
                                 <Text style={styles.label}>Bệnh nền</Text>
                                 <Pressable onPress={() => openPicker('illness')}>
                                     <View pointerEvents="none">
-                                        <TextInput
-                                            value={draft.illness}
-                                            editable={false}
-                                            placeholder="VD: Tăng huyết áp, Tiểu đường"
-                                            style={[styles.input, styles.inputPicker]}
-                                            placeholderTextColor="#94a3b8"
-                                        />
+                                        <TextInput value={draft.illness} editable={false} placeholder="VD: Tăng huyết áp, Tiểu đường" style={[styles.input, styles.inputPicker]} placeholderTextColor="#94a3b8" />
                                     </View>
                                 </Pressable>
                             </View>
 
-                            {/* Dị ứng: input mở Modal tick + search */}
                             <View style={styles.field}>
                                 <Text style={styles.label}>Dị ứng</Text>
                                 <Pressable onPress={() => openPicker('allergy')}>
                                     <View pointerEvents="none">
-                                        <TextInput
-                                            value={draft.allergy}
-                                            editable={false}
-                                            placeholder="VD: Hải sản, Sữa bò"
-                                            style={[styles.input, styles.inputPicker]}
-                                            placeholderTextColor="#94a3b8"
-                                        />
+                                        <TextInput value={draft.allergy} editable={false} placeholder="VD: Hải sản, Sữa bò" style={[styles.input, styles.inputPicker]} placeholderTextColor="#94a3b8" />
                                     </View>
                                 </Pressable>
                             </View>
@@ -482,37 +323,29 @@ export default function ProfileScreen() {
                 <View style={[styles.cardBase, styles.shadow, styles.settingsCard]}>
                     <Text style={styles.settingsTitle}>Cài đặt chung</Text>
 
-                    {/* Gửi thông báo */}
                     <View style={styles.settingRow}>
                         <View style={styles.settingLeft}>
                             <View style={styles.settingIcon}>
-                                <McIcon name="bell-outline" size={16} color={colors.success} />
+                                <McIcon name="bell-outline" size={16} color={stylesVars.success} />
                             </View>
                             <View>
                                 <Text style={styles.settingLabel}>Gửi thông báo</Text>
                                 <Text style={styles.settingSub}>Nhận nhắc nhở và cập nhật dinh dưỡng</Text>
                             </View>
                         </View>
-                        <Switch
-                            value={allowNotif}
-                            onValueChange={setAllowNotif}
-                            thumbColor="#fff"
-                            trackColor={{ false: '#e5e7eb', true: '#86efac' }}
-                        />
+                        <Switch value={allowNotif} onValueChange={setAllowNotif} thumbColor="#fff" trackColor={{ false: '#e5e7eb', true: '#86efac' }} />
                     </View>
 
-                    {/* Đăng xuất */}
                     <Pressable style={[styles.settingRow, styles.settingPress]} onPress={onLogout}>
                         <View style={styles.settingLeft}>
                             <View style={[styles.settingIcon, { backgroundColor: '#ebf5ff' }]}>
-                                <McIcon name="logout" size={16} color={colors.primary} />
+                                <McIcon name="logout" size={16} color={stylesVars.primary} />
                             </View>
                             <Text style={styles.settingLabel}>Đăng xuất</Text>
                         </View>
                         <McIcon name="chevron-right" size={18} color="#94a3b8" />
                     </Pressable>
 
-                    {/* Xóa tài khoản */}
                     <Pressable style={[styles.settingRow, styles.settingPress]} onPress={onDeleteAccount}>
                         <View style={styles.settingLeft}>
                             <View style={[styles.settingIcon, { backgroundColor: '#fee2e2' }]}>
@@ -528,25 +361,17 @@ export default function ProfileScreen() {
                 </View>
             </ScrollView>
 
-            {/* ====== Picker Modal (tick + ô tìm kiếm) ====== */}
-            <Modal
-                visible={pickerOpen}
-                transparent
-                animationType="fade"
-                onRequestClose={() => setPickerOpen(false)}
-            >
+            {/* ===== Picker Modal ===== */}
+            <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalCard}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>
-                                {pickerType === 'illness' ? 'Chọn bệnh nền' : 'Chọn dị ứng'}
-                            </Text>
+                            <Text style={styles.modalTitle}>{pickerType === 'illness' ? 'Chọn bệnh nền' : 'Chọn dị ứng'}</Text>
                             <Pressable onPress={() => setPickerOpen(false)} hitSlop={8}>
                                 <McIcon name="close" size={20} color="#64748b" />
                             </Pressable>
                         </View>
 
-                        {/* Ô tìm kiếm */}
                         <View style={styles.searchRow}>
                             <McIcon name="magnify" size={18} color="#64748b" />
                             <TextInput
@@ -575,17 +400,11 @@ export default function ProfileScreen() {
                             {filteredOptions.map(item => {
                                 const checked = pickerSelected.includes(item);
                                 return (
-                                    <Pressable
-                                        key={item}
-                                        onPress={() => togglePick(item)}
-                                        style={[styles.optionRow, checked && styles.optionRowChecked]}
-                                    >
+                                    <Pressable key={item} onPress={() => togglePick(item)} style={[styles.optionRow, checked && styles.optionRowChecked]}>
                                         <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
                                             {checked && <McIcon name="check-bold" size={14} color="#fff" />}
                                         </View>
-                                        <Text style={[styles.optionTxt, checked && styles.optionTxtChecked]}>
-                                            {item}
-                                        </Text>
+                                        <Text style={[styles.optionTxt, checked && styles.optionTxtChecked]}>{item}</Text>
                                     </Pressable>
                                 );
                             })}
@@ -612,17 +431,12 @@ export default function ProfileScreen() {
 }
 
 /* ---------- small components ---------- */
-
-function InfoItem({
-    icon,
-    label,
-    value,
-}: { icon: string; label: string; value: string }) {
+function InfoItem({ icon, label, value }: { icon: string; label: string; value: string }) {
     return (
         <View style={[styles.cardBase, styles.shadow, styles.infoCard]}>
             <View style={styles.infoHeader}>
                 <View style={styles.iconBadge}>
-                    <McIcon name={icon as any} size={16} color="#16a34a" />
+                    <McIcon name={icon as any} size={16} color={stylesVars.success} />
                 </View>
                 <Text style={styles.infoLabel}>{label}</Text>
             </View>
@@ -643,12 +457,10 @@ function Dropdown({
     return (
         <View style={[styles.field, { zIndex: 1 }]}>
             <Text style={styles.label}>{label}</Text>
-
             <Pressable onPress={() => setOpen(v => !v)} style={[styles.input, styles.select]}>
                 <Text style={styles.selectText}>{value}</Text>
                 <McIcon name={open ? 'chevron-up' : 'chevron-down'} size={18} color="#64748b" />
             </Pressable>
-
             {open && (
                 <View style={[styles.cardBase, styles.shadow, styles.optionList]}>
                     {options.map((opt) => (
@@ -663,10 +475,8 @@ function Dropdown({
 }
 
 /* ---------- styles ---------- */
-
-const colors = {
+const stylesVars = {
     bg: '#f7faf8',
-    header: '#43B05C',
     text: '#0f172a',
     sub: '#6b7280',
     border: '#e5efe8',
@@ -677,291 +487,126 @@ const colors = {
 };
 
 const styles = StyleSheet.create({
-    screen: {
-        flex: 1,
-        backgroundColor: colors.bg,
-        borderRadius: 16,
+    /* Header row (avatar + bell) */
+    iconContainer: {
+        width: 42, height: 42, borderRadius: 12,
+        backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center',
+        borderWidth: 1, borderColor: C.border,
     },
-    scrollContent: { paddingBottom: 28 },
+    headerAvatarFallback: {
+        width: 52, height: 52, borderRadius: 999,
+        backgroundColor: C.bg, borderWidth: 1, borderColor: C.border,
+    },
+    headerAvatar: { width: 52, height: 52, borderRadius: 999 },
 
-    // Header giữ cố định
+    /* Header title */
     header: {
         backgroundColor: 'transparent',
         paddingBottom: 14,
         paddingHorizontal: 16,
         borderBottomWidth: 1,
-        borderBottomColor: colors.border,
-        marginTop: 14
+        borderBottomColor: stylesVars.border,
+        marginTop: 14,
     },
-    headerTitle: { color: colors.text, fontSize: 20, fontWeight: '800', letterSpacing: 0.1 },
-    headerSub: { color: colors.sub, fontSize: 13, marginTop: 2 },
+    headerTitle: { color: stylesVars.text, fontSize: 20, fontWeight: '800', letterSpacing: 0.1 },
+    headerSub: { color: stylesVars.sub, fontSize: 13, marginTop: 2 },
 
+    /* Scroll area */
+    screen: { flex: 1, backgroundColor: stylesVars.bg, borderRadius: 16 },
+    scrollContent: { paddingBottom: 28 },
+
+    /* Profile avatar big */
     avatarWrap: { alignItems: 'center', marginTop: 16, marginBottom: 14 },
-    avatar: {
+    bigAvatar: {
         width: 92, height: 92, borderRadius: 999, borderWidth: 4, borderColor: '#ecfdf5',
         backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 8, elevation: 3,
     },
-    displayName: { marginTop: 10, fontWeight: '800', color: colors.text, fontSize: 17, letterSpacing: 0.2 },
+    displayName: { marginTop: 10, fontWeight: '800', color: stylesVars.text, fontSize: 17, letterSpacing: 0.2 },
 
+    /* Grid */
     grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, marginTop: 6, marginBottom: 4 },
 
-    /* Base */
-    cardBase: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: colors.border },
+    /* Cards base */
+    cardBase: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: stylesVars.border },
     shadow: { shadowColor: '#0b3d1f', shadowOpacity: 0.08, shadowRadius: 8, elevation: 3 },
 
+    /* Info item */
     infoCard: { width: '48%', padding: 14, marginBottom: 12, marginHorizontal: '1%' },
     infoHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-    iconBadge: { width: 22, height: 22, borderRadius: 999, backgroundColor: colors.chip, alignItems: 'center', justifyContent: 'center' },
+    iconBadge: { width: 22, height: 22, borderRadius: 999, backgroundColor: stylesVars.chip, alignItems: 'center', justifyContent: 'center' },
     infoLabel: { marginLeft: 8, color: '#64748b', fontSize: 12, fontWeight: '800', letterSpacing: 0.2 },
-    infoValue: { color: colors.text, fontSize: 16, fontWeight: '800' },
+    infoValue: { color: stylesVars.text, fontSize: 16, fontWeight: '800' },
 
+    /* Edit form */
     editCard: { marginHorizontal: 16, marginTop: 10, borderRadius: 18, padding: 16 },
-    editTitle: { fontSize: 16, fontWeight: '900', color: colors.text, marginBottom: 10 },
-
+    editTitle: { fontSize: 16, fontWeight: '900', color: stylesVars.text, marginBottom: 10 },
     row: { flexDirection: 'row', gap: 12, marginBottom: 12 },
     field: { flex: 1 },
-    label: { fontSize: 12, color: colors.sub, marginBottom: 6, fontWeight: '800' },
+    label: { fontSize: 12, color: stylesVars.sub, marginBottom: 6, fontWeight: '800' },
     input: {
         height: 46, borderRadius: 14, borderWidth: 1, borderColor: '#dbece2',
-        paddingHorizontal: 12, backgroundColor: colors.inputBg, color: colors.text, fontWeight: '700',
+        paddingHorizontal: 12, backgroundColor: stylesVars.inputBg, color: stylesVars.text, fontWeight: '700',
     },
-    inputPicker: {
-        borderColor: '#c7e2ff',
-        backgroundColor: '#f4faff',
-    },
+    inputPicker: { borderColor: '#c7e2ff', backgroundColor: '#f4faff' },
     select: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    selectText: { color: colors.text, fontWeight: '700' },
-
+    selectText: { color: stylesVars.text, fontWeight: '700' },
     optionList: { marginTop: 6, borderRadius: 14, overflow: 'hidden' },
     optionItem: { paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-    optionText: { color: colors.text, fontWeight: '700' },
-
+    optionText: { color: stylesVars.text, fontWeight: '700' },
     editActions: { marginTop: 6, flexDirection: 'row', gap: 10 },
-    saveBtn: {
-        flex: 1, height: 46, borderRadius: 12, backgroundColor: colors.success,
-        alignItems: 'center', justifyContent: 'center',
-    },
+    saveBtn: { flex: 1, height: 46, borderRadius: 12, backgroundColor: stylesVars.success, alignItems: 'center', justifyContent: 'center' },
     saveBtnText: { color: '#fff', fontWeight: '900' },
     cancelBtn: { width: 110, height: 46, borderRadius: 12, backgroundColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' },
-    cancelBtnText: { color: colors.text, fontWeight: '900' },
+    cancelBtnText: { color: stylesVars.text, fontWeight: '900' },
 
+    /* Actions */
     actionRow: { paddingHorizontal: 16, marginTop: 12, marginBottom: 14, flexDirection: 'row' },
-    primaryBtn: {
-        flex: 1, flexDirection: 'row', height: 48, backgroundColor: colors.primary, borderRadius: 999,
-        alignItems: 'center', justifyContent: 'center', gap: 8,
-    },
+    primaryBtn: { flex: 1, flexDirection: 'row', height: 48, backgroundColor: stylesVars.primary, borderRadius: 999, alignItems: 'center', justifyContent: 'center', gap: 8 },
     primaryBtnText: { color: '#fff', fontWeight: '900' },
 
-    // -------- Cài đặt chung --------
+    /* Settings */
     settingsCard: { marginHorizontal: 16, marginTop: 12, marginBottom: 24, padding: 14, borderRadius: 18 },
-    settingsTitle: { fontSize: 16, fontWeight: '900', color: colors.text, marginBottom: 8 },
+    settingsTitle: { fontSize: 16, fontWeight: '900', color: stylesVars.text, marginBottom: 8 },
     settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
     settingPress: { borderTopWidth: 1, borderTopColor: '#f1f5f9' },
     settingLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
-    settingIcon: { width: 24, height: 24, borderRadius: 999, backgroundColor: colors.chip, alignItems: 'center', justifyContent: 'center' },
-    settingLabel: { color: colors.text, fontSize: 14, fontWeight: '800' },
+    settingIcon: { width: 24, height: 24, borderRadius: 999, backgroundColor: stylesVars.chip, alignItems: 'center', justifyContent: 'center' },
+    settingLabel: { color: stylesVars.text, fontSize: 14, fontWeight: '800' },
     settingSub: { color: '#64748b', fontSize: 12, marginTop: 2 },
 
-    /* ===== Toast styles ===== */
-    toastOverlay: {
-        position: 'absolute',
-        inset: 0 as any,
-        backgroundColor: 'rgba(2,6,23,0.25)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 999,
-        paddingHorizontal: 24,
-    },
-    toastCard: {
-        width: '92%',
-        maxWidth: 420,
-        backgroundColor: '#ffffff',
-        borderRadius: 24,
-        overflow: 'hidden',
-        shadowColor: '#000',
-        shadowOpacity: 0.2,
-        shadowRadius: 16,
-        elevation: 8,
-        borderWidth: 3,
-        borderColor: '#3b82f6',
-    },
-    toastBody: {
-        paddingVertical: 18,
-        paddingHorizontal: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
-    toastIconWrap: {
-        width: 46,
-        height: 46,
-        borderRadius: 999,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    toastTitle: {
-        color: '#0f172a',
-        fontWeight: '900',
-        fontSize: 16.5,
-        marginBottom: 2,
-    },
-    toastSubtitle: {
-        color: '#475569',
-        fontSize: 13.5,
-        fontWeight: '600',
-    },
-    toastBottomRow: {
-        paddingHorizontal: 16,
-        paddingBottom: 14,
-        flexDirection: 'row',
-        gap: 6,
-        justifyContent: 'center',
-    },
-    toastDot: {
-        width: 28,
-        height: 4,
-        borderRadius: 999,
-        backgroundColor: '#16a34a',
-    },
+    /* Toast */
+    toastOverlay: { position: 'absolute', inset: 0 as any, backgroundColor: 'rgba(2,6,23,0.25)', alignItems: 'center', justifyContent: 'center', zIndex: 999, paddingHorizontal: 24 },
+    toastCard: { width: '92%', maxWidth: 420, backgroundColor: '#ffffff', borderRadius: 24, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 16, elevation: 8, borderWidth: 3, borderColor: '#3b82f6' },
+    toastBody: { paddingVertical: 18, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
+    toastIconWrap: { width: 46, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+    toastTitle: { color: '#0f172a', fontWeight: '900', fontSize: 16.5, marginBottom: 2 },
+    toastSubtitle: { color: '#475569', fontSize: 13.5, fontWeight: '600' },
+    toastBottomRow: { paddingHorizontal: 16, paddingBottom: 14, flexDirection: 'row', gap: 6, justifyContent: 'center' },
+    toastDot: { width: 28, height: 4, borderRadius: 999, backgroundColor: '#16a34a' },
 
-    /* ===== Modal Picker styles ===== */
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(2,6,23,0.35)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
-    },
+    /* Modal Picker */
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(2,6,23,0.35)', alignItems: 'center', justifyContent: 'center', padding: 20 },
     modalCard: {
-        width: '100%',
-        maxWidth: 520,
-        backgroundColor: '#fff',
-        borderRadius: 16,
-        padding: 14,
-        borderWidth: 2,
-        borderColor: '#3b82f6',
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOpacity: 0.15,
-                shadowRadius: 12,
-                shadowOffset: { width: 0, height: 6 },
-            },
-            android: { elevation: 6 },
-        }),
+        width: '100%', maxWidth: 520, backgroundColor: '#fff', borderRadius: 16, padding: 14, borderWidth: 2, borderColor: '#3b82f6',
+        ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12, shadowOffset: { width: 0, height: 6 } }, android: { elevation: 6 } }),
     },
-    modalHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 8,
-    },
+    modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
     modalTitle: { fontSize: 16, fontWeight: '900', color: '#0f172a' },
-
-    searchRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        borderWidth: 1,
-        borderColor: '#c7e2ff',
-        backgroundColor: '#f4faff',
-        borderRadius: 10,
-        paddingHorizontal: 10,
-        paddingVertical: 8,
-        marginBottom: 8,
-    },
-    searchInput: {
-        flex: 1,
-        color: '#0f172a',
-        fontWeight: '700',
-        paddingVertical: 0,
-    },
-
-    optionRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        paddingVertical: 10,
-        paddingHorizontal: 8,
-        borderRadius: 10,
-    },
-    optionRowChecked: {
-        backgroundColor: '#eff6ff',
-    },
-    checkbox: {
-        width: 20,
-        height: 20,
-        borderRadius: 6,
-        borderWidth: 2,
-        borderColor: '#3b82f6',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#fff',
-    },
-    checkboxChecked: {
-        backgroundColor: '#3b82f6',
-        borderColor: '#3b82f6',
-    },
+    searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: '#c7e2ff', backgroundColor: '#f4faff', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 8 },
+    searchInput: { flex: 1, color: '#0f172a', fontWeight: '700', paddingVertical: 0 },
+    optionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 8, borderRadius: 10 },
+    optionRowChecked: { backgroundColor: '#eff6ff' },
+    checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: '#3b82f6', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
+    checkboxChecked: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
     optionTxt: { color: '#0f172a', fontWeight: '700' },
     optionTxtChecked: { color: '#1e293b' },
-    modalActions: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        gap: 10,
-        marginTop: 10,
-    },
-    modalBtn: {
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: 10,
-        borderWidth: 1,
-    },
-    modalCancel: {
-        backgroundColor: '#f8fafc',
-        borderColor: '#e2e8f0',
-    },
-    modalSave: {
-        backgroundColor: '#3b82f6',
-        borderColor: '#2563eb',
-    },
+    modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 10 },
+    modalBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
+    modalCancel: { backgroundColor: '#f8fafc', borderColor: '#e2e8f0' },
+    modalSave: { backgroundColor: '#3b82f6', borderColor: '#2563eb' },
     modalCancelTxt: { color: '#334155', fontWeight: '800' },
     modalSaveTxt: { color: '#fff', fontWeight: '900' },
-
-    optionsList: {
-        height: 280,
-    },
-    optionsListContent: {
-        paddingVertical: 4,
-        minHeight: 280,
-    },
-    noResult: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 14,
-    },
-});
-
-/* ===== styles header đồng bộ MealPlan ===== */
-const s = StyleSheet.create({
-    iconContainer: {
-        width: 42,
-        height: 42,
-        borderRadius: 12,
-        backgroundColor: C.bg,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: C.border,
-    },
-    avatarFallback: {
-        width: 52,
-        height: 52,
-        borderRadius: 999,
-        backgroundColor: C.bg,
-        borderWidth: 1,
-        borderColor: C.border,
-    },
-    avatar: { width: 52, height: 52, borderRadius: 999 },
-    line: { height: 2, backgroundColor: C.border, marginVertical: 12 },
+    optionsList: { height: 280 },
+    optionsListContent: { paddingVertical: 4, minHeight: 280 },
+    noResult: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 14 },
 });
