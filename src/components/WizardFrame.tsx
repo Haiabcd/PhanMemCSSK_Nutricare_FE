@@ -27,6 +27,7 @@ export const STEP_ROUTES = [
   'StepAllergy',
   'StepLevelActivity',
   'StepTarget',
+  'StepTargetPlan',
   'Done',
 ] as const;
 
@@ -72,6 +73,8 @@ export default function WizardFrame(props: WizardFrameProps) {
     switch (currentStep) {
       case 'StepName':
         return form.name && form.name.trim().length > 0;
+      case 'StepTargetPlan':
+        return !!form.targetPlanValid;
       default:
         return true;
     }

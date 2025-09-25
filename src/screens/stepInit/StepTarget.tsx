@@ -1,13 +1,12 @@
-// features/WizardScreens.tsx
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import WizardFrame from '../../components/WizardFrame';
 import { useWizard } from '../../context/WizardContext';
 import { colors } from '../../constants/colors';
 
-type TargetType = 'lose' | 'maintain' | 'gain';
+export type TargetType = 'lose' | 'maintain' | 'gain';
 
-const StepTargetScreen = () => {
+const StepTargetScreen: React.FC = () => {
   const { form, updateForm } = useWizard();
 
   const options = React.useMemo(
@@ -35,9 +34,7 @@ const StepTargetScreen = () => {
   );
 
   const onSelect = (key: TargetType) => {
-    if (__DEV__) {
-      console.log('[Target] prev=', form.target, 'next=', key);
-    }
+    if (__DEV__) console.log('[Target] prev=', form.target, 'next=', key);
     updateForm({ target: key });
   };
 
@@ -63,7 +60,6 @@ const StepTargetScreen = () => {
             >
               <View style={styles.cardContent}>
                 <Text style={styles.icon}>{opt.icon}</Text>
-
                 <View style={styles.textContainer}>
                   <Text
                     style={[styles.title, selected && styles.titleSelected]}
@@ -74,7 +70,6 @@ const StepTargetScreen = () => {
                     {opt.desc}
                   </Text>
                 </View>
-
                 {selected && (
                   <View style={styles.selectedIndicator}>
                     <Text style={styles.checkmark}>✓</Text>
@@ -89,20 +84,14 @@ const StepTargetScreen = () => {
   );
 };
 
-/* ============= Styles ============= */
 const styles = StyleSheet.create({
-  group: {
-    width: '100%',
-    gap: 12,
-  },
+  group: { width: '100%', gap: 12 },
   card: {
     backgroundColor: colors.white,
     borderWidth: 1.5,
     borderColor: colors.slate200,
     borderRadius: 16,
     padding: 16,
-
-    // Shadow
     shadowColor: '#000',
     shadowOpacity: 0.05,
     shadowOffset: { width: 0, height: 4 },
@@ -120,35 +109,13 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.99 }],
     opacity: Platform.OS === 'ios' ? 0.9 : 1,
   },
-  cardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  icon: {
-    fontSize: 28,
-  },
-  textContainer: {
-    flex: 1,
-    gap: 4,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.slate800,
-  },
-  titleSelected: {
-    color: colors.emerald800,
-    fontWeight: '700',
-  },
-  desc: {
-    fontSize: 13.5,
-    lineHeight: 18,
-    color: colors.slate500,
-  },
-  descSelected: {
-    color: colors.emerald700,
-  },
+  cardContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  icon: { fontSize: 28 },
+  textContainer: { flex: 1, gap: 4 },
+  title: { fontSize: 16, fontWeight: '600', color: colors.slate800 },
+  titleSelected: { color: colors.emerald800, fontWeight: '700' },
+  desc: { fontSize: 13.5, lineHeight: 18, color: colors.slate500 },
+  descSelected: { color: colors.emerald700 },
   selectedIndicator: {
     width: 24,
     height: 24,
@@ -157,11 +124,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkmark: {
-    color: colors.white,
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
+  checkmark: { color: colors.white, fontSize: 14, fontWeight: 'bold' },
 });
 
 export default StepTargetScreen;
