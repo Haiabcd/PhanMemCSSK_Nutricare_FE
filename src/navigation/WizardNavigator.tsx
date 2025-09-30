@@ -12,6 +12,7 @@ import StepLevelActivityScreen from '../screens/stepInit/StepLevelActivity';
 import StepConditionScreen from '../screens/stepInit/StepCondition';
 import StepAllergiesScreen from '../screens/stepInit/StepAllergy';
 import StepDoneScreen from '../screens/stepInit/StepDone';
+import StepTargetPlanScreen from '../screens/stepInit/StepTargetPlan';
 
 export type WizardStackParamList = {
   StepName: undefined;
@@ -19,10 +20,11 @@ export type WizardStackParamList = {
   StepGender: undefined;
   StepWeight: undefined;
   StepHeight: undefined;
-  StepTarget: undefined;
   StepLevelActivity: undefined;
   StepCondition: undefined;
   StepAllergy: undefined;
+  StepTarget: undefined;
+  StepTargetPlan: undefined;
   Done: undefined;
 };
 
@@ -47,6 +49,7 @@ export default function WizardNavigator() {
           component={StepLevelActivityScreen}
         />
         <Stack.Screen name="StepTarget" component={StepTargetScreen} />
+        <Stack.Screen name="StepTargetPlan" component={StepTargetPlanScreen} />
         <Stack.Screen name="Done" component={StepDoneScreen} />
       </Stack.Navigator>
     </WizardProvider>
