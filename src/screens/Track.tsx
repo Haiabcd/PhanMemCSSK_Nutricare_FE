@@ -264,10 +264,10 @@ export default function Track() {
                           ) : null}
                           <View style={styles.rowBtns}>
                             <Pressable style={styles.badgeYellow}>
-                              <Text style={styles.badgeText}>Sửa (demo)</Text>
+                              <Text style={styles.badgeText}>Sửa</Text>
                             </Pressable>
                             <Pressable style={styles.badgeRed}>
-                              <Text style={styles.badgeText}>Xóa (demo)</Text>
+                              <Text style={styles.badgeText}>Xóa</Text>
                             </Pressable>
                           </View>
                         </View>
