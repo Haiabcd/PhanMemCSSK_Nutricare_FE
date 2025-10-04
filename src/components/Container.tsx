@@ -28,8 +28,8 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.bg,
+        // backgroundColor: "red",
         paddingHorizontal: spacing.md,
-        paddingTop: spacing.xl,
         paddingVertical: spacing.md,
     },
 });

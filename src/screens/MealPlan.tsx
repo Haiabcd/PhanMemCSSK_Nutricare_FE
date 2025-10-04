@@ -78,12 +78,12 @@ const MealPlan = () => {
   return (
     <Container>
       {/* Header */}
-      <ViewComponent row between alignItems="center" mt={20}>
+      <ViewComponent row between alignItems="center">
         <ViewComponent row alignItems="center" gap={10} flex={0}>
           <Avatar name="Anh Hải" />
           <ViewComponent flex={0}>
             <TextComponent text="Xin chào," variant="caption" tone="muted" />
-            <TextComponent text="Anh Hải" variant="subtitle" weight="bold" />
+            <TextComponent text="Anh Hải Nè" variant="subtitle" weight="bold" />
           </ViewComponent>
         </ViewComponent>
 
