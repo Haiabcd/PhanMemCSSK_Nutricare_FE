@@ -1,15 +1,14 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
-    View,
-    Text,
-    TextInput,
-    FlatList,
     Image,
     Pressable,
+    TextInput,
+    FlatList,
     StyleSheet,
     useWindowDimensions,
     Animated,
     PanResponder,
+    ScrollView,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import McIcon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -61,9 +60,9 @@ const DATA: Item[] = [
 /* ================== Avatar ================== */
 function Avatar({ name, photoUri }: { name: string; photoUri?: string | null }) {
     const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-    if (photoUri) return <Image source={{ uri: photoUri }} style={styles.avatar} />;
+    if (photoUri) return <Image source={{ uri: photoUri }} style={s.avatar} />;
     return (
-        <ViewComponent center style={styles.avatarFallback} flex={0}>
+        <ViewComponent center radius={999} border backgroundColor={C.bg} style={s.avatar}>
             <TextComponent text={initials} variant="subtitle" weight="bold" tone="primary" />
         </ViewComponent>
     );
@@ -80,55 +79,131 @@ function Card({
     const kindLabel = item.kind === 'meal' ? 'Món ăn' : item.kind === 'article' ? 'Bài báo' : 'Video';
 
     const handlePress = () => {
-        if (item.kind === 'meal') {
-            navigation.navigate('MealLogDetail', { item });
-        } else if (item.kind === 'article') {
-            navigation.navigate('Newspaper', { item });
-        } else if (item.kind === 'video') {
-            navigation.navigate('Video', { item });
-        }
+        if (item.kind === 'meal') navigation.navigate('MealLogDetail', { item });
+        else if (item.kind === 'article') navigation.navigate('Newspaper', { item });
+        else navigation.navigate('Video', { item });
     };
 
     return (
-        <View style={styles.cardWrap}>
-            <Pressable style={styles.card} onPress={handlePress}>
-                <View style={styles.thumbWrap}>
-                    <Image source={{ uri: item.image }} style={styles.thumb} resizeMode="cover" />
-                    <View style={styles.badge}><Text style={styles.badgeText}>{kindLabel}</Text></View>
+        <ViewComponent style={s.cardWrap}>
+            <ViewComponent variant="card" radius={16} flex={1}>
+                {/* Media */}
+                <ViewComponent style={s.thumbWrap}>
+                    <Image source={{ uri: item.image }} style={s.thumb} resizeMode="cover" />
+                    {/* badge */}
+                    <ViewComponent
+                        center
+                        radius={999}
+                        px={8}
+                        py={4}
+                        style={s.badge}
+                        backgroundColor="rgba(15,23,42,0.82)"
+                        border
+                        borderColor="rgba(255,255,255,0.12)"
+                    >
+                        <TextComponent text={kindLabel} variant="caption" weight="bold" tone="inverse" />
+                    </ViewComponent>
+
+                    {/* play overlay cho video */}
                     {item.kind === 'video' && (
-                        <View style={styles.playOverlay}><Ionicons name="play" size={20} color="#fff" /></View>
+                        <ViewComponent
+                            center
+                            radius={16}
+                            style={s.playOverlay}
+                            backgroundColor="rgba(0,0,0,0.55)"
+                            border
+                            borderColor="rgba(255,255,255,0.12)"
+                        >
+                            <Ionicons name="play" size={20} color={C.onPrimary} />
+                        </ViewComponent>
                     )}
-                </View>
+                </ViewComponent>
 
-                <View style={styles.cardBody}>
-                    <View>
-                        <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
-                        <Text style={styles.cardDesc} numberOfLines={3}>{item.desc}</Text>
+                {/* Body */}
+                <ViewComponent style={s.cardBody}>
+                    <ViewComponent style={{ flexShrink: 1 }}>
+                        {/* Title luôn 2 dòng */}
+                        <TextComponent
+                            text={item.title}
+                            variant="h3"
+                            numberOfLines={2}
+                            style={{ letterSpacing: 0.15, height: 44, lineHeight: 22 }}
+                        />
+                        {/* Desc luôn 3 dòng */}
+                        <TextComponent
+                            text={item.desc}
+                            variant="body"
+                            tone="muted"
+                            numberOfLines={3}
+                            style={{ lineHeight: 18, height: 54, textAlignVertical: 'top', marginTop: 2 }}
+                        />
 
-                        <View style={styles.metaRow}>
+                        {/* Meta */}
+                        <ViewComponent row gap={8} wrap style={{ marginTop: 8 }}>
                             {typeof item.cal === 'number' && (
-                                <View style={styles.metaPill}>
-                                    <McIcon name="fire" size={14} color="#ef4444" />
-                                    <Text style={styles.metaText}>{item.cal} kcal</Text>
-                                </View>
+                                <ViewComponent
+                                    row
+                                    alignItems="center"
+                                    gap={4}
+                                    backgroundColor={C.accentSurface}
+                                    border
+                                    borderColor={C.accentBorder}
+                                    radius={999}
+                                    px={8}
+                                    py={4}
+                                >
+                                    <McIcon name="fire" size={14} color={C.red} />
+                                    <TextComponent text={`${item.cal} kcal`} variant="caption" weight="bold" />
+                                </ViewComponent>
                             )}
                             {typeof item.protein === 'number' && (
-                                <View style={styles.metaPill}>
-                                    <McIcon name="food-drumstick" size={14} color="#16a34a" />
-                                    <Text style={styles.metaText}>{item.protein}g protein</Text>
-                                </View>
+                                <ViewComponent
+                                    row
+                                    alignItems="center"
+                                    gap={4}
+                                    backgroundColor={C.primarySurface}
+                                    border
+                                    borderColor={C.primaryBorder}
+                                    radius={999}
+                                    px={8}
+                                    py={4}
+                                >
+                                    <McIcon name="food-drumstick" size={14} color={C.success} />
+                                    <TextComponent text={`${item.protein}g protein`} variant="caption" weight="bold" />
+                                </ViewComponent>
                             )}
-                            {!!item.weightLine && <Text style={styles.metaLoose} numberOfLines={1}>{item.weightLine}</Text>}
-                            {!!item.meta && <Text style={styles.metaLoose} numberOfLines={1}>{item.meta}</Text>}
-                        </View>
-                    </View>
+                            {!!item.weightLine && (
+                                <TextComponent text={item.weightLine} variant="caption" tone="muted" numberOfLines={1} />
+                            )}
+                            {!!item.meta && (
+                                <TextComponent text={item.meta} variant="caption" tone="muted" numberOfLines={1} />
+                            )}
+                        </ViewComponent>
+                    </ViewComponent>
 
-                    <Pressable style={styles.ctaBtn} onPress={handlePress}>
-                        <Text style={styles.ctaText}>{item.cta ?? 'XEM THÊM'}</Text>
+                    {/* CTA */}
+                    <Pressable
+                        onPress={handlePress}
+                        style={({ pressed }) => [
+                            s.ctaBtn,
+                            {
+                                backgroundColor: C.primarySurface,
+                                borderColor: C.primaryBorder,
+                                opacity: pressed ? 0.9 : 1,
+                            },
+                        ]}
+                    >
+                        <TextComponent
+                            text={item.cta ?? 'XEM THÊM'}
+                            variant="caption"
+                            weight="bold"
+                            style={{ color: C.primaryDark, letterSpacing: 0.3 }}
+                            numberOfLines={1}
+                        />
                     </Pressable>
-                </View>
-            </Pressable>
-        </View>
+                </ViewComponent>
+            </ViewComponent>
+        </ViewComponent>
     );
 }
 
@@ -171,12 +246,12 @@ function FloatingChat({
 
     return (
         <Animated.View
-            style={[styles.chatBall, { width: SIZE, height: SIZE, borderRadius: SIZE / 2 }, pos.getLayout()]}
+            style={[s.chatBall, { width: SIZE, height: SIZE, borderRadius: SIZE / 2 }, pos.getLayout()]}
             pointerEvents="box-none"
             {...panResponder.panHandlers}
         >
-            <Pressable style={styles.chatInner} onPress={() => navigation.navigate('ChatAI')}>
-                <Ionicons name="chatbubble-ellipses" size={24} color="#fff" />
+            <Pressable style={s.chatInner} onPress={() => navigation.navigate('ChatAI')}>
+                <Ionicons name="chatbubble-ellipses" size={24} color={C.onPrimary} />
             </Pressable>
         </Animated.View>
     );
@@ -203,7 +278,7 @@ export default function NutritionGuide() {
     return (
         <Container>
             {/* Header avatar + chuông */}
-            <ViewComponent row between alignItems="center" mt={20}>
+            <ViewComponent row between alignItems="center">
                 <ViewComponent row alignItems="center" gap={10} flex={0}>
                     <Avatar name="Anh Hải" />
                     <ViewComponent flex={0}>
@@ -212,71 +287,105 @@ export default function NutritionGuide() {
                     </ViewComponent>
                 </ViewComponent>
 
-                <Pressable style={styles.iconContainer/* onPress={() => navigation.navigate('Notification')}*/}>
-                    <Entypo name="bell" size={20} color={C.primary} />
+                <Pressable>
+                    <ViewComponent
+                        center
+                        radius={12}
+                        backgroundColor={C.bg}
+                        border
+                        style={{ width: 42, height: 42 }}
+                    >
+                        <Entypo name="bell" size={20} color={C.primary} />
+                    </ViewComponent>
                 </Pressable>
             </ViewComponent>
 
             {/* Khối nội dung */}
-            <View style={{ flex: 1 }}>
-                <View style={[styles.contentBlock, { flex: 1, minHeight: CONTENT_MIN_HEIGHT }]}>
-                    {/* Search */}
-                    <View style={styles.searchWrap}>
-                        <Ionicons name="search" size={16} color="#64748b" />
-                        <TextInput
-                            placeholder="Tìm kiếm nội dung..."
-                            placeholderTextColor="#94a3b8"
-                            value={q}
-                            onChangeText={setQ}
-                            style={styles.searchInput}
-                            returnKeyType="search"
-                        />
-                        {q ? (
-                            <Pressable onPress={() => setQ('')} hitSlop={8}>
-                                <Ionicons name="close-circle" size={16} color="#94a3b8" />
-                            </Pressable>
-                        ) : (
-                            <Ionicons name="mic-outline" size={16} color="#94a3b8" />
-                        )}
-                    </View>
+            <ViewComponent style={{ flex: 1, minHeight: CONTENT_MIN_HEIGHT, overflow: 'hidden' }}>
+                {/* Search */}
+                <ViewComponent
+                    row
+                    alignItems="center"
+                    gap={10}
+                    backgroundColor={C.white}
+                    radius={999}
+                    border
+                    borderColor={C.border}
+                    px={14}
+                    style={{ height: 50, marginTop: 10 }}
+                >
+                    <Ionicons name="search" size={18} color={C.slate500} />
+                    <TextInput
+                        placeholder="Tìm kiếm nội dung..."
+                        placeholderTextColor={C.slate500}
+                        value={q}
+                        onChangeText={setQ}
+                        returnKeyType="search"
+                        style={s.searchInput}
+                    />
+                    {q ? (
+                        <Pressable onPress={() => setQ('')} hitSlop={8}>
+                            <Ionicons name="close-circle" size={18} color={C.slate500} />
+                        </Pressable>
+                    ) : (
+                        <Ionicons name="mic-outline" size={18} color={C.slate500} />
+                    )}
+                </ViewComponent>
 
-                    {/* Filters */}
-                    <View style={styles.filters}>
-                        {FILTERS.map(f => {
-                            const isActive = active === f.key;
-                            return (
-                                <Pressable
-                                    key={f.key}
-                                    style={[styles.chip, isActive && styles.chipActive]}
-                                    onPress={() => setActive(f.key)}
+                {/* Filters */}
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={{ marginTop: 10, height: 44, maxHeight: 44 }}
+                    contentContainerStyle={{ alignItems: 'center', justifyContent: 'space-between', flex: 1 }}
+                >
+                    {FILTERS.map(f => {
+                        const isActive = active === f.key;
+                        return (
+                            <Pressable key={f.key} onPress={() => setActive(f.key)}>
+                                <ViewComponent
+                                    center
+                                    radius={999}
+                                    border
+                                    px={20}
+                                    py={8}
+                                    backgroundColor={isActive ? C.primary : C.white}
+                                    borderColor={isActive ? C.primary : C.border}
+                                    style={isActive ? s.chipActiveShadow : undefined}
                                 >
-                                    <Text style={[styles.chipText, isActive && styles.chipTextActive]}>{f.label}</Text>
-                                </Pressable>
-                            );
-                        })}
-                    </View>
+                                    <TextComponent
+                                        text={f.label}
+                                        variant="caption"
+                                        weight="bold"
+                                        tone={isActive ? 'inverse' : 'default'}
+                                        numberOfLines={1}
+                                    />
+                                </ViewComponent>
+                            </Pressable>
+                        );
+                    })}
+                </ScrollView>
 
-                    {/* List */}
-                    <View style={styles.listHolder}>
-                        <FlatList
-                            data={filtered}
-                            keyExtractor={it => it.id}
-                            numColumns={2}
-                            renderItem={({ item }) => <Card item={item} navigation={navigation} />}
-                            columnWrapperStyle={styles.columnWrap}
-                            contentContainerStyle={[styles.listContent, { flexGrow: 1 }]}
-                            style={styles.list}
-                            showsVerticalScrollIndicator={false}
-                            ListEmptyComponent={
-                                <View style={styles.emptyWrap}>
-                                    <Text style={styles.emptyTitle}>Không tìm thấy kết quả</Text>
-                                    <Text style={styles.emptySub}>Thử thay đổi bộ lọc hoặc từ khóa khác nhé.</Text>
-                                </View>
-                            }
-                        />
-                    </View>
-                </View>
-            </View>
+
+                {/* List */}
+                <ViewComponent style={{ flex: 1, minHeight: 0 }}>
+                    <FlatList
+                        data={filtered}
+                        keyExtractor={it => it.id}
+                        numColumns={2}
+                        renderItem={({ item }) => <Card item={item} navigation={navigation} />}
+                        columnWrapperStyle={{ justifyContent: 'space-between' }}
+                        contentContainerStyle={{ paddingTop: 10, flexGrow: 1 }}
+                        showsVerticalScrollIndicator={false}
+                        ListEmptyComponent={
+                            <ViewComponent center style={{ flex: 1, paddingVertical: 18 }}>
+                                <TextComponent text="Không tìm thấy kết quả" variant="h3" />
+                                <TextComponent text="Thử thay đổi bộ lọc hoặc từ khóa khác nhé." variant="body" tone="muted" />
+                            </ViewComponent>
+                        }
+                    />
+                </ViewComponent>
+            </ViewComponent>
 
             {/* Chat nổi */}
             <FloatingChat screenW={screenW} screenH={screenH} navigation={navigation} />
@@ -284,142 +393,72 @@ export default function NutritionGuide() {
     );
 }
 
-/* ================== Styles ================== */
-const styles = StyleSheet.create({
-    // Header (avatar + chuông)
-    iconContainer: {
-        width: 42, height: 42, borderRadius: 12,
-        backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center',
-        borderWidth: 1, borderColor: C.border,
-    },
-    avatarFallback: {
-        width: 52, height: 52, borderRadius: 999,
-        backgroundColor: C.bg, borderWidth: 1, borderColor: C.border,
-    },
+/* ================== Styles (tối thiểu) ================== */
+const s = StyleSheet.create({
     avatar: { width: 52, height: 52, borderRadius: 999 },
 
-    // Content block (đồng bộ Suggestion)
-    contentBlock: {
-        backgroundColor: '#ffffff',
-        borderRadius: 16,
-        borderWidth: 1, borderColor: '#e2e8f0',
-        shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10,
-        shadowOffset: { width: 0, height: 2 }, elevation: 2,
+    // search
+    searchInput: { flex: 1, color: C.text, paddingVertical: 8, fontFamily: 'System' },
+
+    chipActiveShadow: {
+        shadowColor: C.primary,
+        shadowOpacity: 0.18,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 2,
+    },
+
+    // grid
+    cardWrap: { width: '48%', marginBottom: 12 },
+
+    // media
+    thumbWrap: {
+        width: '100%',
+        aspectRatio: 1.2,
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
         overflow: 'hidden',
-        flexDirection: 'column',
-        marginTop: 12, // tránh đè lên header
+        position: 'relative',
     },
+    thumb: { width: '100%', height: '100%' },
 
-    // Search (nhỏ lại như trang Suggestion)
-    searchWrap: {
-        marginTop: 10,
-        marginHorizontal: 12,
-        height: 42,                    // 44 -> 42
-        backgroundColor: '#fff',
-        borderRadius: 999,
-        paddingHorizontal: 12,         // 14 -> 12
-        alignItems: 'center',
-        flexDirection: 'row',
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-        gap: 6,                        // 8 -> 6
-    },
-    searchInput: { flex: 1, color: '#0f172a', paddingVertical: 8, fontWeight: '600' }, // 10 -> 8
+    badge: { position: 'absolute', top: 8, right: 8 },
+    playOverlay: { position: 'absolute', bottom: 8, right: 8, width: 32, height: 32 },
 
-    // Filters: gọn hơn
-    filters: {
-        paddingHorizontal: 12,
-        paddingTop: 8,                 // 10 -> 8
-        paddingBottom: 6,              // 8 -> 6
-        flexDirection: 'row',
-        flexWrap: 'wrap',
+    // body
+    cardBody: {
+        flex: 1,
+        padding: 12,
         justifyContent: 'space-between',
-        rowGap: 8,                     // 10 -> 8
+        borderTopWidth: 1,
+        borderTopColor: C.border,
     },
-    chip: {
-        width: '23%',                  // 4 cái/row
+
+    // CTA
+    ctaBtn: {
+        alignSelf: 'stretch',
+        paddingVertical: 10,
+        borderRadius: 12,
+        borderWidth: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        paddingHorizontal: 10,
-        paddingVertical: 8,            // 10 -> 8
-        borderRadius: 999,
-        backgroundColor: '#ffffff',
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-    },
-    chipActive: {
-        backgroundColor: '#10b981', borderColor: '#10b981',
-        shadowColor: '#10b981', shadowOpacity: 0.14, shadowRadius: 6,
-        shadowOffset: { width: 0, height: 2 }, elevation: 2,
-    },
-    chipText: { color: '#0f172a', fontWeight: '800', fontSize: 12 }, // 13 -> 12
-    chipTextActive: { color: '#fff' },
-
-    // List
-    listHolder: { flex: 1, minHeight: 0 },
-    list: { flex: 1 },
-    listContent: { paddingTop: 8, paddingBottom: 12 }, // 10/14 -> 8/12
-    columnWrap: { paddingHorizontal: 12, justifyContent: 'space-between' },
-
-    // Card
-    cardWrap: { width: '48%', marginBottom: 12 },
-    card: {
-        flex: 1, backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden',
-        borderWidth: 1, borderColor: '#eef2f7',
-        shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10,
-        shadowOffset: { width: 0, height: 2 }, elevation: 2,
-    },
-    // Ảnh
-    thumbWrap: { width: '100%', aspectRatio: 1.2 },
-    thumb: { width: '100%', height: '100%' },
-    badge: {
-        position: 'absolute', top: 8, right: 8,
-        backgroundColor: 'rgba(15,23,42,0.82)',
-        paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999,
-        borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
-    },
-    badgeText: { color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.2 },
-    playOverlay: {
-        position: 'absolute', bottom: 8, right: 8,
-        width: 32, height: 32, borderRadius: 16,
-        backgroundColor: 'rgba(0,0,0,0.55)',
-        alignItems: 'center', justifyContent: 'center',
-        borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
-    },
-
-    cardBody: { flex: 1, padding: 12, justifyContent: 'space-between' },
-    cardTitle: { fontSize: 16, fontWeight: '900', color: '#0f172a', letterSpacing: 0.15, marginBottom: 6 },
-    cardDesc: { fontSize: 13, color: '#334155', lineHeight: 18 },
-
-    metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-    metaPill: {
-        flexDirection: 'row', alignItems: 'center', gap: 4,
-        backgroundColor: '#f1f5f9', paddingHorizontal: 8, paddingVertical: 4,
-        borderRadius: 999, borderWidth: 1, borderColor: '#e2e8f0',
-    },
-    metaText: { fontSize: 12, color: '#0f172a', fontWeight: '700' },
-    metaLoose: { fontSize: 12, color: '#64748b' },
-
-    ctaBtn: {
-        alignSelf: 'flex-start', backgroundColor: '#fce7f3',
-        paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
-        borderWidth: 1, borderColor: '#f9a8d4',
         marginTop: 10,
     },
-    ctaText: { color: '#be185d', fontWeight: '900', fontSize: 12, letterSpacing: 0.2 },
 
-    // Empty state
-    emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 18 },
-    emptyTitle: { fontWeight: '900', color: '#0f172a', marginBottom: 6 },
-    emptySub: { color: '#64748b', textAlign: 'center' },
-
-    // Floating chat
+    // floating chat
     chatBall: {
-        position: 'absolute', zIndex: 20, elevation: 12,
-        backgroundColor: '#10b981',
-        shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8,
+        position: 'absolute',
+        zIndex: 20,
+        elevation: 12,
+        backgroundColor: C.primary,
+        shadowColor: '#000',
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
         shadowOffset: { width: 0, height: 4 },
-        borderWidth: 2, borderColor: '#34d399',
+        borderWidth: 2,
+        borderColor: C.primaryBorder,
+        right: 0,
+        bottom: 0,
     },
     chatInner: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

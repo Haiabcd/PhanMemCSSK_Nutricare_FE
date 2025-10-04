@@ -58,7 +58,7 @@ const RECIPES: Recipe[] = [
 ];
 
 /* ================== Screen ================== */
-export default function NutritionGuide() {
+export default function Suggestion() {
   const navigation = useNavigation<NativeStackNavigationProp<SuggestionStackParamList>>();
   const { height: screenH } = useWindowDimensions();
   const CONTENT_MIN_HEIGHT = Math.max(420, Math.floor(screenH * 0.79));
@@ -251,7 +251,7 @@ export default function NutritionGuide() {
           border
           borderColor={C.border}
           px={14}
-          style={{ height: 44, marginTop: 10 }}
+          style={{ height: 50, marginTop: 10 }}
         >
           <Ionicons name="search" size={18} color={C.slate500} />
           <TextInput
@@ -286,7 +286,7 @@ export default function NutritionGuide() {
                   center
                   radius={999}
                   border
-                  px={12}
+                  px={20}
                   py={8}
                   backgroundColor={active ? C.primary : C.white}
                   borderColor={active ? C.primary : C.border}
@@ -303,7 +303,6 @@ export default function NutritionGuide() {
               </Pressable>
             );
           })}
-          <ViewComponent style={{ width: 6 }} />
         </ScrollView>
 
         {/* List */}
@@ -313,7 +312,7 @@ export default function NutritionGuide() {
             keyExtractor={item => item.id}
             numColumns={2}
             columnWrapperStyle={{ justifyContent: 'space-between' }}
-            contentContainerStyle={{ paddingTop: 10, paddingBottom: 14, flexGrow: 1 }}
+            contentContainerStyle={{ paddingTop: 10, flexGrow: 1 }}
             renderItem={renderRecipe}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
