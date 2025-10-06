@@ -1,7 +1,7 @@
 export const fontFamilies = {
-    regular: "Poppins-Regular",
-    medium: "Poppins-Medium",
-    semiBold: "Poppins-SemiBold",
-    bold: "Poppins-Bold",
-    italic: "Poppins-Italic",
+    regular: "Literata-Regular",
+    medium: "Literata-Medium",
+    semiBold: "Literata-SemiBold",
+    bold: "Literata-Bold",
+    italic: "Literata-Italic",
 };

@@ -275,7 +275,7 @@ export default function Suggestion() {
           horizontal
           showsHorizontalScrollIndicator={false}
           style={{ marginTop: 10, height: 44, maxHeight: 44 }}
-          contentContainerStyle={{ alignItems: 'center' }}
+          contentContainerStyle={{ alignItems: 'center', justifyContent: 'space-between', flex: 1 }}
         >
           {CATS.map(c => {
             const active = cat === c;
