@@ -8,7 +8,6 @@ import {
   useWindowDimensions,
   ScrollView,
 } from 'react-native';
-
 import Container from '../components/Container';
 import TextComponent from '../components/TextComponent';
 import ViewComponent from '../components/ViewComponent';
@@ -363,7 +362,6 @@ const s = StyleSheet.create({
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
   },
-
 
   // Tick
   tickWrap: { position: 'absolute', top: 8, right: 8 },
