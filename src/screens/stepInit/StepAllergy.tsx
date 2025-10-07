@@ -1,4 +1,3 @@
-// features/WizardScreens.tsx — StepAllergiesScreen (dựa theo StepConditionScreen)
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   TextInput,
@@ -9,7 +8,6 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   Platform,
-  View,
   ActivityIndicator,
 } from 'react-native';
 import WizardFrame from '../../components/WizardFrame';
@@ -153,6 +151,7 @@ const StepAllergiesScreen = () => {
         border
         borderColor={C.border}
         backgroundColor={C.inputBg}
+        mb={12}
         style={Platform.select({
           ios: {
             shadowColor: '#000',
@@ -162,7 +161,6 @@ const StepAllergiesScreen = () => {
           },
           android: { elevation: 1 },
         })}
-        mb={12}
       >
         <TextInput
           value={text}
@@ -171,12 +169,18 @@ const StepAllergiesScreen = () => {
           placeholderTextColor={C.sub}
           onSubmitEditing={() => handleAdd()}
           returnKeyType="done"
-          style={{ flex: 1, fontSize: 15, color: C.text, paddingVertical: 6, paddingHorizontal: 4 }}
+          style={{
+            flex: 1,
+            fontSize: 15,
+            color: C.text,
+            paddingVertical: 6,
+            paddingHorizontal: 4,
+          }}
         />
       </ViewComponent>
 
       {/* GỢI Ý TỪ MÁY CHỦ */}
-      <ViewComponent variant="card" p={10} mb={10} radius={12} border>
+      <ViewComponent variant="card" p={10} mb={10} radius={12}>
         <ViewComponent row between alignItems="center" mb={6}>
           <TextComponent
             text={`Gợi ý dị ứng từ máy chủ (${suggestions.length})`}
@@ -187,7 +191,11 @@ const StepAllergiesScreen = () => {
           {loading && (
             <ViewComponent row center gap={6}>
               <ActivityIndicator size="small" />
-              <TextComponent text="Đang tải..." variant="caption" tone="muted" />
+              <TextComponent
+                text="Đang tải..."
+                variant="caption"
+                tone="muted"
+              />
             </ViewComponent>
           )}
         </ViewComponent>
@@ -198,18 +206,26 @@ const StepAllergiesScreen = () => {
             p={20}
             radius={12}
             border
-            style={{ borderStyle: 'dashed' }}
             backgroundColor={C.bg}
             borderColor={C.border}
+            style={{ borderStyle: 'dashed' }}
           >
-            <TextComponent text="Không có gợi ý để hiển thị." weight="semibold" tone="muted" />
-            <TextComponent text="Hãy nhập dị ứng của bạn ở ô phía trên." variant="caption" tone="muted" />
+            <TextComponent
+              text="Không có gợi ý để hiển thị."
+              weight="semibold"
+              tone="muted"
+            />
+            <TextComponent
+              text="Hãy nhập dị ứng của bạn ở ô phía trên."
+              variant="caption"
+              tone="muted"
+            />
           </ViewComponent>
         ) : (
-          <View style={{ position: 'relative' }}>
+          <ViewComponent style={{ position: 'relative' }}>
             <ScrollView
               style={{ maxHeight: SUG_MAX }}
-              contentContainerStyle={chipWrap}
+              contentContainerStyle={{ paddingVertical: 4, paddingRight: 8 }}
               onContentSizeChange={onSugContentSizeChange}
               onLayout={onSugLayout}
               onScroll={onSugScroll}
@@ -218,42 +234,57 @@ const StepAllergiesScreen = () => {
               persistentScrollbar={false}
               nestedScrollEnabled
             >
-              {suggestions.map(s => {
-                const selected = existsInsensitive(s);
-                return (
-                  <Pressable
-                    key={s}
-                    onPress={() => handleAdd(s)}
-                    disabled={selected}
-                    style={({ pressed }) => [
-                      chipBase,
-                      {
-                        borderColor: selected ? C.primaryBorder : C.border,
-                        backgroundColor: selected ? C.primarySurface : C.slate50,
-                        opacity: pressed ? 0.9 : 1,
-                      },
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Chọn dị ứng ${s}`}
-                  >
-                    <TextComponent
-                      text={s}
-                      variant="caption"
-                      weight="semibold"
-                      color={selected ? C.primaryDark : C.slate700}
-                    />
-                  </Pressable>
-                );
-              })}
+              <ViewComponent row wrap gap={8}>
+                {suggestions.map(s => {
+                  const selected = existsInsensitive(s);
+                  return (
+                    <Pressable
+                      key={s}
+                      onPress={() => handleAdd(s)}
+                      disabled={selected}
+                      style={({ pressed }) => [
+                        {
+                          opacity: pressed ? 0.9 : 1,
+                          transform: [{ scale: pressed ? 0.99 : 1 }],
+                        },
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Chọn dị ứng ${s}`}
+                    >
+                      <ViewComponent
+                        border={true}
+                        borderColor={selected ? C.primaryBorder : C.border}
+                        backgroundColor={
+                          selected ? C.primarySurface : C.slate50
+                        }
+                        px={10}
+                        py={8}
+                        radius={999}
+                      >
+                        <TextComponent
+                          text={s}
+                          variant="caption"
+                          weight="semibold"
+                          color={selected ? C.primaryDark : C.slate700}
+                        />
+                      </ViewComponent>
+                    </Pressable>
+                  );
+                })}
+              </ViewComponent>
             </ScrollView>
 
-            <GreenScrollbar visibleH={sugVisibleH} contentH={sugContentH} scrollY={sugScrollY} />
-          </View>
+            <GreenScrollbar
+              visibleH={sugVisibleH}
+              contentH={sugContentH}
+              scrollY={sugScrollY}
+            />
+          </ViewComponent>
         )}
       </ViewComponent>
 
       {/* ĐÃ CHỌN */}
-      <ViewComponent variant="card" p={10} mb={10} radius={12} border style={{ flex: 1 }}>
+      <ViewComponent variant="card" p={10} radius={12} style={{ flex: 1 }}>
         <ViewComponent row between alignItems="center" mb={6}>
           <TextComponent
             text={`Dị ứng đã chọn (${form.allergies.length})`}
@@ -279,14 +310,21 @@ const StepAllergiesScreen = () => {
                   borderRadius: 999,
                   borderWidth: 1,
                   borderColor: C.red,
-                  backgroundColor: pressed ? 'rgba(239,68,68,0.12)' : 'rgba(239,68,68,0.08)',
+                  backgroundColor: pressed
+                    ? 'rgba(239,68,68,0.12)'
+                    : 'rgba(239,68,68,0.08)',
                   opacity: pressed ? 0.98 : 1,
                   transform: [{ scale: pressed ? 0.99 : 1 }],
                 },
               ]}
             >
               <TextComponent text="🗑" variant="body" />
-              <TextComponent text="Xoá tất cả" variant="body" weight="semibold" tone="danger" />
+              <TextComponent
+                text="Xoá tất cả"
+                variant="body"
+                weight="semibold"
+                tone="danger"
+              />
             </Pressable>
           )}
         </ViewComponent>
@@ -297,11 +335,15 @@ const StepAllergiesScreen = () => {
             p={20}
             radius={12}
             border
-            style={{ borderStyle: 'dashed' }}
             backgroundColor={C.bg}
             borderColor={C.border}
+            style={{ borderStyle: 'dashed' }}
           >
-            <TextComponent text="Chưa có dị ứng nào được thêm." weight="semibold" tone="muted" />
+            <TextComponent
+              text="Chưa có dị ứng nào được thêm."
+              weight="semibold"
+              tone="muted"
+            />
             <TextComponent
               text="Nhập dị ứng hoặc chọn từ gợi ý (nếu có)."
               variant="caption"
@@ -310,10 +352,12 @@ const StepAllergiesScreen = () => {
             />
           </ViewComponent>
         ) : (
-          <View style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+          <ViewComponent
+            style={{ position: 'relative', flex: 1, minHeight: 0 }}
+          >
             <ScrollView
               style={{ flex: 1 }}
-              contentContainerStyle={chipWrap}
+              contentContainerStyle={{ paddingVertical: 4, paddingRight: 8 }}
               onContentSizeChange={onSelContentSizeChange}
               onLayout={onSelLayout}
               onScroll={onSelScroll}
@@ -322,48 +366,43 @@ const StepAllergiesScreen = () => {
               persistentScrollbar={false}
               nestedScrollEnabled
             >
-              {form.allergies.map(a => (
-                <ViewComponent
-                  key={a}
-                  row
-                  center
-                  gap={8}
-                  px={12}
-                  py={8}
-                  radius={999}
-                  border
-                  borderColor={C.primaryBorder}
-                  backgroundColor={C.primarySurface}
-                >
-                  <TextComponent text={`🚫 ${a}`} weight="bold" />
-                  <Pressable onPress={() => removeAllergy(a)} hitSlop={8} accessibilityRole="button">
-                    <TextComponent text="✕" color={C.red} weight="bold" />
-                  </Pressable>
-                </ViewComponent>
-              ))}
+              <ViewComponent row wrap gap={8}>
+                {form.allergies.map(a => (
+                  <ViewComponent
+                    key={a}
+                    row
+                    center
+                    gap={8}
+                    px={12}
+                    py={8}
+                    radius={999}
+                    border
+                    borderColor={C.primaryBorder}
+                    backgroundColor={C.primarySurface}
+                  >
+                    <TextComponent text={`🚫 ${a}`} weight="bold" />
+                    <Pressable
+                      onPress={() => removeAllergy(a)}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                    >
+                      <TextComponent text="✕" color={C.red} weight="bold" />
+                    </Pressable>
+                  </ViewComponent>
+                ))}
+              </ViewComponent>
             </ScrollView>
 
-            <GreenScrollbar visibleH={selVisibleH} contentH={selContentH} scrollY={selScrollY} />
-          </View>
+            <GreenScrollbar
+              visibleH={selVisibleH}
+              contentH={selContentH}
+              scrollY={selScrollY}
+            />
+          </ViewComponent>
         )}
       </ViewComponent>
     </WizardFrame>
   );
-};
-
-const chipWrap = {
-  flexDirection: 'row' as const,
-  flexWrap: 'wrap' as const,
-  gap: 8,
-  paddingVertical: 4,
-  paddingRight: 8,
-};
-
-const chipBase = {
-  borderWidth: 1,
-  paddingHorizontal: 10,
-  paddingVertical: 8,
-  borderRadius: 999,
 };
 
 export default StepAllergiesScreen;

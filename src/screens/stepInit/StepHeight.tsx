@@ -1,35 +1,26 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text,
   StyleSheet,
   ScrollView,
   Dimensions,
   Platform,
   TextInput,
   Pressable,
+  View,
 } from 'react-native';
 import WizardFrame from '../../components/WizardFrame';
 import { useWizard } from '../../context/WizardContext';
 import { colors } from '../../constants/colors';
-
-/* ===== Theme ===== */
-const GREEN = colors?.green ?? '#22C55E';
-const GREEN_DARK = '#16A34A';
-const SLATE_700 = '#334155';
-const SLATE_600 = '#475569';
-const SLATE_500 = '#64748B';
-const SLATE_400 = '#94A3B8';
-const EMERALD_25 = '#F4FBF7';
-const EMERALD_100 = '#D1FAE5';
+import TextComponent from '../../components/TextComponent';
+import ViewComponent from '../../components/ViewComponent';
 
 /* ===== Config ===== */
 const CM_MIN = 80;
 const CM_MAX = 250;
 
 const { width: SCREEN_W } = Dimensions.get('window');
-const TICK_W = 22; // khoảng cách giữa từng cm
-const PAD = Math.max(0, SCREEN_W * 0.5 - TICK_W * 0.5); // *** fix canh giữa ***
+const TICK_W = 22;
+const PAD = Math.max(0, SCREEN_W * 0.5 - TICK_W * 0.5);
 const TICK_H_MINOR = 12;
 const TICK_H_MED = 20;
 const TICK_H_MAJOR = 32;
@@ -55,7 +46,6 @@ const StepHeightScreen = () => {
     if (isScrolling.current || initialized) return;
     const idx = clamp(Math.round(form.heightCm), CM_MIN, CM_MAX) - CM_MIN;
     requestAnimationFrame(() => {
-      // Với PAD đã trừ nửa ô, offset i*TICK_W sẽ đặt đúng tâm vạch
       scrollRef.current?.scrollTo({ x: idx * TICK_W, animated: false });
       setInitialized(true);
     });
@@ -68,7 +58,6 @@ const StepHeightScreen = () => {
 
   const onScrollEnd = (x: number) => {
     isScrolling.current = false;
-    // Vì snap là bội số của TICK_W nên chỉ cần round(x/TICK_W)
     const idx = Math.round(x / TICK_W);
     const cm = clamp(CM_MIN + idx, CM_MIN, CM_MAX);
     setHeightCm(cm);
@@ -84,12 +73,9 @@ const StepHeightScreen = () => {
   }, [isEditing, form.heightCm]);
 
   const onReadoutPress = () => setIsEditing(true);
-
-  // chỉ nhận số (0–3 chữ số)
   const onChangeNumeric = (next: string) => {
     if (/^\d{0,3}$/.test(next)) setInputVal(next);
   };
-
   const commitInput = () => {
     const num = parseInt(inputVal, 10);
     if (!Number.isNaN(num)) {
@@ -110,8 +96,8 @@ const StepHeightScreen = () => {
       const h = isMajor ? TICK_H_MAJOR : isMedium ? TICK_H_MED : TICK_H_MINOR;
 
       return (
-        <View key={cm} style={styles.tickItem}>
-          <View
+        <ViewComponent key={cm} style={styles.tickItem}>
+          <ViewComponent
             style={[
               styles.tickLine,
               { height: h },
@@ -120,11 +106,16 @@ const StepHeightScreen = () => {
             ]}
           />
           {isMajor && (
-            <View style={styles.labelWrap}>
-              <Text style={styles.labelText}>{cm}</Text>
-            </View>
+            <ViewComponent style={styles.labelWrap} alignItems="center">
+              <TextComponent
+                text={String(cm)}
+                size={16}
+                weight="bold"
+                color={colors.slate700}
+              />
+            </ViewComponent>
           )}
-        </View>
+        </ViewComponent>
       );
     });
   };
@@ -134,41 +125,47 @@ const StepHeightScreen = () => {
       title="Chiều Cao Của Bạn"
       subtitle="Chiều cao (cm) chính xác giúp tính toán nhu cầu calo chuẩn xác hơn"
     >
-      <View style={styles.wrap}>
+      <ViewComponent style={styles.wrap} center>
         {/* Readout (tap để nhập) */}
         <Pressable onPress={onReadoutPress}>
-          <View style={styles.readoutCard}>
+          <ViewComponent px={24} py={14} radius={16} style={styles.readoutCard}>
             {isEditing ? (
               <TextInput
                 ref={inputRef}
                 value={inputVal}
                 onChangeText={onChangeNumeric}
                 keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
-                // @ts-ignore - giúp bàn phím ưu tiên layout số
+                // @ts-ignore
                 inputMode="numeric"
                 returnKeyType="done"
                 onSubmitEditing={commitInput}
                 onBlur={commitInput}
                 maxLength={3}
-                selectionColor={GREEN_DARK}
+                selectionColor={colors.success}
                 placeholder="Nhập cm"
                 style={styles.readoutInput}
                 selectTextOnFocus
               />
             ) : (
-              <Text style={styles.readoutText}>{formatHeight}</Text>
+              <TextComponent
+                text={formatHeight}
+                size={36}
+                weight="bold"
+                color={colors.success}
+                align="center"
+              />
             )}
-          </View>
+          </ViewComponent>
         </Pressable>
 
         {/* Ruler */}
-        <View style={styles.rulerBox}>
+        <ViewComponent style={styles.rulerBox}>
           {/* Vạch giữa màu xanh */}
           <View
             pointerEvents="none"
             style={[
               styles.centerIndicator,
-              { left: Math.round(SCREEN_W / 2) - 1 }, // canh pixel đẹp
+              { left: Math.round(SCREEN_W / 2) - 1 },
             ]}
           />
 
@@ -182,9 +179,9 @@ const StepHeightScreen = () => {
             decelerationRate="fast"
             scrollEventThrottle={16}
             contentContainerStyle={{
-              paddingHorizontal: PAD, // *** key: nửa màn - nửa ô ***
+              paddingHorizontal: PAD,
               paddingTop: 8,
-              paddingBottom: 34, // chừa chỗ cho nhãn
+              paddingBottom: 34,
             }}
             onScrollBeginDrag={onScrollBegin}
             onMomentumScrollEnd={e =>
@@ -194,12 +191,15 @@ const StepHeightScreen = () => {
           >
             {renderTicks()}
           </ScrollView>
-        </View>
+        </ViewComponent>
 
-        <Text style={styles.hint}>
-          ↔️ Kéo để chọn — chạm vào số để nhập trực tiếp (chỉ số).
-        </Text>
-      </View>
+        <TextComponent
+          text="↔️ Kéo để chọn — chạm vào số để nhập trực tiếp (chỉ số)."
+          size={14}
+          color={colors.slate600}
+          align="center"
+        />
+      </ViewComponent>
     </WizardFrame>
   );
 };
@@ -208,22 +208,18 @@ const StepHeightScreen = () => {
 const styles = StyleSheet.create({
   wrap: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'space-around',
   },
 
   /* readout */
   readoutCard: {
-    backgroundColor: EMERALD_25,
-    borderColor: EMERALD_100,
+    backgroundColor: colors.primarySurface,
+    borderColor: colors.primaryBorder,
     borderWidth: 2,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 16,
     marginTop: 4,
     ...Platform.select({
       ios: {
-        shadowColor: GREEN,
+        shadowColor: colors.primary,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.12,
         shadowRadius: 10,
@@ -231,17 +227,10 @@ const styles = StyleSheet.create({
       android: { elevation: 2 },
     }),
   },
-  readoutText: {
-    fontSize: 36,
-    fontWeight: '800',
-    color: GREEN_DARK,
-    letterSpacing: 0.3,
-    textAlign: 'center',
-  },
   readoutInput: {
     fontSize: 36,
     fontWeight: '800',
-    color: GREEN_DARK,
+    color: colors.success,
     textAlign: 'center',
     padding: 0,
     margin: 0,
@@ -253,13 +242,12 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingVertical: 10,
   },
-
   centerIndicator: {
     position: 'absolute',
     top: 10,
     bottom: 44,
     width: 2,
-    backgroundColor: GREEN,
+    backgroundColor: colors.primary,
     zIndex: 2,
   },
 
@@ -272,17 +260,17 @@ const styles = StyleSheet.create({
   tickLine: {
     width: 2,
     height: TICK_H_MINOR,
-    backgroundColor: SLATE_400,
+    backgroundColor: colors.slate300,
     borderRadius: 1,
     marginTop: 8,
   },
   tickLineMed: {
     height: TICK_H_MED,
-    backgroundColor: SLATE_500,
+    backgroundColor: colors.slate500,
   },
   tickLineMajor: {
     height: TICK_H_MAJOR,
-    backgroundColor: SLATE_600,
+    backgroundColor: colors.slate600,
     width: 3,
     borderRadius: 1.5,
   },
@@ -292,19 +280,6 @@ const styles = StyleSheet.create({
     bottom: -28,
     left: -TICK_W * 4.5,
     right: -TICK_W * 4.5,
-    alignItems: 'center',
-  },
-  labelText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: SLATE_700,
-    letterSpacing: 0.3,
-  },
-
-  hint: {
-    color: SLATE_600,
-    fontSize: 14,
-    textAlign: 'center',
   },
 });
 
