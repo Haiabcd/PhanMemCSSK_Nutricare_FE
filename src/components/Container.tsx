@@ -26,10 +26,11 @@ export default Container
 
 const styles = StyleSheet.create({
     container: {
+        paddingTop: 30,
         flex: 1,
         backgroundColor: colors.bg,
+        // backgroundColor: "red",
         paddingHorizontal: spacing.md,
-        paddingTop: spacing.xl,
         paddingVertical: spacing.md,
     },
 });

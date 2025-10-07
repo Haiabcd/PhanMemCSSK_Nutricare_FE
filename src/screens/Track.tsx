@@ -356,7 +356,6 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 20,
     paddingHorizontal: 16,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },

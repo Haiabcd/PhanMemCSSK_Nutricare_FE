@@ -4,7 +4,7 @@ module.exports = {
         android: {},
     },
     assets: [
-        './assets/fonts/', // nếu bạn có font custom
-        './node_modules/react-native-vector-icons/Fonts', // ⬅️ THÊM DÒNG NÀY để icon hoạt động
+        './assets/fonts',
+        './node_modules/react-native-vector-icons/Fonts',
     ],
 };

@@ -209,7 +209,7 @@ export default function ProfileScreen() {
             <ToastCenter visible={!!toast} title={toast?.title ?? ''} subtitle={toast?.subtitle} kind={toast?.kind ?? 'success'} />
 
             {/* Header (avatar + chào + chuông) */}
-            <ViewComponent row between alignItems="center" mt={20}>
+            <ViewComponent row between alignItems="center">
                 <ViewComponent row alignItems="center" gap={10} flex={0}>
                     <HeaderAvatar name="Anh Hải" />
                     <ViewComponent flex={0}>
@@ -524,7 +524,7 @@ const styles = StyleSheet.create({
     displayName: { marginTop: 10, fontWeight: '800', color: stylesVars.text, fontSize: 17, letterSpacing: 0.2 },
 
     /* Grid */
-    grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, marginTop: 6, marginBottom: 4 },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 6, marginBottom: 4 },
 
     /* Cards base */
     cardBase: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: stylesVars.border },
@@ -538,7 +538,7 @@ const styles = StyleSheet.create({
     infoValue: { color: stylesVars.text, fontSize: 16, fontWeight: '800' },
 
     /* Edit form */
-    editCard: { marginHorizontal: 16, marginTop: 10, borderRadius: 18, padding: 16 },
+    editCard: { marginTop: 10, borderRadius: 18, padding: 16 },
     editTitle: { fontSize: 16, fontWeight: '900', color: stylesVars.text, marginBottom: 10 },
     row: { flexDirection: 'row', gap: 12, marginBottom: 12 },
     field: { flex: 1 },
@@ -560,12 +560,12 @@ const styles = StyleSheet.create({
     cancelBtnText: { color: stylesVars.text, fontWeight: '900' },
 
     /* Actions */
-    actionRow: { paddingHorizontal: 16, marginTop: 12, marginBottom: 14, flexDirection: 'row' },
+    actionRow: { marginTop: 12, marginBottom: 14, flexDirection: 'row' },
     primaryBtn: { flex: 1, flexDirection: 'row', height: 48, backgroundColor: stylesVars.primary, borderRadius: 999, alignItems: 'center', justifyContent: 'center', gap: 8 },
     primaryBtnText: { color: '#fff', fontWeight: '900' },
 
     /* Settings */
-    settingsCard: { marginHorizontal: 16, marginTop: 12, marginBottom: 24, padding: 14, borderRadius: 18 },
+    settingsCard: { marginTop: 12, marginBottom: 24, padding: 14, borderRadius: 18 },
     settingsTitle: { fontSize: 16, fontWeight: '900', color: stylesVars.text, marginBottom: 8 },
     settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
     settingPress: { borderTopWidth: 1, borderTopColor: '#f1f5f9' },
