@@ -6,21 +6,22 @@ import {
   Pressable,
   Platform,
   Modal,
-  View,
 } from 'react-native';
 import Entypo from 'react-native-vector-icons/Entypo';
 import Container from '../components/Container';
+
 import CaloriesNutritionCard from '../components/MealPlan/CaloriesNutritionCard';
 import HydrationSummaryCard from '../components/MealPlan/HydrationCard';
+import MealLog from '../components/MealPlan/MealLog';
+
 import TextComponent from '../components/TextComponent';
 import ViewComponent from '../components/ViewComponent';
-import MealLog from '../components/MealPlan/MealLog';
 import { colors as C } from '../constants/colors';
 import DateTimePicker from '@react-native-community/datetimepicker';
-
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { PlanStackParamList } from '../navigation/PlanNavigator';
+
 /* ================== Avatar fallback ================== */
 function Avatar({
   name,
@@ -65,11 +66,11 @@ const fmtVNFull = (d: Date) => {
   return `${dow}, ${dd} Tháng ${mm}`;
 };
 
-
 const MealPlan = () => {
   const [range, setRange] = useState<'day' | 'week'>('day');
   const [date, setDate] = useState<Date>(new Date());
-  const navigation = useNavigation<NativeStackNavigationProp<PlanStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<PlanStackParamList>>();
 
   // Modal DatePicker chung cho cả iOS & Android
   const [showPicker, setShowPicker] = useState(false);
@@ -90,16 +91,23 @@ const MealPlan = () => {
         <Pressable
           style={s.iconContainer}
           onPress={() => navigation.navigate('Notification')}
+          accessibilityRole="button"
+          accessibilityLabel="Mở thông báo"
+          hitSlop={8}
         >
           <Entypo name="bell" size={20} color={C.primary} />
         </Pressable>
       </ViewComponent>
 
-      <View style={s.line} />
+      <ViewComponent style={s.line} />
 
       {/* Date + segmented control */}
       <ViewComponent center mb={12}>
-        <Pressable onPress={openPicker}>
+        <Pressable
+          onPress={openPicker}
+          accessibilityRole="button"
+          accessibilityLabel="Chọn ngày"
+        >
           <ViewComponent row center gap={8} flex={0}>
             <Entypo name="calendar" size={18} color={C.primary} />
             <TextComponent
@@ -124,6 +132,9 @@ const MealPlan = () => {
           <Pressable
             onPress={() => setRange('day')}
             style={[s.segmentBtn, range === 'day' && s.segmentBtnActive]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: range === 'day' }}
+            hitSlop={6}
           >
             <TextComponent
               text="Theo ngày"
@@ -138,6 +149,9 @@ const MealPlan = () => {
           <Pressable
             onPress={() => setRange('week')}
             style={[s.segmentBtn, range === 'week' && s.segmentBtnActive]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: range === 'week' }}
+            hitSlop={6}
           >
             <TextComponent
               text="Theo tuần"
@@ -167,11 +181,9 @@ const MealPlan = () => {
               display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
               onChange={(event, d) => {
                 if (Platform.OS === 'android') {
-                  // Android: đóng ngay sau khi chọn/dismiss
                   setShowPicker(false);
                   if (event.type === 'set' && d) setDate(d);
                 } else {
-                  // iOS: cập nhật liên tục, đóng bằng nút "Xong"
                   if (d) setDate(d);
                 }
               }}
@@ -204,28 +216,26 @@ const MealPlan = () => {
         </ViewComponent>
 
         {/* Nhật ký ăn uống */}
-        <ViewComponent variant="card" p={12} mb={12}>
+        <ViewComponent variant="card" p={12} mb={12} mt={12}>
           <TextComponent text="Nhật ký ăn uống" variant="h3" tone="primary" />
           <ViewComponent mt={12}>
             <MealLog
               range={range}
               date={date}
               onChangeDate={setDate}
-              onDetail={() => navigation.navigate('MealLogDetail')} />
+              onDetail={() => navigation.navigate('MealLogDetail')}
+            />
           </ViewComponent>
         </ViewComponent>
 
         {/* Uống nước */}
-        <ViewComponent variant="card" p={12} mb={12}>
-          <TextComponent text="Uống nước" variant="h3" tone="primary" />
-          <ViewComponent mt={12}>
-            <HydrationSummaryCard
-              target={2.5}
-              step={0.25}
-              initial={0.5}
-              palette={C}
-            />
-          </ViewComponent>
+        <ViewComponent mt={12} mb={12}>
+          <HydrationSummaryCard
+            target={2.5}
+            step={0.25}
+            initial={0.5}
+            palette={C}
+          />
         </ViewComponent>
       </ScrollView>
     </Container>
@@ -234,6 +244,7 @@ const MealPlan = () => {
 
 export default MealPlan;
 
+/* ===== Styles còn lại (những phần khó mô tả bằng props) ===== */
 const s = StyleSheet.create({
   iconContainer: {
     width: 42,

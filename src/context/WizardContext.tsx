@@ -1,16 +1,16 @@
 import React, { useCallback, useContext, useMemo, useState } from 'react';
 
-/* ==== Defaults (đổi ở đây là áp toàn app) ==== */
+/* ==== Defaults (áp toàn app) ==== */
 const DEFAULT_HEIGHT_CM = 170;
 const DEFAULT_WEIGHT_KG = 65;
 
 /* ==== Types ==== */
 export type ActivityLevel =
-  | 'Sedentary'
-  | 'LightlyActive'
-  | 'ModeratelyActive'
-  | 'VeryActive'
-  | 'ExtremelyActive';
+  | 'SEDENTARY'
+  | 'LIGHTLY_ACTIVE'
+  | 'MODERATELY_ACTIVE'
+  | 'VERY_ACTIVE'
+  | 'EXTRA_ACTIVE';
 
 export type Gender = 'male' | 'female' | 'other';
 export type Target = 'lose' | 'maintain' | 'gain';
@@ -24,51 +24,39 @@ export interface Form {
   weightKg: number;
   target: Target;
   activityLevel: ActivityLevel;
+
+  /** Bệnh nền & dị ứng */
   chronicConditions: string[];
   allergies: string[];
   hasNoChronicConditions: boolean;
   hasNoAllergies: boolean;
-
-  // === NEW: Kế hoạch mục tiêu (tùy chọn cho lose/gain) ===
-  /** Số kg muốn thay đổi (luôn dương), ví dụ 5 (kg) */
-  targetAmountKg?: number;
-  /** Thời lượng để đạt mục tiêu, tính theo tuần, ví dụ 8 (tuần) */
-  targetDurationWeeks?: number;
-  /** Tốc độ mỗi tuần (kg/tuần), có dấu: âm nếu giảm, dương nếu tăng */
-  goalRatePerWeekKg?: number;
-  /** Điều chỉnh calo mỗi ngày (kcal/ngày), âm nếu giảm, dương nếu tăng */
-  dailyCalorieAdjustment?: number;
-
-  targetPlanValid?: boolean;
+  targetPlanValid: boolean;
 }
 
 interface WizardContextType {
   form: Form;
   updateForm: (patch: Partial<Form>) => void;
+
+  /** Metric helpers */
   setHeightCm: (cm: number) => void;
   setWeightKg: (kg: number) => void;
   resetBodyMetrics: () => void;
+
+  /** Bệnh nền */
   addCondition: (name: string) => void;
   removeCondition: (name: string) => void;
   clearConditions: () => void;
   setNoChronicConditions: (no: boolean) => void;
+
+  /** Dị ứng */
   addAllergy: (name: string) => void;
   removeAllergy: (name: string) => void;
   clearAllergies: () => void;
   setNoAllergies: (no: boolean) => void;
-
-  // Optional helper để set goal plan trong một lệnh
-  setGoalPlan?: (params: { kg: number; weeks: number; target: Target }) => void;
 }
 
 /* ==== Context ==== */
 const WizardContext = React.createContext<WizardContextType | null>(null);
-
-/* ==== Helpers ==== */
-function calcDailyAdjustment(kgChange: number, weeks: number) {
-  const days = Math.max(1, Math.round(weeks * 7));
-  return (kgChange * 7700) / days; // kcal/day (unsigned)
-}
 
 /* ==== Provider ==== */
 export function WizardProvider({ children }: { children: React.ReactNode }) {
@@ -79,15 +67,15 @@ export function WizardProvider({ children }: { children: React.ReactNode }) {
     heightCm: DEFAULT_HEIGHT_CM,
     weightKg: DEFAULT_WEIGHT_KG,
     target: 'lose',
-    activityLevel: 'Sedentary',
+    activityLevel: 'SEDENTARY',
     chronicConditions: [],
     allergies: [],
     hasNoChronicConditions: false,
     hasNoAllergies: false,
-    // goal plan fields sẽ fill khi user chọn lose/gain
+    targetPlanValid: false,
   });
 
-  /** Merge patch + đảm bảo height/weight không bao giờ null/undefined */
+  /** Merge patch + đảm bảo height/weight không null/NaN */
   const updateForm = useCallback((patch: Partial<Form>) => {
     const normalized: Partial<Form> = { ...patch };
     if (
@@ -190,26 +178,6 @@ export function WizardProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
-  /* ===== Goal plan helper (optional) ===== */
-  const setGoalPlan = useCallback(
-    (params: { kg: number; weeks: number; target: Target }) => {
-      const kgAbs = Math.max(0, Number(params.kg) || 0);
-      const weeks = Math.max(1, Number(params.weeks) || 0);
-      const daily = calcDailyAdjustment(kgAbs, weeks); // unsigned
-      const sign =
-        params.target === 'lose' ? -1 : params.target === 'gain' ? 1 : 0;
-      setForm(prev => ({
-        ...prev,
-        target: params.target,
-        targetAmountKg: kgAbs,
-        targetDurationWeeks: weeks,
-        goalRatePerWeekKg: (kgAbs / weeks) * sign,
-        dailyCalorieAdjustment: daily * sign,
-      }));
-    },
-    [],
-  );
-
   const value = useMemo(
     (): WizardContextType => ({
       form,
@@ -225,7 +193,6 @@ export function WizardProvider({ children }: { children: React.ReactNode }) {
       removeAllergy,
       clearAllergies,
       setNoAllergies,
-      setGoalPlan,
     }),
     [
       form,
@@ -241,7 +208,6 @@ export function WizardProvider({ children }: { children: React.ReactNode }) {
       removeAllergy,
       clearAllergies,
       setNoAllergies,
-      setGoalPlan,
     ],
   );
 

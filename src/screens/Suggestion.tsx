@@ -21,12 +21,34 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { SuggestionStackParamList } from '../navigation/SuggestionNavigator';
 
 /* ================== Avatar fallback ================== */
-function Avatar({ name, photoUri }: { name: string; photoUri?: string | null }) {
-  const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+function Avatar({
+  name,
+  photoUri,
+}: {
+  name: string;
+  photoUri?: string | null;
+}) {
+  const initials = name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
   if (photoUri) return <Image source={{ uri: photoUri }} style={s.avatar} />;
   return (
-    <ViewComponent center radius={999} border backgroundColor={C.bg} style={s.avatar}>
-      <TextComponent text={initials} variant="subtitle" weight="bold" tone="primary" />
+    <ViewComponent
+      center
+      radius={999}
+      border
+      backgroundColor={C.bg}
+      style={s.avatar}
+    >
+      <TextComponent
+        text={initials}
+        variant="subtitle"
+        weight="bold"
+        tone="primary"
+      />
     </ViewComponent>
   );
 }
@@ -45,20 +67,81 @@ type Recipe = {
   slot: Slot;
 };
 
-const CATS: Category[] = ['Tất cả', 'Bữa sáng', 'Bữa trưa', 'Bữa chiều', 'Bữa phụ'];
+const CATS: Category[] = [
+  'Tất cả',
+  'Bữa sáng',
+  'Bữa trưa',
+  'Bữa chiều',
+  'Bữa phụ',
+];
 
 const RECIPES: Recipe[] = [
-  { id: '1', title: 'Salad Gà Ớt', desc: 'Món salad tươi ngon, giàu rau củ, phù hợp giảm cân.', cal: 380, protein: 18, image: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=1200', slot: 'Bữa trưa' },
-  { id: '2', title: 'Quinoa & Cá Hồi', desc: 'Omega-3 từ cá hồi, giàu hạt quinoa cho sức khỏe.', cal: 450, protein: 35, image: 'https://images.unsplash.com/photo-1532550907401-a500c9a57435?q=80&w=1200', slot: 'Bữa chiều' },
-  { id: '3', title: 'Sinh Tố Rau Xanh', desc: 'Kết hợp rau xanh & trái cây, vitamin tự nhiên.', cal: 250, protein: 8, image: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=1200', slot: 'Bữa sáng' },
-  { id: '4', title: 'Gà Tôm Xào Rau', desc: 'Món xào nhẹ, gà và rau củ cân đối.', cal: 400, protein: 30, image: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=1200', slot: 'Bữa chiều' },
-  { id: '5', title: 'Salad Đậu & Rau', desc: 'Đơn giản với đậu & rau, hợp ăn chay.', cal: 320, protein: 12, image: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=1200', slot: 'Bữa trưa' },
-  { id: '6', title: 'Sữa Chua & Trái Cây', desc: 'Giàu protein từ sữa chua, trái cây tươi.', cal: 300, protein: 20, image: 'https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?q=80&w=1200', slot: 'Bữa phụ' },
+  {
+    id: '1',
+    title: 'Salad Gà Ớt',
+    desc: 'Món salad tươi ngon, giàu rau củ, phù hợp giảm cân.',
+    cal: 380,
+    protein: 18,
+    image:
+      'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=1200',
+    slot: 'Bữa trưa',
+  },
+  {
+    id: '2',
+    title: 'Quinoa & Cá Hồi',
+    desc: 'Omega-3 từ cá hồi, giàu hạt quinoa cho sức khỏe.',
+    cal: 450,
+    protein: 35,
+    image:
+      'https://images.unsplash.com/photo-1532550907401-a500c9a57435?q=80&w=1200',
+    slot: 'Bữa chiều',
+  },
+  {
+    id: '3',
+    title: 'Sinh Tố Rau Xanh',
+    desc: 'Kết hợp rau xanh & trái cây, vitamin tự nhiên.',
+    cal: 250,
+    protein: 8,
+    image:
+      'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=1200',
+    slot: 'Bữa sáng',
+  },
+  {
+    id: '4',
+    title: 'Gà Tôm Xào Rau',
+    desc: 'Món xào nhẹ, gà và rau củ cân đối.',
+    cal: 400,
+    protein: 30,
+    image:
+      'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=1200',
+    slot: 'Bữa chiều',
+  },
+  {
+    id: '5',
+    title: 'Salad Đậu & Rau',
+    desc: 'Đơn giản với đậu & rau, hợp ăn chay.',
+    cal: 320,
+    protein: 12,
+    image:
+      'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=1200',
+    slot: 'Bữa trưa',
+  },
+  {
+    id: '6',
+    title: 'Sữa Chua & Trái Cây',
+    desc: 'Giàu protein từ sữa chua, trái cây tươi.',
+    cal: 300,
+    protein: 20,
+    image:
+      'https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?q=80&w=1200',
+    slot: 'Bữa phụ',
+  },
 ];
 
 /* ================== Screen ================== */
 export default function Suggestion() {
-  const navigation = useNavigation<NativeStackNavigationProp<SuggestionStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<SuggestionStackParamList>>();
   const { height: screenH } = useWindowDimensions();
   const CONTENT_MIN_HEIGHT = Math.max(420, Math.floor(screenH * 0.79));
 
@@ -76,7 +159,10 @@ export default function Suggestion() {
   }, []);
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(query.trim().toLowerCase()), 180);
+    const t = setTimeout(
+      () => setDebouncedQuery(query.trim().toLowerCase()),
+      180,
+    );
     return () => clearTimeout(t);
   }, [query]);
 
@@ -96,7 +182,6 @@ export default function Suggestion() {
     setCat('Tất cả');
   }, []);
 
-
   const renderRecipe = useCallback(
     ({ item }: { item: Recipe }) => {
       const checked = selected.has(item.id);
@@ -106,15 +191,26 @@ export default function Suggestion() {
           <ViewComponent variant="card" radius={16} flex={1}>
             {/* Ảnh + tick */}
             <ViewComponent style={s.thumbWrap}>
-              <Image source={{ uri: item.image }} style={s.thumb} resizeMode="cover" />
-              <Pressable onPress={() => toggleSelect(item.id)} style={s.tickWrap} hitSlop={8}>
+              <Image
+                source={{ uri: item.image }}
+                style={s.thumb}
+                resizeMode="cover"
+              />
+              <Pressable
+                onPress={() => toggleSelect(item.id)}
+                style={s.tickWrap}
+                hitSlop={8}
+              >
                 <ViewComponent
                   center
                   radius={999}
                   border
                   style={[
                     s.tickCircle,
-                    { borderColor: checked ? C.primary : C.primary, backgroundColor: checked ? C.primary : C.white },
+                    {
+                      borderColor: checked ? C.primary : C.primary,
+                      backgroundColor: checked ? C.primary : C.white,
+                    },
                   ]}
                 >
                   <Ionicons
@@ -166,7 +262,11 @@ export default function Suggestion() {
                     py={4}
                   >
                     <McIcon name="fire" size={14} color={C.red} />
-                    <TextComponent text={`${item.cal} kcal`} variant="caption" weight="bold" />
+                    <TextComponent
+                      text={`${item.cal} kcal`}
+                      variant="caption"
+                      weight="bold"
+                    />
                   </ViewComponent>
 
                   <ViewComponent
@@ -181,7 +281,11 @@ export default function Suggestion() {
                     py={4}
                   >
                     <McIcon name="food-drumstick" size={14} color={C.success} />
-                    <TextComponent text={`${item.protein}g protein`} variant="caption" weight="bold" />
+                    <TextComponent
+                      text={`${item.protein}g protein`}
+                      variant="caption"
+                      weight="bold"
+                    />
                   </ViewComponent>
                 </ViewComponent>
               </ViewComponent>
@@ -211,7 +315,7 @@ export default function Suggestion() {
         </ViewComponent>
       );
     },
-    [navigation, selected, toggleSelect]
+    [navigation, selected, toggleSelect],
   );
 
   return (
@@ -275,12 +379,20 @@ export default function Suggestion() {
           horizontal
           showsHorizontalScrollIndicator={false}
           style={{ marginTop: 10, height: 44, maxHeight: 44 }}
-          contentContainerStyle={{ alignItems: 'center', justifyContent: 'space-between', flex: 1 }}
+          contentContainerStyle={{
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flex: 1,
+          }}
         >
           {CATS.map(c => {
             const active = cat === c;
             return (
-              <Pressable key={`cat-${c}`} onPress={() => setCat(c)} style={{ marginRight: 8 }}>
+              <Pressable
+                key={`cat-${c}`}
+                onPress={() => setCat(c)}
+                style={{ marginRight: 8 }}
+              >
                 <ViewComponent
                   center
                   radius={999}
@@ -297,6 +409,7 @@ export default function Suggestion() {
                     weight="bold"
                     tone={active ? 'inverse' : 'default'}
                     numberOfLines={1}
+                    style={{ padding: 3 }}
                   />
                 </ViewComponent>
               </Pressable>
@@ -335,7 +448,12 @@ export default function Suggestion() {
 /* ================== Styles giữ tối thiểu ================== */
 const s = StyleSheet.create({
   avatar: { width: 52, height: 52 },
-  searchInput: { flex: 1, color: C.text, paddingVertical: 10, fontFamily: 'System' },
+  searchInput: {
+    flex: 1,
+    color: C.text,
+    paddingVertical: 10,
+    fontFamily: 'System',
+  },
   chipActiveShadow: {
     shadowColor: C.primary,
     shadowOpacity: 0.18,
@@ -380,5 +498,4 @@ const s = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
   },
-
 });

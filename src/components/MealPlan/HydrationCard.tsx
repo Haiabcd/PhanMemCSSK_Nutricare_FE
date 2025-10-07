@@ -1,5 +1,3 @@
-// HydrationSummaryCard.tsx (Refactor gọn, dùng ViewComponent & TextComponent)
-
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Animated, Easing, Pressable } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -130,7 +128,7 @@ export default function HydrationSummaryCard({
           text="Uống nước"
           variant="h3"
           weight="bold"
-          tone="default"
+          tone="primary"
           style={titleStyle}
         />
         <ViewComponent
