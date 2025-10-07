@@ -8,7 +8,8 @@
     "start": "react-native start",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
-    "test": "jest"
+    "test": "jest",
+    "runstart": "npx react-native run-android --device 192.168.110.74:45559"
   },
   "dependencies": {
     "@react-native-community/datetimepicker": "^8.4.4",
