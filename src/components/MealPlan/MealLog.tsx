@@ -85,7 +85,7 @@ const demoPlanFor = (date: Date): PlanDay => {
             title: 'Smoothie xanh dứa',
             kcal: mul(281),
             img: img(
-              'https://images.unsplash.com/photo-1556742400-b5b7c5121f90',
+              'https://images.unsplash.com/photo-1512621776951-a57141f2eefd',
             ),
             weightLine: '415.5g (x1 · Phần ăn)',
           },
@@ -354,7 +354,7 @@ function WeekStrip({
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={{ paddingHorizontal: 12 }}
     >
-      <RowComponent gap={10} flex={0}>
+      <RowComponent gap={32} flex={0} style={{ justifyContent: 'space-between', paddingHorizontal: 12, }}>
         {days.map(d => {
           const active = d.toDateString() === baseISO;
           return (
@@ -516,7 +516,7 @@ const st = StyleSheet.create({
 
   mealThumbWrap: {
     width: '100%',
-    height: 170,
+    height: 400,
     position: 'relative',
     backgroundColor: C.slate100,
   },
