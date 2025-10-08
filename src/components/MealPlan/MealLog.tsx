@@ -409,7 +409,7 @@ function MealItemCard({
                 color={ACCENT}
               />
               <TextComponent
-                text="Xem chi tiết"
+                text="Xem chi tiết "
                 color={ACCENT}
                 size={12}
                 weight="bold"
