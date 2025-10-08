@@ -49,7 +49,7 @@ const StepWeightScreen = () => {
   const [inputVal, setInputVal] = useState(String(form.weightKg ?? 60));
   const inputRef = useRef<TextInput>(null);
 
-  const display = useMemo(() => `${form.weightKg ?? 60} kg`, [form.weightKg]);
+  const display = useMemo(() => `${form.weightKg ?? 60} kg `, [form.weightKg]);
 
   /* ===== Initial position ===== */
   useEffect(() => {
