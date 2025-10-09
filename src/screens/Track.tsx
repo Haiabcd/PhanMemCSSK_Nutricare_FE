@@ -156,7 +156,7 @@ function InlineSelect<T extends string>({
           style={[
             styles.dropdownPanel,
             openDir === 'down' ? { top: 52 } : { bottom: 52 },
-            { height: panelHeight }, // ❗ chiều cao CỐ ĐỊNH để chắc chắn list cuộn được
+            { height: panelHeight }, // cố định để list chắc chắn cuộn được
           ]}
           // chặn ScrollView cha "nuốt" gesture
           onStartShouldSetResponderCapture={() => true}
@@ -166,7 +166,7 @@ function InlineSelect<T extends string>({
             keyExtractor={(item) => String(item)}
             nestedScrollEnabled
             keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={true}     // CÓ thanh cuộn
+            showsVerticalScrollIndicator={true}     // có thanh cuộn
             overScrollMode="never"
             style={{ flex: 1 }}
             contentContainerStyle={{ paddingBottom: 4 }}
@@ -233,7 +233,10 @@ export default function Track() {
   const [protein, setProtein] = useState('');
   const [carbs, setCarbs] = useState('');
   const [fat, setFat] = useState('');
-  const [macrosLocked, setMacrosLocked] = useState(false);
+  const [macrosLocked, setMacrosLocked] = useState(false); // true khi chọn từ danh sách
+
+  // Chỉ hiện NGUYÊN LIỆU khi: không chọn từ danh sách (macrosLocked=false) và có nhập tên món
+  const showIngredients = !macrosLocked && mealName.trim().length > 0;
 
   // Số lượng (Manual)
   const [qtyManual, setQtyManual] = useState('1');
@@ -293,14 +296,14 @@ export default function Track() {
     }, 1500);
   };
 
-  // Khi chọn món từ danh sách → fill form manual & khoá macro
+  // Khi chọn món từ danh sách → fill form manual & khoá macro (ẩn nguyên liệu)
   const chooseMeal = (m: { name: string; cal: number; p: number; c: number; f: number }) => {
     setMealName(m.name);
     setCal(String(m.cal));
     setProtein(String(m.p));
     setCarbs(String(m.c));
     setFat(String(m.f));
-    setMacrosLocked(true);
+    setMacrosLocked(true);   // đã chọn từ list → ẩn nguyên liệu
     setOpenMealList(false);
     setOpenKey(null);
   };
@@ -364,7 +367,7 @@ export default function Track() {
             contentInsetAdjustmentBehavior="always"
             nestedScrollEnabled
             keyboardDismissMode="on-drag"
-            // ❗TẮT cuộn cha khi có dropdown/list mở
+            // Tắt cuộn cha khi có dropdown/list mở để list con cuộn mượt
             scrollEnabled={!openKey && !openMealList}
             onScroll={(_e: NativeSyntheticEvent<NativeScrollEvent>) => { }}
           >
@@ -549,6 +552,7 @@ export default function Track() {
                     onFocus={() => setOpenKey(null)}
                     onChangeText={(t) => {
                       setMealName(t);
+                      // gõ tay → mở khoá macro (coi như KHÔNG chọn từ danh sách)
                       if (t !== '') setMacrosLocked(false);
                     }}
                   />
@@ -646,55 +650,59 @@ export default function Track() {
                     />
                   </View>
 
-                  {/* Nguyên liệu (Đơn vị combobox) */}
-                  <Text style={styles.blockLabel}>Nguyên liệu</Text>
-                  {ings.map((row, idx) => {
-                    const key = `ing_unit_${idx}`;
-                    return (
-                      <View key={idx} style={styles.ingRow}>
-                        <TextInput
-                          placeholder="Tên nguyên liệu"
-                          style={[styles.input, styles.ingName]}
-                          placeholderTextColor={PLACEHOLDER_COLOR}
-                          selectionColor={C.primary}
-                          value={row.name}
-                          onFocus={() => setOpenKey(null)}
-                          onChangeText={t => {
-                            const next = [...ings];
-                            next[idx].name = t;
-                            setIngs(next);
-                          }}
-                        />
-                        <View onLayout={setAnchorY(key)}>
-                          <InlineSelect<UnitType>
-                            labelRenderer={(u) => u}
-                            options={[...UNITS]}
-                            value={row.unit}
-                            onChange={(u) => {
-                              const next = [...ings];
-                              next[idx].unit = u;
-                              setIngs(next);
-                            }}
-                            zIndex={25 - idx}
-                            openKey={openKey}
-                            setOpenKey={setOpenKey}
-                            myKey={key}
-                            anchorY={anchorYMap[key]}
-                            onRequestScrollTo={scrollToApprox}
-                            maxVisibleItems={4}
-                            placeholder="Đơn vị"
-                          />
-                        </View>
-                        <Pressable style={styles.removeBtn} onPress={() => delIng(idx)}>
-                          <Text style={{ color: '#ef4444', fontWeight: '700' }}>×</Text>
-                        </Pressable>
-                      </View>
-                    );
-                  })}
+                  {/* ===== NGUYÊN LIỆU: chỉ hiện khi nhập thủ công & không chọn từ danh sách ===== */}
+                  {showIngredients && (
+                    <>
+                      <Text style={styles.blockLabel}>Nguyên liệu</Text>
+                      {ings.map((row, idx) => {
+                        const key = `ing_unit_${idx}`;
+                        return (
+                          <View key={idx} style={styles.ingRow}>
+                            <TextInput
+                              placeholder="Tên nguyên liệu"
+                              style={[styles.input, styles.ingName]}
+                              placeholderTextColor={PLACEHOLDER_COLOR}
+                              selectionColor={C.primary}
+                              value={row.name}
+                              onFocus={() => setOpenKey(null)}
+                              onChangeText={t => {
+                                const next = [...ings];
+                                next[idx].name = t;
+                                setIngs(next);
+                              }}
+                            />
+                            <View onLayout={setAnchorY(key)}>
+                              <InlineSelect<UnitType>
+                                labelRenderer={(u) => u}
+                                options={[...UNITS]}
+                                value={row.unit}
+                                onChange={(u) => {
+                                  const next = [...ings];
+                                  next[idx].unit = u;
+                                  setIngs(next);
+                                }}
+                                zIndex={25 - idx}
+                                openKey={openKey}
+                                setOpenKey={setOpenKey}
+                                myKey={key}
+                                anchorY={anchorYMap[key]}
+                                onRequestScrollTo={scrollToApprox}
+                                maxVisibleItems={4}
+                                placeholder="Đơn vị"
+                              />
+                            </View>
+                            <Pressable style={styles.removeBtn} onPress={() => delIng(idx)}>
+                              <Text style={{ color: '#ef4444', fontWeight: '700' }}>×</Text>
+                            </Pressable>
+                          </View>
+                        );
+                      })}
 
-                  <Pressable style={styles.ghostBtn} onPress={addIng}>
-                    <Text style={styles.ghostBtnText}>+ Thêm nguyên liệu</Text>
-                  </Pressable>
+                      <Pressable style={styles.ghostBtn} onPress={addIng}>
+                        <Text style={styles.ghostBtnText}>+ Thêm nguyên liệu</Text>
+                      </Pressable>
+                    </>
+                  )}
 
                   <Pressable
                     style={[styles.actionBtn]}
