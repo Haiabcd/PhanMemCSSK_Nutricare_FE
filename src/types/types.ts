@@ -1,10 +1,8 @@
-export interface Condition {
-  id: string;
-  name: string;
-  createdAt: string;
+export interface ApiResponse<T> {
+  code: number;
+  message: string;
+  data: T;
 }
-
-export type Allergy = Condition;
 
 export interface PageableResponse<T> {
   content: T[];
@@ -32,9 +30,109 @@ export interface PageableResponse<T> {
   numberOfElements: number;
   empty: boolean;
 }
-
-export interface ApiResponse<T> {
-  code: number;
-  message: string;
-  data: T;
+//=====================AUTH====================================//
+export interface OnboardingResponse {
+  tokenResponse: TokenPairResponse;
 }
+
+export interface TokenPairResponse {
+  tokenType: 'Bearer' | string;
+  accessToken: string;
+  accessExpiresAt: number;   // epoch seconds
+  refreshToken: string;
+  refreshExpiresAt: number;  // epoch seconds
+}
+
+export interface RefreshRequest {
+  refreshToken: string;
+}
+//=====================AUTH====================================//
+
+//=====================PROFILE=================================//
+export interface ProfileDto {
+  id: string;
+  heightCm: number;
+  weightKg: number;
+  gender: Gender;
+  birthYear: number;
+  goal: GoalType;
+  activityLevel: ActivityLevel;
+  name: string;
+  targetWeightDeltaKg: number;
+  targetDurationWeeks: number;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+//=====================PROFILE=================================//
+
+
+//=====================CONDITION & ALLERGY=====================//
+export interface Condition {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
+export type Allergy = Condition;
+//=====================CONDITION & ALLERGY=====================//
+
+
+
+
+
+
+export type Gender = 'MALE' | 'FEMALE' | 'OTHER';
+export type GoalType = 'LOSE' | 'MAINTAIN' | 'GAIN';
+export type ActivityLevel =
+  | 'SEDENTARY'
+  | 'LIGHTLY_ACTIVE'
+  | 'MODERATELY_ACTIVE'
+  | 'VERY_ACTIVE'
+  | 'EXTRA_ACTIVE';
+
+export interface ProfileCreationRequest {
+  heightCm: number;            // 80..250
+  weightKg: number;            // 30..200
+  targetWeightDeltaKg: number; // >= 0 (có @NotNull + default = 0 trên BE)
+  targetDurationWeeks: number; // >= 0
+  gender: Gender;
+  birthYear: number;
+  goal: GoalType;
+  activityLevel: ActivityLevel;
+  name: string;
+}
+
+export interface OnboardingRequest {
+  deviceId: string; 
+  profile: ProfileCreationRequest; 
+  conditions?: string[];
+  allergies?: string[];       
+}
+
+export interface UserDto {
+  id: string;
+  role: 'GUEST' | 'USER' | 'ADMIN' | string;
+  provider: 'NONE' | string;
+  deviceId: string;
+  status: 'ACTIVE' | 'INACTIVE' | string;
+}
+
+export interface NutritionDto {
+  kcal: number;
+  proteinG: number;
+  carbG: number;
+  fatG: number;
+  fiberG: number;
+  sodiumMg: number;
+  sugarMg: number;
+}
+
+export interface MealPlanDto {
+  id: string;
+  date: string; 
+  targetNutrition: NutritionDto;
+  waterTargetMl: number;
+}
+
+
+

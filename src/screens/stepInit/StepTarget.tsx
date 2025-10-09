@@ -1,8 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
+import { StyleSheet, Pressable, Platform } from 'react-native';
 import WizardFrame from '../../components/WizardFrame';
 import { useWizard } from '../../context/WizardContext';
 import { colors } from '../../constants/colors';
+import TextComponent from '../../components/TextComponent';
+import ViewComponent from '../../components/ViewComponent';
 
 export type TargetType = 'lose' | 'maintain' | 'gain';
 
@@ -15,13 +17,13 @@ const StepTargetScreen: React.FC = () => {
         key: 'lose' as TargetType,
         title: 'Giảm cân',
         desc: 'Giảm mỡ thừa, đạt cân nặng lý tưởng',
-        icon: '⬇️',
+        icon: '🔻',
       },
       {
         key: 'gain' as TargetType,
         title: 'Tăng cân',
         desc: 'Tăng cân lành mạnh, cải thiện thể trạng',
-        icon: '⬆️',
+        icon: '🔺',
       },
       {
         key: 'maintain' as TargetType,
@@ -34,7 +36,6 @@ const StepTargetScreen: React.FC = () => {
   );
 
   const onSelect = (key: TargetType) => {
-    if (__DEV__) console.log('[Target] prev=', form.target, 'next=', key);
     updateForm({ target: key });
   };
 
@@ -43,9 +44,10 @@ const StepTargetScreen: React.FC = () => {
       title="Mục Tiêu Của Bạn?"
       subtitle="Chọn mục tiêu chính để chúng tôi đề xuất kế hoạch phù hợp"
     >
-      <View style={styles.group}>
+      <ViewComponent style={styles.group} gap={12}>
         {options.map(opt => {
           const selected = form.target === opt.key;
+
           return (
             <Pressable
               key={opt.key}
@@ -53,78 +55,90 @@ const StepTargetScreen: React.FC = () => {
               accessibilityRole="radio"
               accessibilityState={{ checked: selected }}
               style={({ pressed }) => [
-                styles.card,
-                selected && styles.cardSelected,
+                styles.pressableBase,
                 pressed && styles.cardPressed,
               ]}
             >
-              <View style={styles.cardContent}>
-                <Text style={styles.icon}>{opt.icon}</Text>
-                <View style={styles.textContainer}>
-                  <Text
-                    style={[styles.title, selected && styles.titleSelected]}
-                  >
-                    {opt.title}
-                  </Text>
-                  <Text style={[styles.desc, selected && styles.descSelected]}>
-                    {opt.desc}
-                  </Text>
-                </View>
-                {selected && (
-                  <View style={styles.selectedIndicator}>
-                    <Text style={styles.checkmark}>✓</Text>
-                  </View>
-                )}
-              </View>
+              <ViewComponent
+                variant="card"
+                px={16}
+                py={16}
+                radius={16}
+                style={[
+                  styles.cardBase,
+                  selected && {
+                    borderColor: colors.primary,
+                    backgroundColor: colors.primarySurface,
+                    shadowColor: colors.primary,
+                    shadowOpacity: 0.1,
+                    elevation: 4,
+                  },
+                ]}
+              >
+                <ViewComponent row gap={12} alignItems="center">
+                  <TextComponent text={opt.icon} size={28} />
+
+                  <ViewComponent flex={1} gap={4}>
+                    <TextComponent
+                      text={opt.title}
+                      variant="subtitle"
+                      size={16}
+                      color={selected ? colors.emerald800 : colors.slate800}
+                      weight={selected ? 'bold' : 'semibold'}
+                    />
+                    <TextComponent
+                      text={opt.desc}
+                      variant="body"
+                      size={13.5}
+                      color={selected ? colors.emerald700 : colors.slate500}
+                    />
+                  </ViewComponent>
+
+                  {selected && (
+                    <ViewComponent
+                      center
+                      style={styles.selectedIndicator}
+                      backgroundColor={colors.primary}
+                    >
+                      <TextComponent
+                        text="✓"
+                        color={colors.onPrimary}
+                        size={14}
+                        weight="bold"
+                      />
+                    </ViewComponent>
+                  )}
+                </ViewComponent>
+              </ViewComponent>
             </Pressable>
           );
         })}
-      </View>
+      </ViewComponent>
     </WizardFrame>
   );
 };
 
 const styles = StyleSheet.create({
-  group: { width: '100%', gap: 12 },
-  card: {
-    backgroundColor: colors.white,
+  group: { width: '100%' },
+  pressableBase: { borderRadius: 16 },
+  cardBase: {
     borderWidth: 1.5,
-    borderColor: colors.slate200,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 4 },
+    borderColor: colors.border,
+    shadowOpacity: 0.06,
     shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
     elevation: 3,
-  },
-  cardSelected: {
-    borderColor: colors.green,
-    backgroundColor: colors.emerald50,
-    shadowColor: colors.green,
-    shadowOpacity: 0.1,
-    elevation: 4,
+    backgroundColor: colors.white,
   },
   cardPressed: {
     transform: [{ scale: 0.99 }],
     opacity: Platform.OS === 'ios' ? 0.9 : 1,
   },
-  cardContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  icon: { fontSize: 28 },
-  textContainer: { flex: 1, gap: 4 },
-  title: { fontSize: 16, fontWeight: '600', color: colors.slate800 },
-  titleSelected: { color: colors.emerald800, fontWeight: '700' },
-  desc: { fontSize: 13.5, lineHeight: 18, color: colors.slate500 },
-  descSelected: { color: colors.emerald700 },
   selectedIndicator: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: colors.green,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  checkmark: { color: colors.white, fontSize: 14, fontWeight: 'bold' },
 });
 
 export default StepTargetScreen;

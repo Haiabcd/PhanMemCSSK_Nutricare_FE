@@ -1,28 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text,
   StyleSheet,
   ScrollView,
   Dimensions,
   Platform,
   TextInput,
   Pressable,
+  View,
 } from 'react-native';
 import WizardFrame from '../../components/WizardFrame';
 import { useWizard } from '../../context/WizardContext';
 import { colors } from '../../constants/colors';
-
-/* ===== Theme ===== */
-const GREEN = colors?.green ?? '#22C55E';
-const GREEN_DARK = '#16A34A';
-const SLATE_700 = '#334155';
-const SLATE_600 = '#475569';
-const SLATE_500 = '#64748B';
-const SLATE_400 = '#94A3B8';
-const EMERALD_25 = '#F4FBF7';
-const EMERALD_100 = '#D1FAE5';
-const WHITE = colors?.white ?? '#FFFFFF';
+import TextComponent from '../../components/TextComponent';
+import ViewComponent from '../../components/ViewComponent';
 
 /* ===== Config ===== */
 const KG_MIN = 30;
@@ -30,7 +20,7 @@ const KG_MAX = 200;
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const TICK_W = 22; // khoảng cách giữa từng kg
-const PAD = Math.max(0, SCREEN_W * 0.5 - TICK_W * 0.5); // *** canh giữa đúng tâm vạch ***
+const PAD = Math.max(0, SCREEN_W * 0.5 - TICK_W * 0.5); // canh giữa tâm vạch
 const TICK_H_MINOR = 12;
 const TICK_H_MED = 20;
 const TICK_H_MAJOR = 32;
@@ -39,7 +29,7 @@ const clamp = (v: number, min: number, max: number) =>
   Math.max(min, Math.min(max, v));
 
 const StepWeightScreen = () => {
-  const { form, setWeightKg } = useWizard(); // cần có weightKg & setWeightKg trong context
+  const { form, setWeightKg } = useWizard(); // cần weightKg & setWeightKg trong context
   const scrollRef = useRef<ScrollView>(null);
   const isScrolling = useRef(false);
   const [initialized, setInitialized] = useState(false);
@@ -57,7 +47,6 @@ const StepWeightScreen = () => {
     const current = clamp(Math.round(form.weightKg ?? 60), KG_MIN, KG_MAX);
     const idx = current - KG_MIN;
     requestAnimationFrame(() => {
-      // Với PAD = SCREEN_W/2 - TICK_W/2, offset idx*TICK_W là tâm vạch ở giữa màn hình
       scrollRef.current?.scrollTo({ x: idx * TICK_W, animated: false });
       setInitialized(true);
     });
@@ -85,12 +74,9 @@ const StepWeightScreen = () => {
   }, [isEditing, form.weightKg]);
 
   const onReadoutPress = () => setIsEditing(true);
-
-  // Chỉ nhận số 0–3 ký tự
   const onChangeNumeric = (next: string) => {
     if (/^\d{0,3}$/.test(next)) setInputVal(next);
   };
-
   const commitInput = () => {
     const num = parseInt(inputVal, 10);
     if (!Number.isNaN(num)) {
@@ -111,8 +97,8 @@ const StepWeightScreen = () => {
       const h = isMajor ? TICK_H_MAJOR : isMedium ? TICK_H_MED : TICK_H_MINOR;
 
       return (
-        <View key={kg} style={styles.tickItem}>
-          <View
+        <ViewComponent key={kg} style={styles.tickItem}>
+          <ViewComponent
             style={[
               styles.tickLine,
               { height: h },
@@ -121,11 +107,16 @@ const StepWeightScreen = () => {
             ]}
           />
           {isMajor && (
-            <View style={styles.labelWrap}>
-              <Text style={styles.labelText}>{kg}</Text>
-            </View>
+            <ViewComponent style={styles.labelWrap} alignItems="center">
+              <TextComponent
+                text={String(kg)}
+                size={16}
+                weight="bold"
+                color={colors.slate700}
+              />
+            </ViewComponent>
           )}
-        </View>
+        </ViewComponent>
       );
     });
   };
@@ -135,41 +126,51 @@ const StepWeightScreen = () => {
       title="Cân Nặng Của Bạn"
       subtitle="Cân nặng (kg) chính xác giúp tính toán nhu cầu dinh dưỡng phù hợp nhất"
     >
-      <View style={styles.wrap}>
+      <ViewComponent style={styles.wrap}>
         {/* Readout (tap để nhập) */}
         <Pressable onPress={onReadoutPress}>
-          <View style={styles.readoutCard}>
+          <ViewComponent px={24} py={14} radius={16} style={styles.readoutCard}>
             {isEditing ? (
               <TextInput
                 ref={inputRef}
                 value={inputVal}
                 onChangeText={onChangeNumeric}
                 keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
-                // @ts-ignore: gợi ý bàn phím numeric nếu RN hỗ trợ
+                // @ts-ignore
                 inputMode="numeric"
                 returnKeyType="done"
                 onSubmitEditing={commitInput}
                 onBlur={commitInput}
                 maxLength={3}
-                selectionColor={GREEN_DARK}
+                selectionColor={colors.success}
                 placeholder="Nhập kg"
                 style={styles.readoutInput}
                 selectTextOnFocus
               />
             ) : (
-              <Text style={styles.readoutText}>{display}</Text>
+              <TextComponent
+                text={display}
+                size={36}
+                weight="bold"
+                color={colors.success}
+                align="center"
+              />
             )}
-          </View>
+          </ViewComponent>
         </Pressable>
 
         {/* Ruler */}
-        <View style={styles.rulerBox}>
-          {/* Vạch giữa màu xanh — không bắt touch */}
+        <ViewComponent
+          style={styles.rulerBox}
+          alignItems="center"
+          justifyContent="center"
+        >
+          {/* Vạch giữa (dùng View gốc để có pointerEvents) */}
           <View
             pointerEvents="none"
             style={[
               styles.centerIndicator,
-              { left: Math.round(SCREEN_W / 2) - 1 }, // anti-blur, canh pixel
+              { left: Math.round(SCREEN_W / 2) - 1 },
             ]}
           />
 
@@ -183,9 +184,9 @@ const StepWeightScreen = () => {
             decelerationRate="fast"
             scrollEventThrottle={16}
             contentContainerStyle={{
-              paddingHorizontal: PAD, // *** nửa màn - nửa ô ***
+              paddingHorizontal: PAD,
               paddingTop: 8,
-              paddingBottom: 34, // chừa chỗ cho nhãn phía dưới
+              paddingBottom: 34,
             }}
             onScrollBeginDrag={onScrollBegin}
             onMomentumScrollEnd={e =>
@@ -195,12 +196,15 @@ const StepWeightScreen = () => {
           >
             {renderTicks()}
           </ScrollView>
-        </View>
+        </ViewComponent>
 
-        <Text style={styles.hint}>
-          ↔️ Kéo để chọn — chạm vào số để nhập trực tiếp (chỉ số).
-        </Text>
-      </View>
+        <TextComponent
+          text="↔️ Kéo để chọn — chạm vào số để nhập trực tiếp (chỉ số)."
+          size={14}
+          color={colors.slate600}
+          align="center"
+        />
+      </ViewComponent>
     </WizardFrame>
   );
 };
@@ -213,21 +217,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     paddingHorizontal: 16,
     paddingBottom: 12,
-    backgroundColor: WHITE,
+    backgroundColor: colors.white,
   },
 
   /* readout */
   readoutCard: {
-    backgroundColor: EMERALD_25,
-    borderColor: EMERALD_100,
+    backgroundColor: colors.primarySurface,
+    borderColor: colors.primaryBorder,
     borderWidth: 2,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 16,
     marginTop: 4,
     ...Platform.select({
       ios: {
-        shadowColor: GREEN,
+        shadowColor: colors.primary,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.12,
         shadowRadius: 10,
@@ -235,17 +236,10 @@ const styles = StyleSheet.create({
       android: { elevation: 2 },
     }),
   },
-  readoutText: {
-    fontSize: 36,
-    fontWeight: '800',
-    color: GREEN_DARK,
-    letterSpacing: 0.3,
-    textAlign: 'center',
-  },
   readoutInput: {
     fontSize: 36,
     fontWeight: '800',
-    color: GREEN_DARK,
+    color: colors.success,
     textAlign: 'center',
     padding: 0,
     margin: 0,
@@ -255,17 +249,14 @@ const styles = StyleSheet.create({
   /* ruler */
   rulerBox: {
     width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
     paddingVertical: 6,
   },
-
   centerIndicator: {
     position: 'absolute',
     top: 10,
-    bottom: 44, // chừa chỗ cho nhãn bên dưới
+    bottom: 44,
     width: 2,
-    backgroundColor: GREEN,
+    backgroundColor: colors.primary,
     borderRadius: 2,
     zIndex: 2,
   },
@@ -279,39 +270,26 @@ const styles = StyleSheet.create({
   tickLine: {
     width: 2,
     height: TICK_H_MINOR,
-    backgroundColor: SLATE_400,
+    backgroundColor: colors.slate300,
     borderRadius: 1,
     marginTop: 8,
   },
   tickLineMed: {
     height: TICK_H_MED,
-    backgroundColor: SLATE_500,
+    backgroundColor: colors.slate500,
   },
   tickLineMajor: {
     height: TICK_H_MAJOR,
-    backgroundColor: SLATE_600,
+    backgroundColor: colors.slate600,
     width: 3,
     borderRadius: 1.5,
   },
 
   labelWrap: {
     position: 'absolute',
-    bottom: -28, // đẩy nhãn xuống dưới trục
-    left: -TICK_W * 4.5, // căn giữa cụm 10 vạch
+    bottom: -28,
+    left: -TICK_W * 4.5,
     right: -TICK_W * 4.5,
-    alignItems: 'center',
-  },
-  labelText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: SLATE_700,
-    letterSpacing: 0.3,
-  },
-
-  hint: {
-    color: SLATE_600,
-    fontSize: 14,
-    textAlign: 'center',
   },
 });
 
