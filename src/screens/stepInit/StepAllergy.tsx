@@ -9,6 +9,7 @@ import {
   NativeScrollEvent,
   Platform,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import WizardFrame from '../../components/WizardFrame';
 import { useWizard } from '../../context/WizardContext';
@@ -20,7 +21,6 @@ import axios from 'axios';
 import { getAllAllergiesComplete } from '../../services/allergy.service';
 import type { Condition } from '../../types/types';
 
-/** Chuẩn hoá bỏ dấu để search không phân biệt dấu */
 const normalize = (s: string) =>
   s
     .normalize('NFD')
@@ -31,93 +31,99 @@ const normalize = (s: string) =>
 const StepAllergiesScreen = () => {
   const { form, addAllergy, removeAllergy, clearAllergies } = useWizard();
 
-  // ===== State nhập liệu =====
+  // Nhập text để filter theo tên
   const [text, setText] = useState('');
 
-  // ===== State dữ liệu từ API (đổi tên biến cho đúng ngữ cảnh dị ứng) =====
+  // Dữ liệu từ BE: danh sách dị ứng (id, name)
   const [loading, setLoading] = useState(true);
-  const [remoteAllergies, setRemoteAllergies] = useState<string[]>([]);
+  const [remoteAllergies, setRemoteAllergies] = useState<Condition[]>([]);
 
-  // ===== Fetch tất cả "dị ứng" từ BE (tạm tái dùng endpoint conditions) =====
+  // Map id -> name để render nhanh
+  const idToName = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of remoteAllergies) m.set(a.id, a.name);
+    return m;
+  }, [remoteAllergies]);
+
   useEffect(() => {
     const controller = new AbortController();
-    const signal = controller.signal;
-
     (async () => {
       try {
         setLoading(true);
+        const data: Condition[] = await getAllAllergiesComplete(
+          controller.signal,
+        );
 
-        const data: Condition[] = await getAllAllergiesComplete(signal);
-
-        const names = (data || [])
-          .map(c => (c?.name || '').trim())
-          .filter(n => !!n);
-
+        // Bỏ trùng theo (name không dấu)
         const seen = new Set<string>();
-        const uniqueNames: string[] = [];
-        for (const n of names) {
-          const key = normalize(n);
+        const unique: Condition[] = [];
+        for (const item of data ?? []) {
+          const name = (item?.name || '').trim();
+          if (!name) continue;
+          const key = normalize(name);
           if (!seen.has(key)) {
             seen.add(key);
-            uniqueNames.push(n);
+            unique.push(item);
           }
         }
-
-        setRemoteAllergies(uniqueNames);
+        setRemoteAllergies(unique);
       } catch (error: any) {
         if (axios.isCancel(error)) {
           console.log('⏹ Request canceled:', error.message);
         } else {
           console.error('❌ Error fetching allergies:', error);
           setRemoteAllergies([]);
+          Alert.alert('Lỗi', 'Không thể tải danh sách dị ứng.');
         }
       } finally {
         setLoading(false);
       }
     })();
-
-    return () => {
-      controller.abort();
-    };
+    return () => controller.abort();
   }, []);
 
-  // ===== Nguồn gợi ý: chỉ từ BE =====
+  // Gợi ý theo tên
   const normalizedInput = normalize(text);
-
   const suggestions = useMemo(() => {
     if (!normalizedInput) return remoteAllergies;
-    return remoteAllergies.filter(s => normalize(s).includes(normalizedInput));
+    return remoteAllergies.filter(s =>
+      normalize(s.name).includes(normalizedInput),
+    );
   }, [normalizedInput, remoteAllergies]);
 
-  // so sánh không phân biệt hoa/thường & dấu
-  const existsInsensitive = useCallback(
-    (v: string) =>
-      form.allergies.some(
-        a => a.localeCompare(v, undefined, { sensitivity: 'accent' }) === 0,
-      ),
+  // Kiểm tra đã chọn (theo ID)
+  const existsById = useCallback(
+    (id: string) => form.allergies.includes(id),
     [form.allergies],
   );
 
-  const handleAdd = (val?: string) => {
-    const v = (val ?? text).trim();
-    if (!v) return;
-    if (existsInsensitive(v)) {
+  // Chọn một dị ứng -> lưu ID
+  const handleAddById = (id: string) => {
+    if (!id) return;
+    if (existsById(id)) {
       setText('');
       Keyboard.dismiss();
       return;
     }
-    addAllergy(v);
+    addAllergy(id); // lưu ID vào form
     setText('');
     Keyboard.dismiss();
   };
 
-  /* ==== Scroll metrics cho 2 vùng ==== */
-  const SUG_MAX = 170;
+  // Vì BE cần ID, không cho tự do thêm text tự do nữa
+  const handleSubmitTyping = () => {
+    if (!normalizedInput) return;
+    // Chọn gợi ý đầu tiên khớp input
+    const first = suggestions[0];
+    if (first) handleAddById(first.id);
+    else Alert.alert('Không tìm thấy', 'Vui lòng chọn từ gợi ý.');
+  };
 
+  /* ==== Scroll metrics ==== */
+  const SUG_MAX = 170;
   const [sugVisibleH, setSugVisibleH] = useState(SUG_MAX);
   const [sugContentH, setSugContentH] = useState(0);
   const [sugScrollY, setSugScrollY] = useState(0);
-
   const [selVisibleH, setSelVisibleH] = useState(0);
   const [selContentH, setSelContentH] = useState(0);
   const [selScrollY, setSelScrollY] = useState(0);
@@ -126,10 +132,8 @@ const StepAllergiesScreen = () => {
     setSugVisibleH(Math.min(SUG_MAX, Math.round(e.nativeEvent.layout.height)));
   const onSelLayout = (e: LayoutChangeEvent) =>
     setSelVisibleH(Math.round(e.nativeEvent.layout.height));
-
   const onSugContentSizeChange = (_w: number, h: number) => setSugContentH(h);
   const onSelContentSizeChange = (_w: number, h: number) => setSelContentH(h);
-
   const onSugScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) =>
     setSugScrollY(e.nativeEvent.contentOffset.y);
   const onSelScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) =>
@@ -138,9 +142,9 @@ const StepAllergiesScreen = () => {
   return (
     <WizardFrame
       title="Dị ứng của bạn"
-      subtitle="Hãy cho chúng tôi biết nếu bạn có dị ứng để tránh gợi ý thực phẩm không phù hợp. Có thể bỏ qua nếu không có."
+      subtitle="Chọn dị ứng (theo danh sách chuẩn) để loại trừ thực phẩm không phù hợp."
     >
-      {/* Ô nhập + Nút thêm (ấn Enter để thêm) */}
+      {/* Ô nhập + Enter để pick gợi ý đầu tiên */}
       <ViewComponent
         row
         center
@@ -165,9 +169,9 @@ const StepAllergiesScreen = () => {
         <TextInput
           value={text}
           onChangeText={setText}
-          placeholder="Nhập dị ứng (ví dụ: Hải sản)…"
+          placeholder="Tìm dị ứng (ví dụ: Hải sản)…"
           placeholderTextColor={C.sub}
-          onSubmitEditing={() => handleAdd()}
+          onSubmitEditing={handleSubmitTyping}
           returnKeyType="done"
           style={{
             flex: 1,
@@ -216,74 +220,27 @@ const StepAllergiesScreen = () => {
               tone="muted"
             />
             <TextComponent
-              text="Hãy nhập dị ứng của bạn ở ô phía trên."
+              text="Hãy gõ từ khóa để tìm và chọn từ gợi ý."
               variant="caption"
               tone="muted"
             />
           </ViewComponent>
         ) : (
-          <ViewComponent style={{ position: 'relative' }}>
-            <ScrollView
-              style={{ maxHeight: SUG_MAX }}
-              contentContainerStyle={{ paddingVertical: 4, paddingRight: 8 }}
-              onContentSizeChange={onSugContentSizeChange}
-              onLayout={onSugLayout}
-              onScroll={onSugScroll}
-              scrollEventThrottle={16}
-              showsVerticalScrollIndicator={false}
-              persistentScrollbar={false}
-              nestedScrollEnabled
-            >
-              <ViewComponent row wrap gap={8}>
-                {suggestions.map(s => {
-                  const selected = existsInsensitive(s);
-                  return (
-                    <Pressable
-                      key={s}
-                      onPress={() => handleAdd(s)}
-                      disabled={selected}
-                      style={({ pressed }) => [
-                        {
-                          opacity: pressed ? 0.9 : 1,
-                          transform: [{ scale: pressed ? 0.99 : 1 }],
-                        },
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Chọn dị ứng ${s}`}
-                    >
-                      <ViewComponent
-                        border={true}
-                        borderColor={selected ? C.primaryBorder : C.border}
-                        backgroundColor={
-                          selected ? C.primarySurface : C.slate50
-                        }
-                        px={10}
-                        py={8}
-                        radius={999}
-                      >
-                        <TextComponent
-                          text={s}
-                          variant="caption"
-                          weight="semibold"
-                          color={selected ? C.primaryDark : C.slate700}
-                        />
-                      </ViewComponent>
-                    </Pressable>
-                  );
-                })}
-              </ViewComponent>
-            </ScrollView>
-
-            <GreenScrollbar
-              visibleH={sugVisibleH}
-              contentH={sugContentH}
-              scrollY={sugScrollY}
-            />
-          </ViewComponent>
+          <SuggestionsChips
+            suggestions={suggestions}
+            existsById={existsById}
+            onPick={handleAddById}
+            onLayout={onSugLayout}
+            onContentSizeChange={onSugContentSizeChange}
+            onScroll={onSugScroll}
+            visibleH={sugVisibleH}
+            contentH={sugContentH}
+            scrollY={sugScrollY}
+          />
         )}
       </ViewComponent>
 
-      {/* ĐÃ CHỌN */}
+      {/* ĐÃ CHỌN (render theo name từ idToName) */}
       <ViewComponent variant="card" p={10} radius={12} style={{ flex: 1 }}>
         <ViewComponent row between alignItems="center" mb={6}>
           <TextComponent
@@ -296,8 +253,6 @@ const StepAllergiesScreen = () => {
             <Pressable
               onPress={clearAllergies}
               hitSlop={12}
-              accessibilityRole="button"
-              accessibilityLabel="Xoá tất cả dị ứng đã chọn"
               android_ripple={{ color: 'rgba(239,68,68,0.15)', radius: 200 }}
               style={({ pressed }) => [
                 {
@@ -345,60 +300,24 @@ const StepAllergiesScreen = () => {
               tone="muted"
             />
             <TextComponent
-              text="Nhập dị ứng hoặc chọn từ gợi ý (nếu có)."
+              text="Nhập và chọn từ gợi ý ở trên."
               variant="caption"
               tone="muted"
               align="center"
             />
           </ViewComponent>
         ) : (
-          <ViewComponent
-            style={{ position: 'relative', flex: 1, minHeight: 0 }}
-          >
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={{ paddingVertical: 4, paddingRight: 8 }}
-              onContentSizeChange={onSelContentSizeChange}
-              onLayout={onSelLayout}
-              onScroll={onSelScroll}
-              scrollEventThrottle={16}
-              showsVerticalScrollIndicator={false}
-              persistentScrollbar={false}
-              nestedScrollEnabled
-            >
-              <ViewComponent row wrap gap={8}>
-                {form.allergies.map(a => (
-                  <ViewComponent
-                    key={a}
-                    row
-                    center
-                    gap={8}
-                    px={12}
-                    py={8}
-                    radius={999}
-                    border
-                    borderColor={C.primaryBorder}
-                    backgroundColor={C.primarySurface}
-                  >
-                    <TextComponent text={`🚫 ${a}`} weight="bold" />
-                    <Pressable
-                      onPress={() => removeAllergy(a)}
-                      hitSlop={8}
-                      accessibilityRole="button"
-                    >
-                      <TextComponent text="✕" color={C.red} weight="bold" />
-                    </Pressable>
-                  </ViewComponent>
-                ))}
-              </ViewComponent>
-            </ScrollView>
-
-            <GreenScrollbar
-              visibleH={selVisibleH}
-              contentH={selContentH}
-              scrollY={selScrollY}
-            />
-          </ViewComponent>
+          <SelectedChips
+            ids={form.allergies}
+            idToName={idToName}
+            onRemove={removeAllergy}
+            onLayout={onSelLayout}
+            onContentSizeChange={onSelContentSizeChange}
+            onScroll={onSelScroll}
+            visibleH={selVisibleH}
+            contentH={selContentH}
+            scrollY={selScrollY}
+          />
         )}
       </ViewComponent>
     </WizardFrame>
@@ -406,3 +325,161 @@ const StepAllergiesScreen = () => {
 };
 
 export default StepAllergiesScreen;
+
+/* ====== Subcomponents ====== */
+
+function SuggestionsChips(props: {
+  suggestions: Condition[];
+  existsById: (id: string) => boolean;
+  onPick: (id: string) => void;
+  onLayout: (e: LayoutChangeEvent) => void;
+  onContentSizeChange: (_w: number, h: number) => void;
+  onScroll: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  visibleH: number;
+  contentH: number;
+  scrollY: number;
+}) {
+  const {
+    suggestions,
+    existsById,
+    onPick,
+    onLayout,
+    onContentSizeChange,
+    onScroll,
+    visibleH,
+    contentH,
+    scrollY,
+  } = props;
+  return (
+    <ViewComponent style={{ position: 'relative' }}>
+      <ScrollView
+        style={{ maxHeight: 170 }}
+        contentContainerStyle={{ paddingVertical: 4, paddingRight: 8 }}
+        onContentSizeChange={onContentSizeChange}
+        onLayout={onLayout}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
+        persistentScrollbar={false}
+        nestedScrollEnabled
+      >
+        <ViewComponent row wrap gap={8}>
+          {suggestions.map(s => {
+            const selected = existsById(s.id);
+            return (
+              <Pressable
+                key={s.id}
+                onPress={() => onPick(s.id)}
+                disabled={selected}
+                style={({ pressed }) => [
+                  {
+                    opacity: pressed ? 0.9 : 1,
+                    transform: [{ scale: pressed ? 0.99 : 1 }],
+                  },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={`Chọn dị ứng ${s.name}`}
+              >
+                <ViewComponent
+                  border
+                  borderColor={selected ? C.primaryBorder : C.border}
+                  backgroundColor={selected ? C.primarySurface : C.slate50}
+                  px={10}
+                  py={8}
+                  radius={999}
+                >
+                  <TextComponent
+                    text={s.name}
+                    variant="caption"
+                    weight="semibold"
+                    color={selected ? C.primaryDark : C.slate700}
+                  />
+                </ViewComponent>
+              </Pressable>
+            );
+          })}
+        </ViewComponent>
+      </ScrollView>
+
+      <GreenScrollbar
+        visibleH={visibleH}
+        contentH={contentH}
+        scrollY={scrollY}
+      />
+    </ViewComponent>
+  );
+}
+
+function SelectedChips(props: {
+  ids: string[];
+  idToName: Map<string, string>;
+  onRemove: (id: string) => void;
+  onLayout: (e: LayoutChangeEvent) => void;
+  onContentSizeChange: (_w: number, h: number) => void;
+  onScroll: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  visibleH: number;
+  contentH: number;
+  scrollY: number;
+}) {
+  const {
+    ids,
+    idToName,
+    onRemove,
+    onLayout,
+    onContentSizeChange,
+    onScroll,
+    visibleH,
+    contentH,
+    scrollY,
+  } = props;
+  return (
+    <ViewComponent style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingVertical: 4, paddingRight: 8 }}
+        onContentSizeChange={onContentSizeChange}
+        onLayout={onLayout}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
+        persistentScrollbar={false}
+        nestedScrollEnabled
+      >
+        <ViewComponent row wrap gap={8}>
+          {ids.map(id => {
+            const name = idToName.get(id) ?? id; // fallback: hiển thị id nếu chưa map tên
+            return (
+              <ViewComponent
+                key={id}
+                row
+                center
+                gap={8}
+                px={12}
+                py={8}
+                radius={999}
+                border
+                borderColor={C.primaryBorder}
+                backgroundColor={C.primarySurface}
+              >
+                <TextComponent text={`🚫 ${name}`} weight="bold" />
+                <Pressable
+                  onPress={() => onRemove(id)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                >
+                  <TextComponent text="✕" color={C.red} weight="bold" />
+                </Pressable>
+              </ViewComponent>
+            );
+          })}
+        </ViewComponent>
+      </ScrollView>
+
+      <GreenScrollbar
+        visibleH={visibleH}
+        contentH={contentH}
+        scrollY={scrollY}
+      />
+    </ViewComponent>
+  );
+}

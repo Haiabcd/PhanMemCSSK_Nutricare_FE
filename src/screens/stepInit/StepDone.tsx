@@ -11,6 +11,7 @@ import {
   ScrollView,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -18,27 +19,26 @@ import type { RootStackParamList } from '../../navigation/AppNavigator';
 import { colors as c } from '../../constants/colors';
 import TextComponent from '../../components/TextComponent';
 import ViewComponent from '../../components/ViewComponent';
+import { useWizard } from '../../context/WizardContext';
+import { onboarding } from '../../services/auth.service';
+import type { OnboardingRequest } from '../../types/types';
+import { getOrCreateDeviceId } from '../../config/deviceId';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-// Safe-area thủ công
 const TOP_INSET = Platform.select({
   ios: 44,
   android: StatusBar.currentHeight ?? 0,
   default: 0,
 });
 
-// Padding & max width cho card
 const CONTENT_HPAD = 24;
 const CONTENT_WIDTH = SCREEN_WIDTH - CONTENT_HPAD * 2;
 const CARD_MAX_W = 520;
 const CARD_W = Math.min(CONTENT_WIDTH, CARD_MAX_W);
-
-// Viewport thực của Slider (bằng chiều rộng ScrollView do container có padding)
 const PAGE_W = CONTENT_WIDTH;
 
-/* --------------- Slides nội dung --------------- */
 type Slide = { icon: string; title: string; points: string[] };
 const SLIDES: Slide[] = [
   {
@@ -70,9 +70,43 @@ const SLIDES: Slide[] = [
   },
 ];
 
+function buildOnboardingPayload(
+  form: any,
+  deviceId: string,
+): OnboardingRequest {
+  const birthYear = form.age;
+  const goal = (form.target || 'maintain').toString().toUpperCase();
+  const gender = (form.gender || 'OTHER').toString().toUpperCase();
+  const activityLevel = (form.activityLevel || 'SEDENTARY')
+    .toString()
+    .toUpperCase();
+  const conditions: string[] = form.hasNoChronicConditions
+    ? []
+    : form.chronicConditions ?? [];
+  const allergies: string[] = form.hasNoAllergies ? [] : form.allergies ?? [];
+
+  return {
+    deviceId,
+    profile: {
+      heightCm: Number(form.heightCm) || 170,
+      weightKg: Number(form.weightKg) || 65,
+      targetWeightDeltaKg: Number(form.targetWeightDeltaKg) || 0,
+      targetDurationWeeks: Number(form.targetDurationWeeks) || 0,
+      gender,
+      birthYear,
+      goal,
+      activityLevel,
+      name: String(form.name || 'User'),
+    },
+    conditions,
+    allergies,
+  };
+}
+
 const StepDoneScreen = () => {
   const navigation = useNavigation<NavigationProp>();
   const scheme = useColorScheme();
+  const { form } = useWizard();
 
   // Mount & progress
   const fade = useRef(new Animated.Value(0)).current;
@@ -91,13 +125,39 @@ const StepDoneScreen = () => {
   const [index, setIndex] = useState(0);
   const scrollRef = useRef<ScrollView | null>(null);
 
-  // cho bạn test lâu (đổi lại nếu cần)
+  // 🔁 Gọi API ngay khi màn hình hiển thị → xong là điều hướng Home
   useEffect(() => {
-    const timer = setTimeout(() => {
-      navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
-    }, 6000);
-    return () => clearTimeout(timer);
-  }, [navigation]);
+    let mounted = true;
+    (async () => {
+      try {
+        const deviceId = await getOrCreateDeviceId();
+        const payload = buildOnboardingPayload(form, deviceId);
+        console.log('[StepDone] Onboarding payload:', payload);
+        const res = await onboarding(payload);
+        if (!mounted) return;
+        navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+      } catch (err: any) {
+        console.error(
+          '[StepDone] Onboarding failed:',
+          err?.response?.data || err?.message || err,
+        );
+        if (!mounted) return;
+        Alert.alert(
+          'Có lỗi xảy ra',
+          'Không thể tạo kế hoạch cá nhân hóa. Vui lòng thử lại.',
+          [{ text: 'OK', onPress: () => navigation.goBack() }],
+        );
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [navigation, form]);
+
+  // logs (tùy chọn)
+  useEffect(() => {
+    console.log('[NutriCare][StepDone] User form:', form);
+  }, [form]);
 
   useEffect(() => {
     const id = setInterval(
@@ -129,7 +189,7 @@ const StepDoneScreen = () => {
       }),
       Animated.timing(progress, {
         toValue: 1,
-        duration: 5600,
+        duration: 5600, // chỉ là thanh progress UI
         easing: Easing.inOut(Easing.cubic),
         useNativeDriver: false,
       }),
@@ -172,7 +232,7 @@ const StepDoneScreen = () => {
     ).start();
   }, [fade, slide, scale, progress, blobA, blobB]);
 
-  // Auto-rotate slides mỗi ~2s (dùng PAGE_W để đúng theo viewport)
+  // Auto-rotate slides mỗi ~2s
   useEffect(() => {
     const id = setInterval(() => {
       const next = (index + 1) % SLIDES.length;
@@ -294,7 +354,7 @@ const StepDoneScreen = () => {
         />
       </Animated.View>
 
-      {/* Content (Animated container) */}
+      {/* Content */}
       <Animated.View
         style={[
           styles.container,
@@ -339,7 +399,7 @@ const StepDoneScreen = () => {
           </ViewComponent>
         </ViewComponent>
 
-        {/* ---------------- Slides mô tả chức năng ---------------- */}
+        {/* Slides */}
         <ViewComponent style={styles.sliderWrap}>
           <ScrollView
             ref={scrollRef}
@@ -347,7 +407,7 @@ const StepDoneScreen = () => {
             showsHorizontalScrollIndicator={false}
             decelerationRate="fast"
             bounces={false}
-            snapToInterval={Math.round(PAGE_W)} // snap đúng theo viewport
+            snapToInterval={Math.round(PAGE_W)}
             snapToAlignment="start"
             scrollEventThrottle={16}
             onMomentumScrollEnd={onMomentumEnd}
@@ -494,7 +554,6 @@ const StepDoneScreen = () => {
 
 export default StepDoneScreen;
 
-/* ---------------- Styles chỉ cho phần cần thiết ---------------- */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -503,7 +562,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   blob: { position: 'absolute' },
-  /* Slider */
   sliderWrap: {
     width: '100%',
     flex: 1,

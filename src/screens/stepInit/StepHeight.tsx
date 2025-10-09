@@ -39,7 +39,7 @@ const StepHeightScreen = () => {
   const [inputVal, setInputVal] = useState(String(form.heightCm));
   const inputRef = useRef<TextInput>(null);
 
-  const formatHeight = useMemo(() => `${form.heightCm} cm`, [form.heightCm]);
+  const formatHeight = useMemo(() => `${form.heightCm} cm `, [form.heightCm]);
 
   /* ===== Initial position ===== */
   useEffect(() => {

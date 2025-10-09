@@ -13,7 +13,6 @@ const REC_GAIN_SURPLUS = { min: 300, max: 500 }; // kcal/ngày
 const LOSS_HARD_DEFICIT_KCAL = 1000; // kcal/ngày
 const GAIN_HARD_PACE = 1.0; // kg/tuần
 
-/* ==== Helpers ==== */
 const calcDailyAdjustment = (kgChange: number, weeks: number) => {
   const days = Math.max(1, Math.round(weeks * 7));
   return (kgChange * 7700) / days; // kcal/day (unsigned)
@@ -21,70 +20,94 @@ const calcDailyAdjustment = (kgChange: number, weeks: number) => {
 const fmt = (n: number, d = 2) =>
   Number.isFinite(n) ? Number(n.toFixed(d)).toString() : '—';
 
-/* ==== Layout const ==== */
 const INPUT_HEIGHT = 50;
 
 const StepTargetPlanScreen: React.FC = () => {
   const { form, updateForm } = useWizard();
   const isLoss = form.target === 'lose';
+  const isGain = form.target === 'gain';
 
-  // Preset đề xuất khi mở màn/đổi mục tiêu
+  // preset khi mở/đổi mục tiêu
   const [kg, setKg] = React.useState<string>('');
   const [weeks, setWeeks] = React.useState<string>('');
   React.useEffect(() => {
     if (isLoss) {
-      setKg('6'); // ~0.75 kg/tuần
+      setKg('6'); // ~0.75 kg/tuần cho 8 tuần
+      setWeeks('8');
+    } else if (isGain) {
+      setKg('3'); // ~0.375 kg/tuần cho 8 tuần
       setWeeks('8');
     } else {
-      setKg('3'); // ~0.375 kg/tuần
-      setWeeks('8');
+      setKg('0');
+      setWeeks('0');
     }
-  }, [isLoss]);
+  }, [isLoss, isGain]);
 
-  // Tính toán hiển thị
+  // parse & tính toán
   const kgNum = Math.max(0, Number(kg) || 0);
-  const weeksNum = Math.max(1, Number(weeks) || 0);
-  const pacePerWeek = kgNum / weeksNum; // kg/tuần
-  const dailyAdjUnsigned = calcDailyAdjustment(kgNum, weeksNum); // kcal/ngày
+  const weeksNum = Math.max(0, Number(weeks) || 0); // cho phép 0 nếu maintain
 
-  // Điều kiện an toàn
+  const pacePerWeek = weeksNum > 0 ? kgNum / weeksNum : 0;
+  const dailyAdjUnsigned =
+    weeksNum > 0 ? calcDailyAdjustment(kgNum, weeksNum) : 0;
+
+  // điều kiện an toàn
   const withinLossPace =
-    pacePerWeek >= REC_LOSS_PACE.min && pacePerWeek <= REC_LOSS_PACE.max;
+    isLoss && weeksNum > 0
+      ? pacePerWeek >= REC_LOSS_PACE.min && pacePerWeek <= REC_LOSS_PACE.max
+      : true;
+
   const lossOverHardDeficit =
     isLoss && dailyAdjUnsigned > LOSS_HARD_DEFICIT_KCAL;
 
   const withinGainPace =
-    pacePerWeek >= REC_GAIN_PACE.min && pacePerWeek <= REC_GAIN_PACE.max;
+    isGain && weeksNum > 0
+      ? pacePerWeek >= REC_GAIN_PACE.min && pacePerWeek <= REC_GAIN_PACE.max
+      : true;
+
   const withinGainSurplus =
-    dailyAdjUnsigned >= REC_GAIN_SURPLUS.min &&
-    dailyAdjUnsigned <= REC_GAIN_SURPLUS.max;
-  const gainOverHardPace = !isLoss && pacePerWeek > GAIN_HARD_PACE;
+    isGain && weeksNum > 0
+      ? dailyAdjUnsigned >= REC_GAIN_SURPLUS.min &&
+        dailyAdjUnsigned <= REC_GAIN_SURPLUS.max
+      : true;
+
+  const gainOverHardPace = isGain && pacePerWeek > GAIN_HARD_PACE;
 
   const withinSafe = isLoss
     ? withinLossPace && !lossOverHardDeficit
-    : withinGainPace && withinGainSurplus && !gainOverHardPace;
+    : isGain
+    ? withinGainPace && withinGainSurplus && !gainOverHardPace
+    : true; // maintain
 
-  // Cập nhật để WizardFrame enable nút "Tiếp Theo"
+  // 👉 GHI VÀO FORM: delta có dấu (âm nếu giảm, dương nếu tăng), weeks
   React.useEffect(() => {
-    updateForm({ targetPlanValid: withinSafe } as any);
-  }, [withinSafe, updateForm]);
+    const signedDelta = isLoss ? -kgNum : isGain ? +kgNum : 0; // maintain = 0
+    updateForm({
+      targetWeightDeltaKg: signedDelta,
+      targetDurationWeeks: weeksNum,
+      targetPlanValid: withinSafe,
+    });
+  }, [kgNum, weeksNum, isLoss, isGain, withinSafe, updateForm]);
 
-  // Tip text theo mục tiêu
   const tipText = isLoss
     ? `Khuyến nghị: giảm ${REC_LOSS_PACE.min}–${REC_LOSS_PACE.max} kg/tuần. ` +
       `Tốc độ hiện tại: ${fmt(pacePerWeek)} kg/tuần. ` +
       `Mức cắt ước tính: ${fmt(dailyAdjUnsigned, 0)} kcal/ngày.`
-    : `Khuyến nghị: tăng ${REC_GAIN_PACE.min}–${REC_GAIN_PACE.max} kg/tuần ` +
+    : isGain
+    ? `Khuyến nghị: tăng ${REC_GAIN_PACE.min}–${REC_GAIN_PACE.max} kg/tuần ` +
       `và thặng dư khoảng ${REC_GAIN_SURPLUS.min}–${REC_GAIN_SURPLUS.max} kcal/ngày. ` +
       `Tốc độ hiện tại: ${fmt(pacePerWeek)} kg/tuần. ` +
-      `Thặng dư ước tính: ${fmt(dailyAdjUnsigned, 0)} kcal/ngày.`;
+      `Thặng dư ước tính: ${fmt(dailyAdjUnsigned, 0)} kcal/ngày.`
+    : 'Giữ cân: mục tiêu thay đổi cân nặng là 0.';
 
   return (
     <WizardFrame
       title={
         isLoss
           ? 'Bạn muốn giảm bao nhiêu & trong bao lâu?'
-          : 'Bạn muốn tăng bao nhiêu & trong bao lâu?'
+          : isGain
+          ? 'Bạn muốn tăng bao nhiêu & trong bao lâu?'
+          : 'Bạn muốn giữ cân'
       }
       subtitle="Chúng tôi sẽ kiểm tra an toàn và tính lượng calo cần điều chỉnh mỗi ngày."
     >
@@ -94,7 +117,13 @@ const StepTargetPlanScreen: React.FC = () => {
           {/* KG */}
           <ViewComponent style={{ width: '48%' }}>
             <TextComponent
-              text={isLoss ? 'Muốn giảm' : 'Muốn tăng'}
+              text={
+                isLoss
+                  ? 'Muốn giảm'
+                  : isGain
+                  ? 'Muốn tăng'
+                  : 'Thay đổi cân nặng'
+              }
               variant="subtitle"
               style={{ marginBottom: 5 }}
             />
@@ -112,6 +141,7 @@ const StepTargetPlanScreen: React.FC = () => {
               <TextInput
                 value={kg}
                 onChangeText={setKg}
+                editable={form.target !== 'maintain'}
                 keyboardType={Platform.OS === 'ios' ? 'decimal-pad' : 'numeric'}
                 placeholder="0"
                 accessibilityLabel="Số kg mục tiêu"
@@ -119,7 +149,7 @@ const StepTargetPlanScreen: React.FC = () => {
                 style={{
                   flex: 1,
                   fontSize: 15,
-                  color: C.slate900,
+                  color: form.target === 'maintain' ? C.slate300 : C.slate900,
                   paddingVertical: Platform.OS === 'ios' ? 10 : 8,
                   paddingRight: 8,
                 }}
@@ -149,6 +179,7 @@ const StepTargetPlanScreen: React.FC = () => {
               <TextInput
                 value={weeks}
                 onChangeText={setWeeks}
+                editable={form.target !== 'maintain'}
                 keyboardType={Platform.OS === 'ios' ? 'decimal-pad' : 'numeric'}
                 placeholder="0"
                 accessibilityLabel="Số tuần"
@@ -156,7 +187,7 @@ const StepTargetPlanScreen: React.FC = () => {
                 style={{
                   flex: 1,
                   fontSize: 15,
-                  color: C.slate900,
+                  color: form.target === 'maintain' ? C.slate300 : C.slate900,
                   paddingVertical: Platform.OS === 'ios' ? 10 : 8,
                   paddingRight: 8,
                 }}
@@ -182,9 +213,9 @@ const StepTargetPlanScreen: React.FC = () => {
             style={{ lineHeight: 18 }}
           />
 
-          {isLoss ? (
+          {form.target === 'lose' ? (
             <>
-              {!withinLossPace && (
+              {weeksNum > 0 && !withinLossPace && (
                 <TextComponent
                   text={`⚠️ Tốc độ không trong khoảng khuyến nghị ${REC_LOSS_PACE.min}–${REC_LOSS_PACE.max} kg/tuần.`}
                   size={12.5}
@@ -194,7 +225,7 @@ const StepTargetPlanScreen: React.FC = () => {
               )}
               {lossOverHardDeficit && (
                 <TextComponent
-                  text={`⚠️ Không nên cắt quá ${LOSS_HARD_DEFICIT_KCAL} kcal/ngày (WHO/FAO). Hãy kéo dài thời gian hoặc giảm mục tiêu.`}
+                  text={`⚠️ Không nên cắt quá ${LOSS_HARD_DEFICIT_KCAL} kcal/ngày. Hãy kéo dài thời gian hoặc giảm mục tiêu.`}
                   size={12.5}
                   color={C.red}
                   style={{ marginTop: 4 }}
@@ -207,9 +238,9 @@ const StepTargetPlanScreen: React.FC = () => {
                 style={{ marginTop: 2 }}
               />
             </>
-          ) : (
+          ) : form.target === 'gain' ? (
             <>
-              {!withinGainPace && (
+              {weeksNum > 0 && !withinGainPace && (
                 <TextComponent
                   text={`⚠️ Tốc độ tăng nên trong ${REC_GAIN_PACE.min}–${REC_GAIN_PACE.max} kg/tuần để ưu tiên tăng nạc.`}
                   size={12.5}
@@ -217,7 +248,7 @@ const StepTargetPlanScreen: React.FC = () => {
                   style={{ marginTop: 4 }}
                 />
               )}
-              {!withinGainSurplus && (
+              {weeksNum > 0 && !withinGainSurplus && (
                 <TextComponent
                   text={`⚠️ Thặng dư nên khoảng ${REC_GAIN_SURPLUS.min}–${REC_GAIN_SURPLUS.max} kcal/ngày so với TDEE.`}
                   size={12.5}
@@ -234,7 +265,7 @@ const StepTargetPlanScreen: React.FC = () => {
                 />
               )}
             </>
-          )}
+          ) : null}
         </ViewComponent>
 
         {/* Cards tóm tắt */}
@@ -251,12 +282,12 @@ const StepTargetPlanScreen: React.FC = () => {
 
           <ViewComponent flex={1} variant="card" p={10} radius={10} border>
             <TextComponent
-              text={isLoss ? 'Mức cắt calo' : 'Thặng dư calo'}
+              text={form.target === 'lose' ? 'Mức cắt calo' : 'Thặng dư calo'}
               variant="caption"
               tone="muted"
             />
             <TextComponent
-              text={`${isLoss ? '−' : '+'}${fmt(
+              text={`${form.target === 'lose' ? '−' : '+'}${fmt(
                 dailyAdjUnsigned,
                 0,
               )} kcal/ngày`}
@@ -266,7 +297,7 @@ const StepTargetPlanScreen: React.FC = () => {
             />
             <TextComponent
               text={
-                isLoss
+                form.target === 'lose'
                   ? `Dựa trên 7.700 kcal/kg • Không cắt > ${LOSS_HARD_DEFICIT_KCAL} kcal/ngày`
                   : `Dựa trên 7.700 kcal/kg • Khuyến nghị ${REC_GAIN_SURPLUS.min}–${REC_GAIN_SURPLUS.max} kcal/ngày`
               }

@@ -1,4 +1,3 @@
-// features/WizardScreens.tsx
 import React, { useState, useRef } from 'react';
 import {
   TextInput,
@@ -23,11 +22,6 @@ const StepAgeScreen = () => {
   const currentYear = new Date().getFullYear();
   const minValidYear = currentYear - 100;
   const maxValidYear = currentYear - 13;
-
-  const years = Array.from(
-    { length: maxValidYear - minValidYear + 1 },
-    (_, i) => maxValidYear - i,
-  );
 
   const calculateAge = (birthYear: number) => currentYear - birthYear;
 

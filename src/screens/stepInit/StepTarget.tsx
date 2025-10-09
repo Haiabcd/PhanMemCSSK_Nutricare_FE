@@ -36,7 +36,6 @@ const StepTargetScreen: React.FC = () => {
   );
 
   const onSelect = (key: TargetType) => {
-    if (__DEV__) console.log('[Target] prev=', form.target, 'next=', key);
     updateForm({ target: key });
   };
 

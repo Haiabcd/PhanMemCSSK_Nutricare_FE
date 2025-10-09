@@ -9,6 +9,7 @@ import {
   NativeScrollEvent,
   Platform,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import WizardFrame from '../../components/WizardFrame';
 import { useWizard } from '../../context/WizardContext';
@@ -28,49 +29,57 @@ const normalize = (s: string) =>
     .toLowerCase()
     .trim();
 
+const SUG_MAX = 170;
+
 const StepConditionScreen = () => {
   const { form, addCondition, removeCondition, clearConditions } = useWizard();
 
-  // ===== State nhập liệu =====
+  // ===== State nhập liệu (filter theo tên) =====
   const [text, setText] = useState('');
 
   // ===== State dữ liệu từ API =====
   const [loading, setLoading] = useState(true);
-  const [remoteConditions, setRemoteConditions] = useState<string[]>([]);
+  const [remoteConditions, setRemoteConditions] = useState<Condition[]>([]);
+
+  // Map id -> name để hiển thị “đã chọn”
+  const idToName = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of remoteConditions) m.set(c.id, c.name);
+    return m;
+  }, [remoteConditions]);
 
   // ===== Fetch tất cả bệnh nền từ BE =====
   useEffect(() => {
     const controller = new AbortController();
-    const signal = controller.signal;
 
     (async () => {
       try {
         setLoading(true);
+        const data: Condition[] = await getAllConditionsComplete(
+          controller.signal,
+        );
 
-        // truyền signal vào axios
-        const data: Condition[] = await getAllConditionsComplete(signal);
-
-        const names = (data || [])
-          .map(c => (c?.name || '').trim())
-          .filter(n => !!n);
-
+        // Bỏ trùng theo name (không dấu)
         const seen = new Set<string>();
-        const uniqueNames: string[] = [];
-        for (const n of names) {
-          const key = normalize(n);
+        const unique: Condition[] = [];
+        for (const item of data ?? []) {
+          const name = (item?.name || '').trim();
+          if (!name) continue;
+          const key = normalize(name);
           if (!seen.has(key)) {
             seen.add(key);
-            uniqueNames.push(n);
+            unique.push(item);
           }
         }
 
-        setRemoteConditions(uniqueNames);
+        setRemoteConditions(unique);
       } catch (error: any) {
         if (axios.isCancel(error)) {
           console.log('⏹ Request canceled:', error.message);
         } else {
           console.error('❌ Error fetching conditions:', error);
           setRemoteConditions([]);
+          Alert.alert('Lỗi', 'Không thể tải danh sách bệnh nền.');
         }
       } finally {
         setLoading(false);
@@ -78,43 +87,47 @@ const StepConditionScreen = () => {
     })();
 
     return () => {
-      controller.abort(); //
+      controller.abort();
     };
   }, []);
 
-  // ===== Nguồn gợi ý: chỉ từ BE =====
+  // ===== Gợi ý theo tên =====
   const normalizedInput = normalize(text);
 
   const suggestions = useMemo(() => {
     if (!normalizedInput) return remoteConditions;
-    return remoteConditions.filter(s => normalize(s).includes(normalizedInput));
+    return remoteConditions.filter(s =>
+      normalize(s.name).includes(normalizedInput),
+    );
   }, [normalizedInput, remoteConditions]);
 
-  // so sánh không phân biệt hoa/thường & dấu
-  const existsInsensitive = useCallback(
-    (v: string) =>
-      form.chronicConditions.some(
-        a => a.localeCompare(v, undefined, { sensitivity: 'accent' }) === 0,
-      ),
+  // Đã chọn theo ID?
+  const existsById = useCallback(
+    (id: string) => form.chronicConditions.includes(id),
     [form.chronicConditions],
   );
 
-  const handleAdd = (val?: string) => {
-    const v = (val ?? text).trim();
-    if (!v) return;
-    if (existsInsensitive(v)) {
+  // Chọn item -> lưu ID
+  const handleAddById = (id: string) => {
+    if (!id) return;
+    if (existsById(id)) {
       setText('');
       Keyboard.dismiss();
       return;
     }
-    addCondition(v);
+    addCondition(id); // ⬅️ lưu ID
     setText('');
     Keyboard.dismiss();
   };
 
-  /* ==== Scroll metrics cho 2 vùng ==== */
-  const SUG_MAX = 170;
+  // Enter: chọn gợi ý đầu tiên
+  const handleSubmitTyping = () => {
+    const first = suggestions[0];
+    if (first) handleAddById(first.id);
+    else Alert.alert('Không tìm thấy', 'Vui lòng chọn từ gợi ý.');
+  };
 
+  /* ==== Scroll metrics cho 2 vùng ==== */
   const [sugVisibleH, setSugVisibleH] = useState(SUG_MAX);
   const [sugContentH, setSugContentH] = useState(0);
   const [sugScrollY, setSugScrollY] = useState(0);
@@ -139,9 +152,9 @@ const StepConditionScreen = () => {
   return (
     <WizardFrame
       title="Bệnh nền của bạn"
-      subtitle="Hãy cho chúng tôi biết nếu bạn có bệnh nền để gợi ý chế độ phù hợp. Có thể bỏ qua nếu không có."
+      subtitle="Hãy chọn bệnh nền (theo danh sách chuẩn) để chúng tôi gợi ý chế độ phù hợp."
     >
-      {/* Ô nhập + Nút thêm (ấn Enter để thêm) */}
+      {/* Ô nhập + Enter để pick gợi ý đầu tiên */}
       <ViewComponent
         row
         center
@@ -166,9 +179,9 @@ const StepConditionScreen = () => {
         <TextInput
           value={text}
           onChangeText={setText}
-          placeholder="Nhập tên bệnh nền (ví dụ: Tăng huyết áp)…"
+          placeholder="Tìm bệnh nền (ví dụ: Tăng huyết áp)…"
           placeholderTextColor={C.sub}
-          onSubmitEditing={() => handleAdd()}
+          onSubmitEditing={handleSubmitTyping}
           returnKeyType="done"
           style={{
             flex: 1,
@@ -217,7 +230,7 @@ const StepConditionScreen = () => {
               tone="muted"
             />
             <TextComponent
-              text="Hãy nhập bệnh nền của bạn ở ô phía trên."
+              text="Hãy gõ từ khoá ở ô phía trên và chọn từ gợi ý."
               variant="caption"
               tone="muted"
             />
@@ -237,11 +250,11 @@ const StepConditionScreen = () => {
             >
               <ViewComponent row wrap gap={8}>
                 {suggestions.map(s => {
-                  const selected = existsInsensitive(s);
+                  const selected = existsById(s.id);
                   return (
                     <Pressable
-                      key={s}
-                      onPress={() => handleAdd(s)}
+                      key={s.id}
+                      onPress={() => handleAddById(s.id)}
                       disabled={selected}
                       style={({ pressed }) => [
                         {
@@ -250,10 +263,10 @@ const StepConditionScreen = () => {
                         },
                       ]}
                       accessibilityRole="button"
-                      accessibilityLabel={`Chọn bệnh nền ${s}`}
+                      accessibilityLabel={`Chọn bệnh nền ${s.name}`}
                     >
                       <ViewComponent
-                        border={true}
+                        border
                         borderColor={selected ? C.primaryBorder : C.border}
                         backgroundColor={
                           selected ? C.primarySurface : C.slate50
@@ -263,7 +276,7 @@ const StepConditionScreen = () => {
                         radius={999}
                       >
                         <TextComponent
-                          text={s}
+                          text={s.name}
                           variant="caption"
                           weight="semibold"
                           color={selected ? C.primaryDark : C.slate700}
@@ -284,7 +297,7 @@ const StepConditionScreen = () => {
         )}
       </ViewComponent>
 
-      {/* ĐÃ CHỌN */}
+      {/* ĐÃ CHỌN (render theo name từ idToName) */}
       <ViewComponent
         variant="card"
         p={10}
@@ -352,7 +365,7 @@ const StepConditionScreen = () => {
               tone="muted"
             />
             <TextComponent
-              text="Nhập bệnh nền hoặc chọn từ gợi ý (nếu có)."
+              text="Tìm và chọn từ gợi ý (nếu có)."
               variant="caption"
               tone="muted"
               align="center"
@@ -374,29 +387,32 @@ const StepConditionScreen = () => {
               nestedScrollEnabled
             >
               <ViewComponent row wrap gap={8}>
-                {form.chronicConditions.map(a => (
-                  <ViewComponent
-                    key={a}
-                    row
-                    center
-                    gap={8}
-                    px={12}
-                    py={8}
-                    radius={999}
-                    border
-                    borderColor={C.primaryBorder}
-                    backgroundColor={C.primarySurface}
-                  >
-                    <TextComponent text={`💊 ${a}`} weight="bold" />
-                    <Pressable
-                      onPress={() => removeCondition(a)}
-                      hitSlop={8}
-                      accessibilityRole="button"
+                {form.chronicConditions.map(id => {
+                  const name = idToName.get(id) ?? id; // fallback: hiển thị id nếu chưa map được tên
+                  return (
+                    <ViewComponent
+                      key={id}
+                      row
+                      center
+                      gap={8}
+                      px={12}
+                      py={8}
+                      radius={999}
+                      border
+                      borderColor={C.primaryBorder}
+                      backgroundColor={C.primarySurface}
                     >
-                      <TextComponent text="✕" color={C.red} weight="bold" />
-                    </Pressable>
-                  </ViewComponent>
-                ))}
+                      <TextComponent text={`💊 ${name}`} weight="bold" />
+                      <Pressable
+                        onPress={() => removeCondition(id)}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                      >
+                        <TextComponent text="✕" color={C.red} weight="bold" />
+                      </Pressable>
+                    </ViewComponent>
+                  );
+                })}
               </ViewComponent>
             </ScrollView>
 
