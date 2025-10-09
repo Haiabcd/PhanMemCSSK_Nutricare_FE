@@ -45,12 +45,6 @@ const StepGenderScreen = () => {
               accessibilityRole="radio"
               accessibilityState={{ checked: selected }}
               onPress={() => {
-                if (__DEV__) {
-                  console.log('[Gender] chọn:', opt.key);
-                  console.log(
-                    `[Gender] prev=${form.gender} -> next=${opt.key}`,
-                  );
-                }
                 updateForm({ gender: opt.key });
               }}
               style={({ pressed }) => ({

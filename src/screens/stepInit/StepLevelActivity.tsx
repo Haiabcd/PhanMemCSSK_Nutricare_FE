@@ -53,9 +53,6 @@ const StepLevelActivityScreen = () => {
   );
 
   const onSelect = (key: ActivityLevel) => {
-    if (__DEV__) {
-      console.log('[ActivityLevel] prev=', form.activityLevel, 'next=', key);
-    }
     updateForm({ activityLevel: key as any }); // nếu form.activityLevel đang là kiểu cũ, cast tạm
   };
 
