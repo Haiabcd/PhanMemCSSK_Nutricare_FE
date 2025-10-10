@@ -1,8 +1,8 @@
+import './src/config/api';
 import React, { useEffect, useState } from 'react';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import BottomNavigator from './src/navigation/BottomNavigator';
 import { NavigationContainer } from '@react-navigation/native';
-
 import {
   applyAuthHeaderFromKeychain,
   isTokenExpiredSecure,
@@ -45,14 +45,15 @@ function App() {
         } catch (e: any) {
           const status = e?.response?.status ?? e?.status;
           if (status === 400 || status === 401) {
+            console.log('Gọi removeTokenSecure ở App.tsx');
             await removeTokenSecure();
             authed = false;
           } else {
+            console.log('Lỗi không xác định khi refresh token:', e);
             authed = await hasTokenSecure();
           }
         }
       }
-
       setIsAuthed(authed);
       setReady(true);
     })();

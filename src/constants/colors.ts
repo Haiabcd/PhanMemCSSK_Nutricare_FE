@@ -65,4 +65,5 @@ export const colors = {
   slate300: "#cbd5e1",
   emerald200: "#a7f3d0",
   amber700: "#b45309",
+  updateview: "#DCFCE7",
 };
