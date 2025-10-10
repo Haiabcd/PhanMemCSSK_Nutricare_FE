@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import BottomNavigator from './src/navigation/BottomNavigator';
+import { NavigationContainer } from '@react-navigation/native';
 
 import {
   applyAuthHeaderFromKeychain,
@@ -58,7 +59,11 @@ function App() {
 
   if (!ready) return null;
 
-  return isAuthed ? <BottomNavigator /> : <AppNavigator />;
+  return (
+    <NavigationContainer>
+      {isAuthed ? <BottomNavigator /> : <AppNavigator />}
+    </NavigationContainer>
+  );
 }
 
 export default App;
