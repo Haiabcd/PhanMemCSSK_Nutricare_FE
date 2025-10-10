@@ -63,6 +63,17 @@ export interface ProfileDto {
   createdAt: string | null;
   updatedAt: string | null;
 }
+
+export interface InfoResponse {
+  profileCreationResponse: ProfileDto;
+  conditions: UserConditionResponse[];
+  allergies: UserAllergyResponse[];
+}
+export interface UserAllergyResponse {
+  id: string;
+  name: string;
+}
+export type UserConditionResponse = UserAllergyResponse;
 //=====================PROFILE=================================//
 
 
@@ -103,10 +114,10 @@ export interface ProfileCreationRequest {
 }
 
 export interface OnboardingRequest {
-  deviceId: string; 
-  profile: ProfileCreationRequest; 
+  deviceId: string;
+  profile: ProfileCreationRequest;
   conditions?: string[];
-  allergies?: string[];       
+  allergies?: string[];
 }
 
 export interface UserDto {
@@ -129,7 +140,7 @@ export interface NutritionDto {
 
 export interface MealPlanDto {
   id: string;
-  date: string; 
+  date: string;
   targetNutrition: NutritionDto;
   waterTargetMl: number;
 }

@@ -1,5 +1,4 @@
 import * as Keychain from 'react-native-keychain';
-import { api } from '../config/api';
 import { TokenPairResponse } from '../types/types';
 
 /** Token lưu trong Keychain */
@@ -7,8 +6,8 @@ export interface TokenData {
   accessToken: string;
   refreshToken?: string;
   tokenType?: string;
-  accessExpiresAt?: number;   // epoch seconds
-  refreshExpiresAt?: number;  // epoch seconds
+  accessExpiresAt?: number;
+  refreshExpiresAt?: number;
 }
 
 const SERVICE = 'com.nutrition.auth';
@@ -18,15 +17,19 @@ const SKEW_SECONDS = 90; // bù lệch giờ nhỏ
 /** Cache trong RAM để tránh I/O mỗi lần request */
 let tokenCache: TokenData | null = null;
 
-/* ================== INTERNALS ================== */
 
 /** Thiết lâp Authorization header cho axios */
+let setAuthHeaderFn: (auth?: string) => void = () => { };
+
+export function registerAuthHeaderSetter(fn: (auth?: string) => void) {
+  setAuthHeaderFn = fn;
+}
 function setAxiosAuthHeader(token: TokenData | null) {
   if (token?.accessToken) {
-    api.defaults.headers.common.Authorization =
-      `${token.tokenType ?? 'Bearer'} ${token.accessToken}`;
+    const auth = `${token.tokenType ?? 'Bearer'} ${token.accessToken}`;
+    setAuthHeaderFn(auth);
   } else {
-    delete api.defaults.headers.common.Authorization;
+    setAuthHeaderFn(undefined);
   }
 }
 
@@ -126,7 +129,7 @@ export async function isTokenExpiredSecure(): Promise<boolean> {
   const t = await getTokenSecure();
   const exp = t?.accessExpiresAt;
   if (typeof exp !== 'number') return false; // nếu BE không cung cấp exp -> coi như chưa hết
-  const now = Math.floor(Date.now() / 1000); 
+  const now = Math.floor(Date.now() / 1000);
   return exp - now <= SKEW_SECONDS;
 }
 

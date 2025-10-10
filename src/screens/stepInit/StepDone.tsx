@@ -132,7 +132,6 @@ const StepDoneScreen = () => {
       try {
         const deviceId = await getOrCreateDeviceId();
         const payload = buildOnboardingPayload(form, deviceId);
-        console.log('[StepDone] Onboarding payload:', payload);
         const res = await onboarding(payload);
         if (!mounted) return;
         navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
@@ -153,11 +152,6 @@ const StepDoneScreen = () => {
       mounted = false;
     };
   }, [navigation, form]);
-
-  // logs (tùy chọn)
-  useEffect(() => {
-    console.log('[NutriCare][StepDone] User form:', form);
-  }, [form]);
 
   useEffect(() => {
     const id = setInterval(
