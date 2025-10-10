@@ -1,12 +1,18 @@
 import { api } from '../config/api';
-import type { ApiResponse, OnboardingRequest, OnboardingResponse, RefreshRequest, TokenPairResponse } from '../types/types';
+import type {
+  ApiResponse,
+  OnboardingRequest,
+  OnboardingResponse,
+  RefreshRequest,
+  TokenPairResponse
+} from '../types/types';
 import {
   saveTokenPairFromBE,
   removeTokenSecure,
   getTokenSecure
 } from '../config/secureToken';
 
-//Bắt đâu ngay
+// Bắt đầu ngay (onboarding)
 export async function onboarding(
   payload: OnboardingRequest
 ): Promise<ApiResponse<OnboardingResponse>> {
@@ -21,7 +27,7 @@ export async function onboarding(
   return res.data;
 }
 
-//Đổi token
+// Đổi token (refresh với refreshToken truyền vào)
 export async function refreshTokens(
   payload: RefreshRequest
 ): Promise<ApiResponse<TokenPairResponse>> {
@@ -29,14 +35,14 @@ export async function refreshTokens(
 
   const pair = res.data?.data ?? null;
   if (pair) {
-    await saveTokenPairFromBE(pair); 
+    await saveTokenPairFromBE(pair);
   } else {
-    await removeTokenSecure(); 
+    await removeTokenSecure();
   }
   return res.data;
 }
 
-//Tự lấy refreshToken
+// Tự lấy refreshToken từ secure storage rồi gọi refreshTokens
 export async function refreshWithStoredToken(): Promise<ApiResponse<TokenPairResponse>> {
   const cur = await getTokenSecure();
   if (!cur?.refreshToken) {

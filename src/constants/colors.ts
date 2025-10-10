@@ -46,6 +46,7 @@ export const colors = {
   tealSurface: "#ccfbf1",
   tealBorder: "#5eead4",
   blue: "#3B82F6",
+  blueLight: "#93c5fd",
   violet500: "#8b5cf6",
   amber500: "#f59e0b",
   slate50: "#f8fafc",
@@ -60,8 +61,8 @@ export const colors = {
   emerald800: "#065f46",
 
 
-  slate900 :"#0f172a",
-  slate300 :"#cbd5e1",
-  emerald200 :"#a7f3d0",
-  amber700 :"#b45309",
+  slate900: "#0f172a",
+  slate300: "#cbd5e1",
+  emerald200: "#a7f3d0",
+  amber700: "#b45309",
 };
