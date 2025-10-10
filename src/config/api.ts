@@ -1,6 +1,8 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
-import { removeTokenSecure, getTokenSecure, registerAuthHeaderSetter } from './secureToken';
+import { 
+  removeTokenSecure, 
+  getTokenSecure, registerAuthHeaderSetter } from './secureToken';
 import { refreshWithStoredToken } from '../services/auth.service';
 
 
@@ -10,8 +12,8 @@ import { refreshWithStoredToken } from '../services/auth.service';
  * - iOS Simulator → localhost
  * - Thiết bị thật → IP LAN máy dev (vd: 192.168.1.15)
  */
-const LOCAL_IP = '192.168.110.253';
-// const LOCAL_IP = '192.168.110.187';
+// const LOCAL_IP = '192.168.110.253';
+const LOCAL_IP = '192.168.110.187';  // Bo
 const PORT = 8080;
 
 export const BASE_URL =
@@ -61,7 +63,16 @@ api.interceptors.response.use(
     const status = response?.status;
     const reqUrl = config?.url as string | undefined;
 
-    console.error('❌ API error:', response?.data || error.message || error);
+    console.error(
+      '❌ API error:',
+      {
+        url: config?.url,
+        method: config?.method,
+        status: response?.status,
+        data: response?.data,
+      }
+    );
+    
 
     // Không refresh cho endpoint public hoặc không phải 401
     if (status !== 401 || shouldSkipRefresh(reqUrl)) {
@@ -77,6 +88,7 @@ api.interceptors.response.use(
     const cur = await getTokenSecure();
     console.log('[INTC] token from Keychain at 401:', cur);
     if (!cur?.refreshToken) {
+      console.log('Gọi removeTokenSecure ở api.ts interceptor lỗi 401');
       await removeTokenSecure();
       return Promise.reject(new Error('No refresh token available'));
     }
@@ -91,11 +103,18 @@ api.interceptors.response.use(
             return reject(err ?? new Error('Token refresh failed'));
           }
           (originalRequest as any).__isRetry = true;
-          originalRequest.headers = {
-            ...(originalRequest.headers || {}),
-            Authorization: `${tokenType ?? 'Bearer'} ${newAccess}`,
-          };
-          resolve(api(originalRequest));
+
+          // 👇 Set header kiểu Axios v1-safe
+          const headers: any = originalRequest.headers || {};
+          if (typeof headers.set === 'function') {
+            headers.set('Authorization', `${tokenType ?? 'Bearer'} ${newAccess}`);
+          } else {
+            headers['Authorization'] = `${tokenType ?? 'Bearer'} ${newAccess}`;
+          }
+          originalRequest.headers = headers;
+
+          // 👇 Dùng api.request thay vì api(originalRequest)
+          resolve(api.request(originalRequest));
         });
       });
     }
@@ -104,7 +123,7 @@ api.interceptors.response.use(
     try {
       isRefreshing = true;
 
-      // Gọi refresh (bên trong đã saveTokenPairFromBE -> set header mặc định cho axios instance)
+      // Gọi refresh
       const res = await refreshWithStoredToken();
       const newAccess = res.data?.accessToken;
       const newType = res.data?.tokenType ?? 'Bearer';
@@ -113,16 +132,25 @@ api.interceptors.response.use(
       pendingQueue.forEach(cb => cb(newAccess, undefined, newType));
       pendingQueue = [];
 
-      // Replay request cũ với header mới (đảm bảo an toàn về timing)
+      // Replay request cũ với header mới
       (originalRequest as any).__isRetry = true;
-      originalRequest.headers = {
-        ...(originalRequest.headers || {}),
-        Authorization: `${newType} ${newAccess}`,
-      };
-      return api(originalRequest);
+
+      // 👇 Set header kiểu Axios v1-safe
+      const headers: any = originalRequest.headers || {};
+      if (typeof headers.set === 'function') {
+        headers.set('Authorization', `${newType} ${newAccess}`);
+      } else {
+        headers['Authorization'] = `${newType} ${newAccess}`;
+      }
+      originalRequest.headers = headers;
+
+      // 👇 Dùng api.request
+      return api.request(originalRequest);
+
     } catch (e) {
       // Refresh thất bại -> xóa token, báo fail cho toàn queue (không replay)
-      await removeTokenSecure();
+      console.log('Gọi removeTokenSecure ở api.ts interceptor lỗi 401 trong khối catch');
+      // await removeTokenSecure();
       pendingQueue.forEach(cb => cb(undefined, e));
       pendingQueue = [];
       return Promise.reject(e);
@@ -131,3 +159,4 @@ api.interceptors.response.use(
     }
   },
 );
+

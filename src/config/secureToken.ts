@@ -23,12 +23,16 @@ let setAuthHeaderFn: (auth?: string) => void = () => { };
 
 export function registerAuthHeaderSetter(fn: (auth?: string) => void) {
   setAuthHeaderFn = fn;
+  setAxiosAuthHeader(tokenCache);
 }
+
 function setAxiosAuthHeader(token: TokenData | null) {
   if (token?.accessToken) {
     const auth = `${token.tokenType ?? 'Bearer'} ${token.accessToken}`;
+    console.log('[AUTH] set axios Authorization =', auth.slice(0, 20) + '...');
     setAuthHeaderFn(auth);
   } else {
+    console.log('[AUTH] clear axios Authorization');
     setAuthHeaderFn(undefined);
   }
 }
@@ -149,3 +153,4 @@ export async function getRefreshExpiry(): Promise<number | undefined> {
 export async function overwriteWithRotatedTokens(pair: TokenPairResponse): Promise<void> {
   await saveTokenPairFromBE(pair);
 }
+

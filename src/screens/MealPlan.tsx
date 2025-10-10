@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Image,
   StyleSheet,
@@ -9,11 +9,9 @@ import {
 } from 'react-native';
 import Entypo from 'react-native-vector-icons/Entypo';
 import Container from '../components/Container';
-
 import CaloriesNutritionCard from '../components/MealPlan/CaloriesNutritionCard';
 import HydrationSummaryCard from '../components/MealPlan/HydrationCard';
 import MealLog from '../components/MealPlan/MealLog';
-
 import TextComponent from '../components/TextComponent';
 import ViewComponent from '../components/ViewComponent';
 import { colors as C } from '../constants/colors';
@@ -21,7 +19,10 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { PlanStackParamList } from '../navigation/PlanNavigator';
-
+import type { ApiResponse } from '../types/types';
+import type { MealPlanResponse } from '../types/mealPlan.type';
+import { getMealPlanByDate } from '../services/planDay.service';
+import { fmtVNFull, toISODateOnly } from '../helpers/mealPlan.helper';
 /* ================== Avatar fallback ================== */
 function Avatar({
   name,
@@ -51,30 +52,56 @@ function Avatar({
   );
 }
 
-const fmtVNFull = (d: Date) => {
-  const dow = [
-    'Chủ nhật',
-    'Thứ 2',
-    'Thứ 3',
-    'Thứ 4',
-    'Thứ 5',
-    'Thứ 6',
-    'Thứ 7',
-  ][d.getDay()];
-  const dd = `${d.getDate()}`.padStart(2, '0');
-  const mm = `${d.getMonth() + 1}`.padStart(2, '0');
-  return `${dow}, ${dd} Tháng ${mm}`;
-};
-
 const MealPlan = () => {
   const [range, setRange] = useState<'day' | 'week'>('day');
   const [date, setDate] = useState<Date>(new Date());
   const navigation =
     useNavigation<NativeStackNavigationProp<PlanStackParamList>>();
 
+  const [data, setData] = useState<MealPlanResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   // Modal DatePicker chung cho cả iOS & Android
   const [showPicker, setShowPicker] = useState(false);
   const openPicker = () => setShowPicker(true);
+
+  const fetchData = useCallback(async (signal?: AbortSignal) => {
+    setError(null);
+    try {
+      const res: ApiResponse<MealPlanResponse> = await getMealPlanByDate(
+        toISODateOnly(date),
+        signal,
+      );
+      setData(res.data);
+      console.log(res.data);
+    } catch (e: any) {
+      setError(e?.message || 'Không thể tải thực đơn tuần.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    fetchData(ac.signal);
+    return () => ac.abort();
+  }, [fetchData]);
+
+  // ngay trên return()
+  const kcalTarget = data?.targetNutrition?.kcal ?? 0;
+
+  const macrosFromTarget = {
+    carbs: { cur: 0, total: Math.round(data?.targetNutrition?.carbG ?? 0) },
+    protein: {
+      cur: 0,
+      total: Math.round(data?.targetNutrition?.proteinG ?? 0),
+    },
+    fat: { cur: 0, total: Math.round(data?.targetNutrition?.fatG ?? 0) },
+    fiber: { cur: 0, total: Math.round(data?.targetNutrition?.fiberG ?? 0) },
+  };
 
   return (
     <Container>
@@ -201,15 +228,10 @@ const MealPlan = () => {
         {/* Calories & Dinh dưỡng */}
         <ViewComponent mb={12}>
           <CaloriesNutritionCard
-            target={2105}
+            target={kcalTarget}
             eaten={1000}
             burned={0}
-            macros={{
-              carbs: { cur: 80, total: 263 },
-              protein: { cur: 30, total: 121 },
-              fat: { cur: 15, total: 63 },
-              fiber: { cur: 8, total: 27 },
-            }}
+            macros={macrosFromTarget}
             modeLabel="Cân Bằng"
             onPressStatistics={() => navigation.navigate('Statistics')}
           />
@@ -231,9 +253,9 @@ const MealPlan = () => {
         {/* Uống nước */}
         <ViewComponent mt={12} mb={12}>
           <HydrationSummaryCard
-            target={2.5}
+            target={data?.waterTargetMl || 2000}
             step={0.25}
-            initial={0.5}
+            initial={0}
             palette={C}
           />
         </ViewComponent>
@@ -244,7 +266,6 @@ const MealPlan = () => {
 
 export default MealPlan;
 
-/* ===== Styles còn lại (những phần khó mô tả bằng props) ===== */
 const s = StyleSheet.create({
   iconContainer: {
     width: 42,
