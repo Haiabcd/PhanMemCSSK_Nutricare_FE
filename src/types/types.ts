@@ -132,6 +132,7 @@ export interface NutritionDto {
   kcal: number;
   proteinG: number;
   carbG: number;
+
   fatG: number;
   fiberG: number;
   sodiumMg: number;
@@ -146,4 +147,12 @@ export interface MealPlanDto {
 }
 
 
-
+export interface NutritionResponse {
+  kcal: number;
+  proteinG: number;
+  carbG: number;
+  fatG: number;
+  fiberG: number;
+  sodiumMg: number;
+  sugarMg: number;
+}
