@@ -1,10 +1,11 @@
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Entypo from 'react-native-vector-icons/Entypo';
 import TextComponent from '../TextComponent';
 import ViewComponent from '../ViewComponent';
 import { colors as C } from '../../constants/colors';
+import { MealPlanItemResponse } from '../../types/mealPlan.type';
 
 /* ========= types ========= */
 export type Range = 'day' | 'week';
@@ -16,22 +17,19 @@ export type MealItem = {
   img: string;
   weightLine?: string;
 };
-
 export type Section = {
   id: string;
   name: string;
   icon?: 'coffee' | 'silverware-fork-knife' | 'weather-night' | 'leaf';
   items: MealItem[];
 };
-
-export type PlanDay = { dateISO: string; sections: Section[] };
-
 export interface MealLogProps {
-  range: Range;
-  date: Date;
-  onChangeDate: (d: Date) => void;
-  getPlanForDate?: (d: Date) => PlanDay;
-  onDetail: () => void;
+  range?: Range; // 'day' | 'week'
+  items?: MealPlanItemResponse[];
+  activeDate?: Date;
+  onPickDate?: (d: Date) => void;
+  onChangeMeal?: (item: MealPlanItemResponse) => void;
+  onViewDetail?: (item: MealPlanItemResponse) => void;
 }
 
 /* ========= helpers ========= */
@@ -62,196 +60,73 @@ const kcalTotalOf = (sections: Section[]) =>
     (s, sec) => s + sec.items.reduce((x, it) => x + it.kcal, 0),
     0,
   );
-const withParams = (u: string, params: string) =>
-  u + (u.includes('?') ? '&' : '?') + params;
 
-/* ========= demo data ========= */
-const demoPlanFor = (date: Date): PlanDay => {
-  const seed = date.getDate();
-  const img = (u: string) => withParams(u, 'auto=format&fit=crop&w=1200&q=80');
-  const mul = (v: number) => Math.round(v * (1 + ((seed % 5) - 2) / 20));
-  return {
-    dateISO: `${date.getFullYear()}-${fmt2(date.getMonth() + 1)}-${fmt2(
-      date.getDate(),
-    )}`,
-    sections: [
-      {
-        id: 's1',
-        name: 'Bữa sáng',
-        icon: 'coffee',
-        items: [
-          {
-            id: 'm1',
-            title: 'Smoothie xanh dứa',
-            kcal: mul(281),
-            img: img(
-              'https://images.unsplash.com/photo-1512621776951-a57141f2eefd',
-            ),
-            weightLine: '415.5g (x1 · Phần ăn)',
-          },
-        ],
-      },
-      {
-        id: 's2',
-        name: 'Bữa trưa',
-        icon: 'silverware-fork-knife',
-        items: [
-          {
-            id: 'm2',
-            title: 'Đậu trắng & salad rau',
-            kcal: mul(291),
-            img: img(
-              'https://images.unsplash.com/photo-1512621776951-a57141f2eefd',
-            ),
-            weightLine: '319.7g (x0.75 · Phần ăn)',
-          },
-        ],
-      },
-      {
-        id: 's3',
-        name: 'Đồ ăn vặt',
-        icon: 'leaf',
-        items: [
-          {
-            id: 'm3',
-            title: 'Quả táo',
-            kcal: mul(95),
-            img: img(
-              'https://images.unsplash.com/photo-1567306226416-28f0efdc88ce',
-            ),
-            weightLine: '182g (x1 · Trung bình)',
-          },
-        ],
-      },
-      {
-        id: 's4',
-        name: 'Bữa tối',
-        icon: 'weather-night',
-        items: [
-          {
-            id: 'm4',
-            title: 'Cá hồi & măng tây nướng',
-            kcal: mul(369),
-            img: img(
-              'https://images.unsplash.com/photo-1544025162-d76694265947',
-            ),
-            weightLine: '246.9g (x1 · Phần ăn)',
-          },
-          {
-            id: 'm5',
-            title: 'Quinoa cơ bản',
-            kcal: mul(58),
-            img: img(
-              'https://images.unsplash.com/photo-1547592180-85f173990554',
-            ),
-            weightLine: '54.7g (x0.5)',
-          },
-        ],
-      },
-    ],
-  };
+/* ========= map items thật -> sections theo mealSlot ========= */
+const MEAL_ORDER: Array<'BREAKFAST' | 'LUNCH' | 'SNACK' | 'DINNER'> = [
+  'BREAKFAST',
+  'LUNCH',
+  'SNACK',
+  'DINNER',
+];
+const MEAL_VN: Record<(typeof MEAL_ORDER)[number], string> = {
+  BREAKFAST: 'Bữa sáng',
+  LUNCH: 'Bữa trưa',
+  SNACK: 'Đồ ăn vặt ',
+  DINNER: 'Bữa tối',
 };
 
-/* ========= POOL gợi ý ========= */
-const IMG = (u: string) => withParams(u, 'auto=format&fit=crop&w=1200&q=80');
+function mapItemsToSections(
+  items: MealPlanItemResponse[] | undefined,
+): Section[] {
+  if (!items || items.length === 0) return [];
 
-const ALT_POOL: Record<'sáng' | 'trưa' | 'vặt' | 'tối', MealItem[]> = {
-  sáng: [
-    {
-      id: 'b1',
-      title: 'Yến mạch chuối',
-      kcal: 320,
-      img: IMG('https://images.unsplash.com/photo-1517677208171-0bc6725a3e60'),
-    },
-    {
-      id: 'b2',
-      title: 'Bánh mì trứng ốp',
-      kcal: 350,
-      img: IMG('https://images.unsplash.com/photo-1551183053-bf91a1d81141'),
-    },
-    {
-      id: 'b3',
-      title: 'Sữa chua granola',
-      kcal: 290,
-      img: IMG('https://images.unsplash.com/photo-1512058564366-18510be2db19'),
-    },
-  ],
-  trưa: [
-    {
-      id: 'l1',
-      title: 'Cơm gà áp chảo',
-      kcal: 520,
-      img: IMG('https://images.unsplash.com/photo-1540189549336-e6e99c3679fe'),
-    },
-    {
-      id: 'l2',
-      title: 'Bún thịt nạc rau',
-      kcal: 480,
-      img: IMG('https://images.unsplash.com/photo-1526318472351-c75fcf070305'),
-    },
-    {
-      id: 'l3',
-      title: 'Pasta sốt cà chua',
-      kcal: 510,
-      img: IMG('https://images.unsplash.com/photo-1521389508051-d7ffb5dc8bbf'),
-    },
-  ],
-  vặt: [
-    {
-      id: 's1',
-      title: 'Sữa chua uống',
-      kcal: 120,
-      img: IMG('https://images.unsplash.com/photo-1563630423918-6f955d9bf0da'),
-    },
-    {
-      id: 's2',
-      title: 'Hạnh nhân rang',
-      kcal: 160,
-      img: IMG('https://images.unsplash.com/photo-1601004890684-d8cbf643f5f2'),
-    },
-    {
-      id: 's3',
-      title: 'Chuối chín',
-      kcal: 100,
-      img: IMG('https://images.unsplash.com/photo-1571772805064-207c8435df79'),
-    },
-  ],
-  tối: [
-    {
-      id: 'd1',
-      title: 'Ức gà nướng rau',
-      kcal: 430,
-      img: IMG('https://images.unsplash.com/photo-1512621776951-a57141f2eefd'),
-    },
-    {
-      id: 'd2',
-      title: 'Mì soba bò áp chảo',
-      kcal: 520,
-      img: IMG('https://images.unsplash.com/photo-1546069901-ba9599a7e63c'),
-    },
-    {
-      id: 'd3',
-      title: 'Đậu hũ sốt nấm',
-      kcal: 410,
-      img: IMG('https://images.unsplash.com/photo-1526318472351-c75fcf070305'),
-    },
-  ],
-};
+  // group theo mealSlot
+  const grouped = new Map<(typeof MEAL_ORDER)[number], MealItem[]>();
 
-function normalizeSectionName(
-  name: string,
-): 'sáng' | 'trưa' | 'vặt' | 'tối' | undefined {
-  const lower = name.toLowerCase();
-  if (lower.includes('sáng')) return 'sáng';
-  if (lower.includes('trưa')) return 'trưa';
-  if (lower.includes('tối')) return 'tối';
-  if (
-    lower.includes('vặt') ||
-    lower.includes('snack') ||
-    lower.includes('ăn vặt')
-  )
-    return 'vặt';
-  return undefined;
+  for (const it of items) {
+    const slotRaw = (it.mealSlot || '').toUpperCase();
+    const slot = (
+      MEAL_ORDER.includes(slotRaw as any) ? slotRaw : 'SNACK'
+    ) as (typeof MEAL_ORDER)[number];
+
+    const kcal = Math.round(
+      it.nutrition?.kcal ?? it.food?.nutrition?.kcal ?? 0,
+    );
+    const title = it.food?.name ?? 'Món';
+    const img = it.food?.imageUrl || '';
+    const portion = (it as any).portion ?? 1;
+    const serving = it.food?.servingName || 'phần ăn';
+    const weightLine = `x${portion} · ${serving}`;
+
+    const mealItem: MealItem = { id: it.id, title, kcal, img, weightLine };
+
+    if (!grouped.has(slot)) grouped.set(slot, []);
+    grouped.get(slot)!.push(mealItem);
+  }
+
+  // tạo sections theo thứ tự chuẩn
+  const sections: Section[] = [];
+  for (const slot of MEAL_ORDER) {
+    const itemsInSlot = grouped.get(slot);
+    if (!itemsInSlot || itemsInSlot.length === 0) continue;
+
+    const icon: Section['icon'] =
+      slot === 'BREAKFAST'
+        ? 'coffee'
+        : slot === 'LUNCH'
+        ? 'silverware-fork-knife'
+        : slot === 'DINNER'
+        ? 'weather-night'
+        : 'leaf';
+
+    sections.push({
+      id: slot,
+      name: MEAL_VN[slot],
+      icon,
+      items: itemsInSlot,
+    });
+  }
+  return sections;
 }
 
 /* ========= subcomponents ========= */
@@ -296,6 +171,7 @@ function MealItemCard({
   it,
   checked,
   onToggle,
+  // ⬇️ 2 action mới
   onChange,
   onDetail,
 }: {
@@ -309,7 +185,6 @@ function MealItemCard({
 
   return (
     <ViewComponent style={st.mealCard}>
-      {/* Ảnh dài phía trên */}
       <ViewComponent style={st.mealThumbWrap}>
         {imgError ? (
           <ViewComponent center style={st.thumbFallback}>
@@ -328,7 +203,6 @@ function MealItemCard({
           />
         )}
 
-        {/* Tick chọn */}
         <Pressable
           onPress={onToggle}
           style={st.tickWrap}
@@ -347,7 +221,6 @@ function MealItemCard({
           </ViewComponent>
         </Pressable>
 
-        {/* Kcal badge */}
         <ViewComponent row alignItems="center" gap={6} style={st.kcalBadge}>
           <MaterialCommunityIcons name="fire" size={12} color={ACCENT} />
           <TextComponent
@@ -359,7 +232,6 @@ function MealItemCard({
         </ViewComponent>
       </ViewComponent>
 
-      {/* Thông tin phía dưới ảnh */}
       <ViewComponent p={12}>
         <TextComponent text={it.title} size={16} color={C.text} weight="bold" />
         {it.weightLine ? (
@@ -375,7 +247,7 @@ function MealItemCard({
           </ViewComponent>
         ) : null}
 
-        {/* Actions */}
+        {/* ====== Actions: Đổi món / Xem chi tiết ====== */}
         <ViewComponent row gap={10} flex={0}>
           <Pressable
             style={[st.btn, st.btnPrimary]}
@@ -409,7 +281,7 @@ function MealItemCard({
                 color={ACCENT}
               />
               <TextComponent
-                text="Xem chi tiết "
+                text="Xem chi tiết"
                 color={ACCENT}
                 size={12}
                 weight="bold"
@@ -423,14 +295,16 @@ function MealItemCard({
 }
 
 function WeekStrip({
-  baseDate,
-  onPick,
+  activeDate,
+  onPickDate,
+  disabled,
 }: {
-  baseDate: Date;
-  onPick: (d: Date) => void;
+  activeDate: Date;
+  onPickDate?: (d: Date) => void;
+  disabled?: boolean;
 }) {
-  const days = useMemo(() => getWeekDays(baseDate), [baseDate]);
-  const baseISO = baseDate.toDateString();
+  const days = useMemo(() => getWeekDays(activeDate), [activeDate]);
+  const baseISO = activeDate.toDateString();
 
   return (
     <ScrollView
@@ -449,8 +323,13 @@ function WeekStrip({
           return (
             <Pressable
               key={d.toISOString()}
-              onPress={() => onPick(d)}
-              style={[st.dayBox, active && st.dayBoxActive]}
+              disabled={disabled}
+              onPress={() => onPickDate && onPickDate(d)}
+              style={[
+                st.dayBox,
+                active && st.dayBoxActive,
+                disabled && { opacity: 0.6 },
+              ]}
             >
               <TextComponent
                 text={vnDowShort(d)}
@@ -475,23 +354,17 @@ function WeekStrip({
 
 /* ========= main ========= */
 export default function MealLog({
-  range,
-  date,
-  onChangeDate,
-  getPlanForDate = demoPlanFor,
-  onDetail,
+  range = 'day',
+  items,
+  activeDate = new Date(),
+  onPickDate,
+  onChangeMeal,
+  onViewDetail,
 }: MealLogProps) {
-  const plan = useMemo(() => getPlanForDate(date), [date, getPlanForDate]);
+  // sections cho chế độ 'day'
+  const sections = useMemo<Section[]>(() => mapItemsToSections(items), [items]);
 
-  // Local state để có thể thay món tại chỗ
-  const [sectionsState, setSectionsState] = useState<Section[]>(plan.sections);
-
-  // Nếu đổi ngày => reset lại món theo plan mới
-  useEffect(() => {
-    setSectionsState(plan.sections);
-  }, [plan]);
-
-  // tick chọn món
+  // Local tick chọn món (UI Only)
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const toggle = useCallback((id: string) => {
     setSelected(prev => {
@@ -501,64 +374,44 @@ export default function MealLog({
     });
   }, []);
 
-  // Chọn pool theo tên section
-  const poolFor = (sectionName: string): MealItem[] | undefined => {
-    const key = normalizeSectionName(sectionName);
-    return key ? ALT_POOL[key] : undefined;
-  };
-
-  // Đổi món tại vị trí (sectionIdx, itemIdx)
-  const swapItem = (sectionIdx: number, itemIdx: number) => {
-    setSectionsState(prev => {
-      const next = prev.map(s => ({ ...s, items: [...s.items] }));
-      const sec = next[sectionIdx];
-      if (!sec) return prev;
-
-      const pool = poolFor(sec.name);
-      if (!pool || pool.length === 0) return prev;
-
-      const cur = sec.items[itemIdx];
-      let pick = pool[0];
-      if (pool.length > 1) {
-        const idx = pool.findIndex(p => p.id === cur?.id);
-        pick = pool[(idx >= 0 ? idx + 1 : 0) % pool.length];
-      }
-
-      sec.items[itemIdx] = { ...pick, weightLine: cur?.weightLine };
-      return next;
-    });
-  };
-
   return (
     <ViewComponent>
       {range === 'week' && (
         <>
-          <TextComponent
-            text="Tuần này"
-            size={14}
-            color={C.slate600}
-            style={{ marginLeft: 12, marginBottom: 8 }}
-          />
-          <WeekStrip baseDate={date} onPick={d => onChangeDate(d)} />
+          <WeekStrip activeDate={activeDate} onPickDate={onPickDate} />
           <ViewComponent style={{ height: 8 }} />
         </>
       )}
 
-      {sectionsState.map((sec, si) => (
-        <ViewComponent key={sec.id} mt={14}>
-          <SectionHeader name={sec.name} kcal={kcalTotalOf([sec])} />
-          {sec.items.map((it, ii) => (
-            <MealItemCard
-              key={`${it.id}-${ii}`}
-              it={it}
-              checked={selected.has(it.id)}
-              onToggle={() => toggle(it.id)}
-              onChange={() => swapItem(si, ii)}
-              onDetail={onDetail}
-            />
-          ))}
+      {/* range === 'day' */}
+      {!sections || sections.length === 0 ? (
+        <ViewComponent mt={14} p={14} variant="card" center>
+          <TextComponent
+            text="Ngày này vẫn chưa được lập kế hoạch."
+            color={C.slate600}
+          />
         </ViewComponent>
-      ))}
+      ) : (
+        sections.map(sec => (
+          <ViewComponent key={sec.id} mt={14}>
+            <SectionHeader name={sec.name} kcal={kcalTotalOf([sec])} />
+            {sec.items.map(it => {
+              // lấy item gốc để truyền ra callback
+              const original = items?.find(x => x.id === it.id);
+              return (
+                <MealItemCard
+                  key={it.id}
+                  it={it}
+                  checked={selected.has(it.id)}
+                  onToggle={() => toggle(it.id)}
+                  onChange={() => original && onChangeMeal?.(original)}
+                  onDetail={() => original && onViewDetail?.(original)}
+                />
+              );
+            })}
+          </ViewComponent>
+        ))
+      )}
     </ViewComponent>
   );
 }
@@ -620,7 +473,7 @@ const st = StyleSheet.create({
     borderWidth: 2,
     backgroundColor: C.white,
   },
-  // ✅ Tick dùng teal để dịu mắt
+  // Tick dùng teal để dịu mắt
   tickOn: { backgroundColor: ACCENT, borderColor: ACCENT },
   tickOff: { borderColor: ACCENT },
 

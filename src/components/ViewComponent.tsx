@@ -109,12 +109,12 @@ const ViewComponent = memo(
     const jc: ViewStyle['justifyContent'] = center
       ? 'center'
       : between
-        ? 'space-between'
-        : around
-          ? 'space-around'
-          : evenly
-            ? 'space-evenly'
-            : justifyContent ?? 'flex-start';
+      ? 'space-between'
+      : around
+      ? 'space-around'
+      : evenly
+      ? 'space-evenly'
+      : justifyContent ?? 'flex-start';
 
     const ai: ViewStyle['alignItems'] = center
       ? 'center'
@@ -124,18 +124,18 @@ const ViewComponent = memo(
     const preset: ViewStyle | undefined =
       variant === 'card'
         ? {
-          backgroundColor: colors.white,
-          borderRadius: 14,
-          borderWidth: 2,
-          borderColor: colors.primarySurface,
-          shadowColor: '#000',
-          shadowOpacity: 0.06,
-          shadowRadius: 6,
-          shadowOffset: { width: 0, height: 3 },
-        }
+            backgroundColor: colors.white,
+            borderRadius: 14,
+            borderWidth: 2,
+            borderColor: colors.primarySurface,
+            shadowColor: '#000',
+            shadowOpacity: 0.06,
+            shadowRadius: 6,
+            shadowOffset: { width: 0, height: 3 },
+          }
         : variant === 'surface'
-          ? { backgroundColor: colors.bg }
-          : undefined;
+        ? { backgroundColor: colors.bg }
+        : undefined;
 
     return (
       <View

@@ -17,6 +17,7 @@ interface Props extends Omit<TextProps, 'style' | 'children'> {
   variant?: Variant;
   tone?: Tone;
   style?: StyleProp<TextStyle>;
+  flexFill?: boolean;
 }
 
 const WEIGHT_TO_FAMILY: Partial<Record<Weight, string>> = {
@@ -56,6 +57,7 @@ const TextComponent = memo(
     align,
     numberOfLines,
     allowFontScaling = true,
+    flexFill = false,
     style,
     ...rest
   }: Props) => {
@@ -80,6 +82,7 @@ const TextComponent = memo(
             fontFamily: family,
             textAlign: align,
           },
+          flexFill && { flex: 1, minWidth: 0 },
           style,
         ]}
       >

@@ -4,8 +4,8 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  Platform,
-  Modal,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import Entypo from 'react-native-vector-icons/Entypo';
 import Container from '../components/Container';
@@ -15,7 +15,6 @@ import MealLog from '../components/MealPlan/MealLog';
 import TextComponent from '../components/TextComponent';
 import ViewComponent from '../components/ViewComponent';
 import { colors as C } from '../constants/colors';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { PlanStackParamList } from '../navigation/PlanNavigator';
@@ -23,6 +22,9 @@ import type { ApiResponse } from '../types/types';
 import type { MealPlanResponse } from '../types/mealPlan.type';
 import { getMealPlanByDate } from '../services/planDay.service';
 import { fmtVNFull, toISODateOnly } from '../helpers/mealPlan.helper';
+import DateButton from '../components/Date/DateButton';
+import DatePickerSheet from '../components/Date/DatePickerSheet';
+
 /* ================== Avatar fallback ================== */
 function Avatar({
   name,
@@ -57,42 +59,55 @@ const MealPlan = () => {
   const [date, setDate] = useState<Date>(new Date());
   const navigation =
     useNavigation<NativeStackNavigationProp<PlanStackParamList>>();
-
   const [data, setData] = useState<MealPlanResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Modal DatePicker chung cho cả iOS & Android
   const [showPicker, setShowPicker] = useState(false);
-  const openPicker = () => setShowPicker(true);
 
-  const fetchData = useCallback(async (signal?: AbortSignal) => {
-    setError(null);
-    try {
-      const res: ApiResponse<MealPlanResponse> = await getMealPlanByDate(
-        toISODateOnly(date),
-        signal,
-      );
-      setData(res.data);
-      console.log(res.data);
-    } catch (e: any) {
-      setError(e?.message || 'Không thể tải thực đơn tuần.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+  const fetchData = useCallback(
+    async (d: Date, signal?: AbortSignal, opts?: { isRefresh?: boolean }) => {
+      if (opts?.isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      try {
+        const res: ApiResponse<MealPlanResponse> = await getMealPlanByDate(
+          toISODateOnly(d),
+          signal,
+        );
+        setData(res.data);
+      } catch {
+        setData(null);
+      } finally {
+        if (opts?.isRefresh) {
+          setRefreshing(false);
+        } else {
+          setLoading(false);
+        }
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const ac = new AbortController();
-    fetchData(ac.signal);
+    fetchData(date, ac.signal);
     return () => ac.abort();
-  }, [fetchData]);
+  }, [date, fetchData]);
 
-  // ngay trên return()
+  // Kéo để làm mới (refetch ngày hiện tại)
+  const onRefresh = () => {
+    const ac = new AbortController();
+    fetchData(date, ac.signal, { isRefresh: true });
+  };
+
+  const goTodayAnd = (mode: 'day' | 'week') => {
+    setRange(mode);
+    setDate(new Date());
+  };
+
   const kcalTarget = data?.targetNutrition?.kcal ?? 0;
-
   const macrosFromTarget = {
     carbs: { cur: 0, total: Math.round(data?.targetNutrition?.carbG ?? 0) },
     protein: {
@@ -121,6 +136,7 @@ const MealPlan = () => {
           accessibilityRole="button"
           accessibilityLabel="Mở thông báo"
           hitSlop={8}
+          disabled={loading}
         >
           <Entypo name="bell" size={20} color={C.primary} />
         </Pressable>
@@ -130,20 +146,12 @@ const MealPlan = () => {
 
       {/* Date + segmented control */}
       <ViewComponent center mb={12}>
-        <Pressable
-          onPress={openPicker}
-          accessibilityRole="button"
-          accessibilityLabel="Chọn ngày"
-        >
-          <ViewComponent row center gap={8} flex={0}>
-            <Entypo name="calendar" size={18} color={C.primary} />
-            <TextComponent
-              text={fmtVNFull(date)}
-              variant="subtitle"
-              weight="bold"
-            />
-          </ViewComponent>
-        </Pressable>
+        <DateButton
+          date={date}
+          label="Chọn ngày"
+          formatter={fmtVNFull}
+          onPress={() => !loading && setShowPicker(true)}
+        />
 
         <ViewComponent
           row
@@ -155,13 +163,18 @@ const MealPlan = () => {
           borderColor={C.primaryBorder}
           backgroundColor={C.primarySurface}
           flex={0}
+          style={loading ? { opacity: 0.6 } : undefined}
         >
           <Pressable
-            onPress={() => setRange('day')}
+            onPress={() => !loading && goTodayAnd('day')}
             style={[s.segmentBtn, range === 'day' && s.segmentBtnActive]}
             accessibilityRole="button"
-            accessibilityState={{ selected: range === 'day' }}
+            accessibilityState={{
+              selected: range === 'day',
+              disabled: loading,
+            }}
             hitSlop={6}
+            disabled={loading}
           >
             <TextComponent
               text="Theo ngày"
@@ -174,11 +187,15 @@ const MealPlan = () => {
           </Pressable>
 
           <Pressable
-            onPress={() => setRange('week')}
+            onPress={() => !loading && goTodayAnd('week')}
             style={[s.segmentBtn, range === 'week' && s.segmentBtnActive]}
             accessibilityRole="button"
-            accessibilityState={{ selected: range === 'week' }}
+            accessibilityState={{
+              selected: range === 'week',
+              disabled: loading,
+            }}
             hitSlop={6}
+            disabled={loading}
           >
             <TextComponent
               text="Theo tuần"
@@ -192,39 +209,35 @@ const MealPlan = () => {
         </ViewComponent>
       </ViewComponent>
 
-      {/* DatePicker modal (iOS + Android) */}
-      <Modal
+      <DatePickerSheet
         visible={showPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowPicker(false)}
-      >
-        <Pressable style={s.pickerSheet} onPress={() => setShowPicker(false)}>
-          {/* chặn đóng khi bấm vùng hộp */}
-          <Pressable style={s.pickerBox}>
-            <DateTimePicker
-              value={date}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
-              onChange={(event, d) => {
-                if (Platform.OS === 'android') {
-                  setShowPicker(false);
-                  if (event.type === 'set' && d) setDate(d);
-                } else {
-                  if (d) setDate(d);
-                }
-              }}
-            />
-            {Platform.OS === 'ios' && (
-              <Pressable onPress={() => setShowPicker(false)} style={s.doneBtn}>
-                <TextComponent text="Xong" weight="bold" color={C.onPrimary} />
-              </Pressable>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        value={date}
+        onClose={() => setShowPicker(false)}
+        onChange={d => setDate(d)}
+      />
 
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+      {/* Nội dung + Pull to refresh */}
+      <ScrollView
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={C.primary}
+            colors={[C.primary]}
+          />
+        }
+      >
+        {/* Loading overlay nhỏ gọn (chỉ khi loading lần đầu hoặc đổi ngày) */}
+        {loading && !refreshing ? (
+          <ViewComponent center style={{ paddingVertical: 24 }}>
+            <ActivityIndicator size="small" color={C.primary} />
+            <ViewComponent style={{ height: 8 }} />
+            <TextComponent text="Đang tải dữ liệu..." tone="muted" size={12} />
+          </ViewComponent>
+        ) : null}
+
         {/* Calories & Dinh dưỡng */}
         <ViewComponent mb={12}>
           <CaloriesNutritionCard
@@ -232,7 +245,6 @@ const MealPlan = () => {
             eaten={1000}
             burned={0}
             macros={macrosFromTarget}
-            modeLabel="Cân Bằng"
             onPressStatistics={() => navigation.navigate('Statistics')}
           />
         </ViewComponent>
@@ -243,9 +255,13 @@ const MealPlan = () => {
           <ViewComponent mt={12}>
             <MealLog
               range={range}
-              date={date}
-              onChangeDate={setDate}
-              onDetail={() => navigation.navigate('MealLogDetail')}
+              items={data?.items || []}
+              activeDate={date}
+              onPickDate={d => setDate(d)}
+              onChangeMeal={item => {
+                // TODO: mở bottom sheet đổi món cho item
+              }}
+              onViewDetail={() => navigation.navigate('MealLogDetail')}
             />
           </ViewComponent>
         </ViewComponent>
@@ -298,27 +314,4 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
   },
   segmentBtnActive: { backgroundColor: C.primary },
-
-  pickerSheet: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'flex-end',
-  },
-  pickerBox: {
-    backgroundColor: C.white,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-    borderTopWidth: 1,
-    borderColor: C.border,
-  },
-  doneBtn: {
-    alignSelf: 'center',
-    marginTop: 8,
-    backgroundColor: C.primary,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 999,
-  },
 });

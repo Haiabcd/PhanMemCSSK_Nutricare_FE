@@ -144,7 +144,7 @@ export default function HydrationSummaryCard({
         >
           <MaterialCommunityIcons name="target" size={14} color={WATER} />
           <TextComponent
-            text={`Mục tiêu ${target} L`}
+            text={`Mục tiêu ${target} ML`}
             variant="caption"
             weight="semibold"
             tone="default"
@@ -166,7 +166,7 @@ export default function HydrationSummaryCard({
             <MaterialCommunityIcons name="minus" size={18} color={C.sub} />
           </Pressable>
           <TextComponent
-            text={`${step} L`}
+            text={`${step} ML`}
             variant="caption"
             tone="muted"
             weight="semibold"
@@ -203,7 +203,7 @@ export default function HydrationSummaryCard({
 
           <TextComponent text="Đã uống" variant="caption" tone="muted" />
           <TextComponent
-            text={`${water.toFixed(2)} L`}
+            text={`${water.toFixed(2)} ML`}
             variant="h2"
             weight="bold"
             tone="default"
@@ -227,7 +227,7 @@ export default function HydrationSummaryCard({
             <MaterialCommunityIcons name="plus" size={18} color={C.white} />
           </Pressable>
           <TextComponent
-            text={`${step} L`}
+            text={`${step} ML`}
             variant="caption"
             tone="muted"
             weight="semibold"
@@ -251,7 +251,7 @@ export default function HydrationSummaryCard({
         >
           <MaterialCommunityIcons name="cup-water" size={16} color={WATER} />
           <TextComponent
-            text={`Còn lại ${remain} L`}
+            text={`Còn lại ${remain} ML`}
             variant="caption"
             weight="semibold"
           />
