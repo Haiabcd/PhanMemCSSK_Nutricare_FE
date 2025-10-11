@@ -58,3 +58,24 @@ export const getConditionNames = (conditions?: UserConditionResponse[]): string 
     if (!conditions || conditions.length === 0) return 'Không có bệnh nền';
     return conditions.map(a => a.name).join(', ');
 };
+
+
+export const GOAL_OPTIONS = [
+    { label: 'Giảm cân', value: 'LOSE' },
+    { label: 'Duy trì cân nặng', value: 'MAINTAIN' },
+    { label: 'Tăng cân', value: 'GAIN' },
+];
+
+export const ACTIVITY_OPTIONS = [
+    { label: 'Ít vận động', value: 'SEDENTARY' },
+    { label: 'Vận động nhẹ', value: 'LIGHTLY_ACTIVE' },
+    { label: 'Vận động vừa phải', value: 'MODERATELY_ACTIVE' },
+    { label: 'Vận động nhiều', value: 'VERY_ACTIVE' },
+    { label: 'Vận động rất nhiều', value: 'EXTRA_ACTIVE' },
+];
+
+export const GENDER_OPTIONS = [
+    { label: 'Nam', value: 'MALE' },
+    { label: 'Nữ', value: 'FEMALE' },
+    { label: 'Khác', value: 'OTHER' },
+];
