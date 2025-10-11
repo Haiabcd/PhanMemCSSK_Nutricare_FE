@@ -25,6 +25,7 @@ import type { Allergy, Condition, InfoResponse, ProfileDto, UserAllergyResponse,
 import LoadingOverlay from '../components/LoadingOverlay';
 import { calcAge, displayGender, translateGoal, translateActivityLevel, getAllergyNames, getConditionNames } from '../helpers/profile.helper';
 import MultiSelectModal from '../components/Profile/MultiSelectModal';
+import LoginChoiceModal from '../components/Profile/LoginModal';
 import { getAllConditions } from '../services/condition.service';
 import { getAllAllergies } from '../services/allergy.service';
 
@@ -239,6 +240,13 @@ export default function ProfileScreen() {
     const [conditions, setConditions] = useState<Condition[]>([]);
     const [allergies, setAllergies] = useState<Allergy[]>([]);
     const [loading, setLoading] = useState(false);
+
+    const [loginChoiceOpen, setLoginChoiceOpen] = useState(false);
+
+    const onLoginWith = (provider: 'google' | 'facebook') => {
+        setLoginChoiceOpen(false);
+        navigation.navigate('Login', { provider });
+    };
 
     /** ================== GỌI API SONG SONG ================== */
     const fetchData = useCallback(async (signal?: AbortSignal) => {
@@ -720,15 +728,24 @@ export default function ProfileScreen() {
                         />
                     </ViewComponent>
 
-                    <Pressable style={[styles.settingRowPress]} onPress={onLogout}>
-                        <ViewComponent row alignItems="center" gap={10} style={{ flex: 1, minWidth: 0 }}>
-                            <ViewComponent center style={[styles.settingIcon, { backgroundColor: '#ebf5ff' }]}>
-                                <McIcon name="logout" size={16} color={C.primary} />
+                    {/* Nút đăng nhập ngay */}
+                    <Pressable style={[styles.settingRowPress]} onPress={() => setLoginChoiceOpen(true)}>
+                        <ViewComponent row alignItems="center" gap={10} style={{ flexShrink: 1 }}>
+                            <ViewComponent center style={[styles.settingIcon, { backgroundColor: '#dcfce7' }]}>
+                                <McIcon name="login" size={16} color={C.success} />
                             </ViewComponent>
-                            <TextComponent text="Đăng xuất" weight="semibold" numberOfLines={1} ellipsizeMode="tail" />
+                            <ViewComponent>
+                                <TextComponent text="Đăng nhập ngay" weight="semibold" color={C.success} />
+                                <TextComponent
+                                    text="Đăng nhập để đồng bộ và lưu trữ dữ liệu khi đổi thiết bị"
+                                    variant="caption"
+                                    tone="muted"
+                                />
+                            </ViewComponent>
                         </ViewComponent>
-                        <McIcon name="chevron-right" size={18} color={C.slate500} style={{ marginLeft: 'auto' }} />
+                        <McIcon name="chevron-right" size={18} color={C.slate500} />
                     </Pressable>
+
 
                     <Pressable style={[styles.settingRowPress]} onPress={onDeleteAccount}>
                         <ViewComponent row alignItems="center" gap={10} style={{ flexShrink: 1 }}>
@@ -745,6 +762,16 @@ export default function ProfileScreen() {
                             </ViewComponent>
                         </ViewComponent>
                         <McIcon name="chevron-right" size={18} color={C.slate500} />
+                    </Pressable>
+
+                    <Pressable style={[styles.settingRowPress]} onPress={onLogout}>
+                        <ViewComponent row alignItems="center" gap={10} style={{ flex: 1, minWidth: 0 }}>
+                            <ViewComponent center style={[styles.settingIcon, { backgroundColor: '#ebf5ff' }]}>
+                                <McIcon name="logout" size={16} color={C.primary} />
+                            </ViewComponent>
+                            <TextComponent text="Đăng xuất" weight="semibold" numberOfLines={1} ellipsizeMode="tail" />
+                        </ViewComponent>
+                        <McIcon name="chevron-right" size={18} color={C.slate500} style={{ marginLeft: 'auto' }} />
                     </Pressable>
                 </ViewComponent>
             </ScrollView>
@@ -776,6 +803,12 @@ export default function ProfileScreen() {
                     }}
                 />
             )}
+
+            <LoginChoiceModal
+                visible={loginChoiceOpen}
+                onClose={() => setLoginChoiceOpen(false)}
+                onSelect={onLoginWith}
+            />
         </Container>
     );
 }
