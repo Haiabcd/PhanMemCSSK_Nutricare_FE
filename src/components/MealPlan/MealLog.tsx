@@ -115,10 +115,10 @@ function mapItemsToSections(
       slot === 'BREAKFAST'
         ? 'coffee'
         : slot === 'LUNCH'
-        ? 'silverware-fork-knife'
-        : slot === 'DINNER'
-        ? 'weather-night'
-        : 'leaf';
+          ? 'silverware-fork-knife'
+          : slot === 'DINNER'
+            ? 'weather-night'
+            : 'leaf';
 
     sections.push({
       id: slot,
@@ -282,7 +282,7 @@ function MealItemCard({
                 color={ACCENT}
               />
               <TextComponent
-                text="Xem chi tiết"
+                text="Xem chi tiết "
                 color={ACCENT}
                 size={12}
                 weight="bold"

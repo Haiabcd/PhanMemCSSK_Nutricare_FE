@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
   ScrollView,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import Container from '../components/Container';
 import TextComponent from '../components/TextComponent';
@@ -69,41 +70,88 @@ type Recipe = {
   cal: number;
   protein: number;
   image: string;
-  slot: Slot;
+  slot: Slot; // nhãn UI đã map từ DB
 };
 
 const CATS: Category[] = ['Tất cả', 'Bữa sáng', 'Bữa trưa', 'Bữa chiều', 'Bữa phụ'];
 
-// Map meal slot BE -> UI label (tùy enum BE của bạn)
+/* ================== Slot mapping ================== */
 const mapMealSlot = (slot?: string): Slot => {
   if (!slot) return 'Bữa trưa';
-  const s = slot.toLowerCase();
-  if (s.includes('breakfast') || s.includes('sang')) return 'Bữa sáng';
-  if (s.includes('lunch') || s.includes('trua')) return 'Bữa trưa';
-  if (s.includes('dinner') || s.includes('toi') || s.includes('chieu')) return 'Bữa chiều';
-  if (s.includes('snack') || s.includes('phu')) return 'Bữa phụ';
+  const s = String(slot).toLowerCase();
+  if (s.includes('breakfast') || s.includes('sáng') || s.includes('sang')) return 'Bữa sáng';
+  if (s.includes('lunch') || s.includes('trưa') || s.includes('trua')) return 'Bữa trưa';
+  if (s.includes('dinner') || s.includes('tối') || s.includes('toi') || s.includes('chiều') || s.includes('chieu')) return 'Bữa chiều';
+  if (s.includes('snack') || s.includes('phụ') || s.includes('phu')) return 'Bữa phụ';
   return 'Bữa trưa';
 };
 
-// Map FoodResponse -> Recipe cho UI
-const toRecipe = (f: FoodResponse): Recipe => ({
-  id: f.id,
-  title: f.name,
-  desc: f.description ?? '',
-  // @ts-ignore: tuỳ NutritionResponse
-  cal: f.nutrition?.calories ?? f.nutrition?.energyKcal ?? 0,
-  // @ts-ignore
-  protein: f.nutrition?.protein ?? 0,
-  image:
-    f.imageUrl ||
-    'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=1200',
-  // Nếu BE có mealSlots, map slot đầu tiên; nếu không có thì default
-  slot: mapMealSlot((f as any).mealSlots?.[0]),
-});
+const getRawMealSlot = (f: any): string | undefined => {
+  if (typeof f?.mealSlot === 'string' && f.mealSlot) return f.mealSlot;
+  if (Array.isArray(f?.mealSlots) && f.mealSlots.length) return f.mealSlots[0];
+  if (typeof f?.slot === 'string' && f.slot) return f.slot;
+  if (Array.isArray(f?.meals) && f.meals.length) return f.meals[0];
+
+  const pickFromArrayLike = (arr?: any[]) => {
+    if (!Array.isArray(arr)) return undefined;
+    const txt = arr
+      .map(x => (typeof x === 'string' ? x : x?.name))
+      .filter(Boolean)
+      .map((t: any) => String(t).toLowerCase());
+    if (txt.some(t => t.includes('breakfast'))) return 'breakfast';
+    if (txt.some(t => t.includes('lunch'))) return 'lunch';
+    if (txt.some(t => t.includes('dinner'))) return 'dinner';
+    if (txt.some(t => t.includes('snack'))) return 'snack';
+    if (txt.some(t => t.includes('sáng') || t.includes('sang'))) return 'sáng';
+    if (txt.some(t => t.includes('trưa') || t.includes('trua'))) return 'trưa';
+    if (txt.some(t => t.includes('chiều') || t.includes('chieu') || t.includes('tối') || t.includes('toi'))) return 'tối';
+    if (txt.some(t => t.includes('phụ') || t.includes('phu'))) return 'phụ';
+    return undefined;
+  };
+
+  return pickFromArrayLike(f?.tags) ?? pickFromArrayLike(f?.categories) ?? undefined;
+};
+
+const toRecipe = (f: FoodResponse): Recipe => {
+  const rawSlot = getRawMealSlot(f as any);
+  return {
+    id: f.id,
+    title: f.name,
+    desc: f.description ?? '',
+    // @ts-ignore tuỳ NutritionResponse
+    cal: f.nutrition?.calories ?? f.nutrition?.energyKcal ?? 0,
+    // @ts-ignore
+    protein: f.nutrition?.protein ?? 0,
+    image:
+      f.imageUrl ||
+      'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=1200',
+    slot: mapMealSlot(rawSlot),
+  };
+};
+
+/* ===== Slot badge helpers (UI) ===== */
+const getSlotIcon = (slot: Slot) => {
+  switch (slot) {
+    case 'Bữa sáng': return 'sunny-outline';
+    case 'Bữa trưa': return 'fast-food-outline';
+    case 'Bữa chiều': return 'moon-outline';
+    case 'Bữa phụ': return 'pizza-outline';
+    default: return 'restaurant-outline';
+  }
+};
+
+const getSlotBadgeColors = (slot: Slot) => {
+  switch (slot) {
+    case 'Bữa sáng': return { bg: 'rgba(255,173,51,0.85)', text: '#1F1F1F' };
+    case 'Bữa trưa': return { bg: 'rgba(76,175,80,0.85)', text: '#FFFFFF' };
+    case 'Bữa chiều': return { bg: 'rgba(96,125,139,0.85)', text: '#FFFFFF' };
+    case 'Bữa phụ': return { bg: 'rgba(33,150,243,0.85)', text: '#FFFFFF' };
+    default: return { bg: 'rgba(0,0,0,0.55)', text: '#FFFFFF' };
+  }
+};
 
 /* ================== Screen ================== */
 export default function Suggestion() {
-  // ✅ KHAI BÁO navigation CHỈ 1 LẦN
   const navigation =
     useNavigation<NativeStackNavigationProp<SuggestionStackParamList>>();
 
@@ -114,31 +162,28 @@ export default function Suggestion() {
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [cat, setCat] = useState<Category>('Tất cả');
 
-  // Dữ liệu & phân trang
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [pageMeta, setPageMeta] = useState<PageableResponse<FoodResponse> | null>(null);
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 20;
 
-  // Loading flags
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
 
-  // Tránh onEndReached gọi nhiều lần
+  // chặn gọi lặp onEndReached
   const canLoadMoreRef = useRef(true);
 
+  // debounce query
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(query.trim().toLowerCase()), 180);
+    const t = setTimeout(() => setDebouncedQuery(query.trim().toLowerCase()), 200);
     return () => clearTimeout(t);
   }, [query]);
 
-  // Tải một trang (mode: replace | append)
   const fetchPage = useCallback(
     async (targetPage: number, mode: 'replace' | 'append', signal?: AbortSignal) => {
+      // TODO: nếu BE hỗ trợ filter theo query/cat, truyền kèm ở đây (ví dụ: getUpcomingFoods(page,size,query,cat))
       const data = await getUpcomingFoods(targetPage, PAGE_SIZE, signal);
-      console.log(`[UpcomingFoods] page=${targetPage}`, data);
-
       setPageMeta(data);
 
       const mapped = (data.content || []).map(toRecipe);
@@ -148,7 +193,7 @@ export default function Suggestion() {
     [PAGE_SIZE],
   );
 
-  // Lần đầu load
+  // lần đầu
   useEffect(() => {
     const controller = new AbortController();
     (async () => {
@@ -164,12 +209,33 @@ export default function Suggestion() {
     return () => controller.abort();
   }, [fetchPage]);
 
-  // Pull-to-refresh
+  // khi thay đổi filter (cat) hoặc từ khoá -> reset & load trang 0
+  useEffect(() => {
+    const controller = new AbortController();
+    (async () => {
+      try {
+        // reset pagestate
+        canLoadMoreRef.current = true;
+        setPage(0);
+        setLoadingMore(false);
+        setRefreshing(false);
+
+        setInitialLoading(true);
+        await fetchPage(0, 'replace', controller.signal);
+      } catch (e) {
+        console.error('[UpcomingFoods] refetch (filter/query) error:', e);
+      } finally {
+        setInitialLoading(false);
+      }
+    })();
+    return () => controller.abort();
+  }, [debouncedQuery, cat, fetchPage]);
+
   const onRefresh = useCallback(async () => {
     const controller = new AbortController();
     try {
       setRefreshing(true);
-      canLoadMoreRef.current = true; // reset trạng thái load-more
+      canLoadMoreRef.current = true;
       await fetchPage(0, 'replace', controller.signal);
     } catch (e) {
       console.error('[UpcomingFoods] refresh error:', e);
@@ -178,11 +244,12 @@ export default function Suggestion() {
     }
   }, [fetchPage]);
 
-  // Load-more cuối danh sách
+  const hasNextPage = !!pageMeta && (pageMeta.last === false);
+
   const onEndReached = useCallback(async () => {
-    const isLast = pageMeta?.last ?? false;
-    if (!canLoadMoreRef.current || loadingMore || refreshing || isLast) return;
-    if ((pageMeta?.numberOfElements ?? 0) === 0 && recipes.length === 0) return;
+    // guard: cần có trang kế tiếp và không đang busy
+    if (!hasNextPage) return;
+    if (!canLoadMoreRef.current || loadingMore || refreshing || initialLoading) return;
 
     try {
       setLoadingMore(true);
@@ -192,17 +259,19 @@ export default function Suggestion() {
       console.error('[UpcomingFoods] load-more error:', e);
     } finally {
       setLoadingMore(false);
+      // nới 1 nhịp để tránh spam
       setTimeout(() => {
         canLoadMoreRef.current = true;
-      }, 300);
+      }, 250);
     }
-  }, [fetchPage, loadingMore, page, pageMeta, recipes.length, refreshing]);
+  }, [fetchPage, hasNextPage, loadingMore, page, refreshing, initialLoading]);
 
   const onMomentumScrollBegin = useCallback(() => {
+    // cho phép gọi onEndReached sau khi user thực sự kéo
     canLoadMoreRef.current = true;
   }, []);
 
-  // Filter theo query & category
+  // Filter theo query & category (UI-side). Nếu BE hỗ trợ filter server-side, có thể bỏ local filter này.
   const filtered = useMemo(() => {
     return recipes.filter(r => {
       const matchCat = cat === 'Tất cả' || r.slot === cat;
@@ -231,13 +300,33 @@ export default function Suggestion() {
   const renderRecipe = useCallback(
     ({ item }: { item: Recipe }) => {
       const checked = selected.has(item.id);
+      const { bg, text } = getSlotBadgeColors(item.slot);
 
       return (
         <ViewComponent style={s.cardWrap}>
           <ViewComponent variant="card" radius={16} flex={1}>
-            {/* Ảnh + tick */}
+            {/* Ảnh + tick + badge slot */}
             <ViewComponent style={s.thumbWrap}>
               <Image source={{ uri: item.image }} style={s.thumb} resizeMode="cover" />
+
+              {/* Badge slot trái trên: đọc từ DB (đã map) */}
+              <ViewComponent
+                row
+                alignItems="center"
+                gap={6}
+                style={[s.slotBadge, { backgroundColor: bg }]}
+              >
+                <Ionicons name={getSlotIcon(item.slot)} size={14} color={text} />
+                <TextComponent
+                  text={item.slot}
+                  variant="caption"
+                  weight="bold"
+                  numberOfLines={1}
+                  style={{ color: text }}
+                />
+              </ViewComponent>
+
+              {/* Tick góc phải */}
               <Pressable onPress={() => toggleSelect(item.id)} style={s.tickWrap} hitSlop={8}>
                 <ViewComponent
                   center
@@ -272,12 +361,24 @@ export default function Suggestion() {
                 />
 
                 <TextComponent
-                  text={item.desc}
+                  text={item?.desc || 'Không có mô tả'}
                   variant="body"
                   numberOfLines={3}
                   style={{ lineHeight: 18, height: 54, textAlignVertical: 'top', marginBottom: 8 }}
                 />
 
+                {/* Dòng meta lấp khoảng trống */}
+                <ViewComponent row alignItems="center" gap={6} style={{ marginTop: 2, marginBottom: 6 }}>
+                  <Ionicons name="time-outline" size={14} color={C.slate500} />
+                  <TextComponent
+                    text={`Phù hợp: ${item.slot}`}
+                    variant="caption"
+                    tone="muted"
+                    numberOfLines={1}
+                  />
+                </ViewComponent>
+
+                {/* Stats kcal + protein */}
                 <ViewComponent row gap={8} wrap mb={8}>
                   <ViewComponent
                     row
@@ -434,7 +535,6 @@ export default function Suggestion() {
             contentContainerStyle={{ paddingTop: 10, flexGrow: 1 }}
             renderItem={renderRecipe}
             showsVerticalScrollIndicator={false}
-            // Pull-to-refresh
             refreshControl={
               <RefreshControl
                 refreshing={refreshing || initialLoading}
@@ -443,22 +543,21 @@ export default function Suggestion() {
                 colors={[C.primary]}
               />
             }
-            // Infinite scroll
             onEndReached={onEndReached}
-            onEndReachedThreshold={0.3}
+            onEndReachedThreshold={0.2}
             onMomentumScrollBegin={onMomentumScrollBegin}
             ListFooterComponent={
               loadingMore ? (
                 <ViewComponent center style={{ padding: 12 }}>
+                  <ActivityIndicator size="small" color={C.primary} />
                   <TextComponent text="Đang tải thêm..." variant="caption" tone="muted" />
                 </ViewComponent>
               ) : pageMeta?.last ? (
                 <ViewComponent center style={{ padding: 12 }}>
-                  <TextComponent text="Đã hiển thị tất cả" variant="caption" tone="muted" />
+                  <TextComponent text="Đã hiển thị tất cả " variant="caption" tone="muted" />
                 </ViewComponent>
               ) : null
             }
-            // ✅ KHÔNG DÙNG `&&` để tránh trả về `false`
             ListEmptyComponent={() =>
               initialLoading ? null : (
                 <ViewComponent center style={{ flex: 1, padding: 24 }}>
@@ -513,6 +612,18 @@ const s = StyleSheet.create({
     height: '100%',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
+  },
+
+  // Slot badge ở góc trái trên ảnh
+  slotBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.45)',
   },
 
   // Tick

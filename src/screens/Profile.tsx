@@ -106,39 +106,47 @@ export default function ProfileScreen() {
     };
 
     const onLogout = () => {
-        Alert.alert('Đăng xuất', 'Bạn có chắc chắn muốn đăng xuất?', [
-            { text: 'Hủy', style: 'cancel' },
-            {
-                text: 'Đăng xuất', style: 'destructive',
-                onPress: () => showToast({ title: 'Đăng xuất thành công', subtitle: 'Hẹn gặp lại bạn sớm nhé!' }, () => {
-                    navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
-                }),
-            },
-            () => {
-              navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
-            },
-          );
-        },
-      },
-    ]);
-  };
-
-  const onDeleteAccount = () => {
-    Alert.alert('Xóa tài khoản', 'Bạn có chắc muốn xóa tài khoản?', [
-      { text: 'Hủy', style: 'cancel' },
-      {
-        text: 'Xóa',
-        style: 'destructive',
-        onPress: () => {
-          showToast(
-            {
-                text: 'Xóa', style: 'destructive',
-                onPress: () => showToast({ title: 'Đã xóa tài khoản', subtitle: 'Tài khoản của bạn đã được xóa thành công.' }, () => {
-                    navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
-                }),
-            },
-        ]);
+        Alert.alert(
+            'Đăng xuất',
+            'Bạn có chắc chắn muốn đăng xuất?',
+            [
+                { text: 'Hủy', style: 'cancel' },
+                {
+                    text: 'Đăng xuất',
+                    style: 'destructive',
+                    onPress: () => {
+                        showToast(
+                            { title: 'Đăng xuất thành công', subtitle: 'Hẹn gặp lại bạn sớm nhé!' },
+                            () => navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] })
+                        );
+                    },
+                },
+            ],
+            { cancelable: true }
+        );
     };
+
+    const onDeleteAccount = () => {
+        Alert.alert(
+            'Xóa tài khoản',
+            'Bạn có chắc muốn xóa tài khoản?',
+            [
+                { text: 'Hủy', style: 'cancel' },
+                {
+                    text: 'Xóa',
+                    style: 'destructive',
+                    onPress: () => {
+                        showToast(
+                            { title: 'Đã xóa tài khoản', subtitle: 'Tài khoản của bạn đã được xóa thành công.' },
+                            () => navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] })
+                        );
+                    },
+                },
+            ],
+            { cancelable: true }
+        );
+    };
+
 
     const openPicker = (type: PickerType) => { setPickerType(type); setPickerOpen(true); };
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Animated, Easing, Pressable } from 'react-native';
+import Slider from '@react-native-community/slider';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import ViewComponent from '../ViewComponent';
 import TextComponent from '../TextComponent';
@@ -7,31 +8,24 @@ import { colors as AppColors } from '../../constants/colors';
 
 /** ===== Props ===== */
 type Props = {
-  target: number;
-  step?: number;
-  initial?: number;
+  target: number;                 // mục tiêu ML
+  initial?: number;               // đã uống ban đầu (ML)
   palette?: Partial<typeof AppColors>;
   style?: any;
   titleStyle?: any;
-  onChange?: (liters: number) => void;
+  onChange?: (ml: number) => void;
+
+  /** Slider chọn lượng thêm */
+  pickMin?: number;               // mặc định 100ml
+  pickMax?: number;               // mặc định 1000ml
+  pickStep?: number;              // mặc định 50ml
 };
 
 /** ===== Thanh tiến trình animated ===== */
 function AnimatedProgress({
-  percent,
-  tint,
-  bg,
-  height = 8,
-  radius = 999,
-}: {
-  percent: number;
-  tint: string;
-  bg: string;
-  height?: number;
-  radius?: number;
-}) {
+  percent, tint, bg, height = 8, radius = 999,
+}: { percent: number; tint: string; bg: string; height?: number; radius?: number }) {
   const anim = useRef(new Animated.Value(0)).current;
-
   useEffect(() => {
     Animated.timing(anim, {
       toValue: Math.max(0, Math.min(100, percent)),
@@ -40,17 +34,9 @@ function AnimatedProgress({
       useNativeDriver: false,
     }).start();
   }, [percent, anim]);
-
-  const width = anim.interpolate({
-    inputRange: [0, 100],
-    outputRange: ['0%', '100%'],
-  });
-
+  const width = anim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] });
   return (
-    <ViewComponent
-      style={{ height, borderRadius: radius, overflow: 'hidden' }}
-      backgroundColor={bg}
-    >
+    <ViewComponent style={{ height, borderRadius: radius, overflow: 'hidden' }} backgroundColor={bg}>
       <Animated.View style={{ height: '100%', width, backgroundColor: tint }} />
     </ViewComponent>
   );
@@ -59,59 +45,52 @@ function AnimatedProgress({
 /** ===== Main ===== */
 export default function HydrationSummaryCard({
   target,
-  step = 0.25,
   initial = 0,
   palette,
   style,
   titleStyle,
   onChange,
+  pickMin = 100,
+  pickMax = 1000,
+  pickStep = 50,
 }: Props) {
   const C = { ...AppColors, ...(palette ?? {}) };
 
   const WATER = C.blue;
   const FRAME_BG = C.primarySurface || C.greenSurface;
   const FRAME_BORDER = C.primaryBorder || C.greenBorder;
-  const CARD_BG = FRAME_BG;
-  const CARD_BORDER = FRAME_BORDER;
 
-  const [water, setWater] = useState<number>(() =>
-    Math.max(0, Math.min(target, +initial.toFixed(2))),
-  );
+  /** Tổng đã uống (ML) */
+  const [water, setWater] = useState(() => Math.max(0, Math.min(target, Math.round(initial))));
+  /** Lượng sẽ thêm (ML) – điều khiển bởi Slider */
+  const [pick, setPick] = useState<number>(Math.min(Math.max(pickMin, 500), pickMax));
 
-  useEffect(() => {
-    onChange?.(water);
-  }, [water, onChange]);
+  useEffect(() => { onChange?.(water); }, [water, onChange]);
 
-  const pct = useMemo(
-    () => (target <= 0 ? 0 : Math.max(0, Math.min(1, water / target))),
-    [water, target],
-  );
-  const remain = Math.max(0, +(target - water).toFixed(2));
+  const pct = useMemo(() => (target <= 0 ? 0 : Math.max(0, Math.min(1, water / target))), [water, target]);
+  const remain = Math.max(0, Math.round(target - water));
 
-  // Icon chai: xám → xanh dần theo % hoàn thành
+  /** ====== ANIM – Bottle color & mực nước dâng ====== */
   const iconAnim = useRef(new Animated.Value(0)).current;
+  const waterAnim = useRef(new Animated.Value(0)).current; // 0..1
   const AnimatedIcon = Animated.createAnimatedComponent(MaterialCommunityIcons);
 
   useEffect(() => {
     Animated.timing(iconAnim, {
-      toValue: pct,
-      duration: 800,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
+      toValue: pct, duration: 800, easing: Easing.out(Easing.cubic), useNativeDriver: false,
     }).start();
-  }, [pct, iconAnim]);
+    Animated.timing(waterAnim, {
+      toValue: pct, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: false,
+    }).start();
+  }, [pct, iconAnim, waterAnim]);
 
-  const bottleColor = iconAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['#94a3b8', WATER],
-  });
-  const glowOpacity = iconAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.12, 0.36],
-  });
+  const bottleColor = iconAnim.interpolate({ inputRange: [0, 1], outputRange: ['#94a3b8', WATER] });
+  const glowOpacity = iconAnim.interpolate({ inputRange: [0, 1], outputRange: [0.12, 0.36] });
 
-  const add = () => setWater(v => Math.min(target, +(v + step).toFixed(2)));
-  const sub = () => setWater(v => Math.max(0, +(v - step).toFixed(2)));
+  // Chiều cao mực nước trong khung 72px (điền từ đáy lên)
+  const fillHeight = waterAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 72] });
+
+  const addPick = () => setWater((v) => Math.min(target, v + pick));
 
   return (
     <ViewComponent
@@ -119,165 +98,99 @@ export default function HydrationSummaryCard({
       p={12}
       radius={16}
       border
-      borderColor={CARD_BORDER}
-      style={[styles.cardShadow, { backgroundColor: CARD_BG }, style]}
+      borderColor={FRAME_BORDER}
+      style={[styles.cardShadow, { backgroundColor: FRAME_BG }, style]}
     >
       {/* Header */}
       <ViewComponent row between alignItems="center">
-        <TextComponent
-          text="Uống nước"
-          variant="h3"
-          weight="bold"
-          tone="primary"
-          style={titleStyle}
-        />
-        <ViewComponent
-          row
-          gap={6}
-          px={10}
-          py={6}
-          radius={999}
-          border
-          borderColor={CARD_BORDER}
-          backgroundColor={C.white}
-          alignItems="center"
-        >
+        <TextComponent text="Uống nước" variant="h3" weight="bold" tone="primary" style={titleStyle} />
+        <ViewComponent row gap={6} px={10} py={6} radius={999} border borderColor={FRAME_BORDER} backgroundColor={C.white} alignItems="center">
           <MaterialCommunityIcons name="target" size={14} color={WATER} />
-          <TextComponent
-            text={`Mục tiêu ${target} ML`}
-            variant="caption"
-            weight="semibold"
-            tone="default"
-          />
+          <TextComponent text={`Mục tiêu ${target} ml`} variant="caption" weight="semibold" tone="default" />
         </ViewComponent>
       </ViewComponent>
 
-      {/* Body: –  [Bottle]  + */}
-      <ViewComponent row mt={10} between alignItems="center">
-        {/* – bên trái */}
-        <ViewComponent alignItems="center" style={{ width: 70 }}>
-          <Pressable
-            onPress={sub}
-            style={[
-              styles.roundBtn,
-              { backgroundColor: C.white, borderColor: CARD_BORDER },
-            ]}
-          >
-            <MaterialCommunityIcons name="minus" size={18} color={C.sub} />
-          </Pressable>
-          <TextComponent
-            text={`${step} ML`}
-            variant="caption"
-            tone="muted"
-            weight="semibold"
-            style={{ marginTop: 6 }}
+      {/* ====== Slider + nút Thêm (nhỏ gọn hơn) ====== */}
+      <ViewComponent mt={12}>
+        <ViewComponent row between alignItems="center" mb={4} px={2}>
+          <TextComponent text="Dung tích" variant="body" weight="bold" />
+          <TextComponent text={`${pick} ml`} variant="body" weight="semibold" />
+        </ViewComponent>
+
+        {/* Slider nhỏ: track thấp, khoảng cách dọc ít lại */}
+        <ViewComponent style={{ paddingHorizontal: 2 }}>
+          <Slider
+            value={pick}
+            minimumValue={pickMin}
+            maximumValue={pickMax}
+            step={pickStep}
+            onValueChange={(v) => setPick(Math.round(v))}
+            minimumTrackTintColor={WATER}
+            maximumTrackTintColor="#D5D8DE"
+            thumbTintColor={C.white}
+            style={{ height: 28 }} // thấp hơn
           />
         </ViewComponent>
 
-        {/* Chai giữa */}
-        <ViewComponent center>
-          <ViewComponent center style={styles.heroWrap}>
+        <Pressable
+          onPress={addPick}
+          style={({ pressed }) => [
+            styles.addBtn,
+            { backgroundColor: WATER, opacity: pressed ? 0.92 : 1, shadowColor: WATER },
+          ]}
+        >
+          <TextComponent text={`Thêm ${pick} ml`} variant="h3" weight="bold" tone="inverted" />
+        </Pressable>
+      </ViewComponent>
+
+      {/* Bottle + tiến trình */}
+      <ViewComponent center mt={6}>
+        <ViewComponent center style={styles.heroWrap}>
+          {/* Glow */}
+          <Animated.View style={[styles.heroGlow, { backgroundColor: 'rgba(59,130,246,0.22)', opacity: glowOpacity }]} />
+          {/* Khung tròn – dùng làm clip cho mực nước */}
+          <ViewComponent
+            style={styles.bottleFrame}
+            center
+            radius={999}
+            border
+            borderColor={FRAME_BORDER}
+            backgroundColor={C.white}
+          >
+            {/* Mực nước dâng từ đáy lên, bị clip trong frame tròn */}
             <Animated.View
               style={[
-                styles.heroGlow,
-                {
-                  backgroundColor: 'rgba(59,130,246,0.22)',
-                  opacity: glowOpacity,
-                },
+                styles.waterFill,
+                { backgroundColor: WATER, height: fillHeight },
               ]}
             />
-            <ViewComponent
-              center
-              radius={999}
-              border
-              borderColor={CARD_BORDER}
-              style={{ width: 72, height: 72, backgroundColor: C.white }}
-            >
-              <AnimatedIcon
-                name="bottle-soda"
-                size={40}
-                style={{ color: bottleColor as any }}
-              />
-            </ViewComponent>
-          </ViewComponent>
-
-          <TextComponent text="Đã uống" variant="caption" tone="muted" />
-          <TextComponent
-            text={`${water.toFixed(2)} ML`}
-            variant="h2"
-            weight="bold"
-            tone="default"
-            style={{ marginTop: 2 }}
-          />
-
-          <ViewComponent style={{ width: 180 }} mt={10}>
-            <AnimatedProgress percent={pct * 100} tint={WATER} bg="#DCEBFF" />
+            {/* Vẽ chai outline nằm trên cùng (để thấy đường viền) */}
+            <AnimatedIcon
+              name="bottle-soda-outline"
+              size={46}
+              style={styles.bottleIcon as any}
+              color={bottleColor as any}
+            />
           </ViewComponent>
         </ViewComponent>
 
-        {/* + bên phải */}
-        <ViewComponent alignItems="center" style={{ width: 70 }}>
-          <Pressable
-            onPress={add}
-            style={[
-              styles.roundBtn,
-              { backgroundColor: WATER, borderColor: WATER },
-            ]}
-          >
-            <MaterialCommunityIcons name="plus" size={18} color={C.white} />
-          </Pressable>
-          <TextComponent
-            text={`${step} ML`}
-            variant="caption"
-            tone="muted"
-            weight="semibold"
-            style={{ marginTop: 6 }}
-          />
+        <TextComponent text="Đã uống" variant="caption" tone="muted" />
+        <TextComponent text={`${water} ml`} variant="h2" weight="bold" tone="default" style={{ marginTop: 2 }} />
+
+        <ViewComponent style={{ width: 200 }} mt={8}>
+          <AnimatedProgress percent={pct * 100} tint={WATER} bg="#DCEBFF" />
         </ViewComponent>
       </ViewComponent>
 
-      {/* Stats chips */}
-      <ViewComponent row gap={10} justifyContent="center" mt={12} wrap>
-        <ViewComponent
-          row
-          gap={6}
-          px={10}
-          py={6}
-          radius={999}
-          border
-          borderColor={CARD_BORDER}
-          backgroundColor={C.white}
-          alignItems="center"
-        >
+      {/* Chips thống kê */}
+      <ViewComponent row gap={10} justifyContent="center" mt={10} wrap>
+        <ViewComponent row gap={6} px={10} py={6} radius={999} border borderColor={FRAME_BORDER} backgroundColor={C.white} alignItems="center">
           <MaterialCommunityIcons name="cup-water" size={16} color={WATER} />
-          <TextComponent
-            text={`Còn lại ${remain} ML`}
-            variant="caption"
-            weight="semibold"
-          />
+          <TextComponent text={`Còn lại ${remain} ml`} variant="caption" weight="semibold" />
         </ViewComponent>
-
-        <ViewComponent
-          row
-          gap={6}
-          px={10}
-          py={6}
-          radius={999}
-          border
-          borderColor={CARD_BORDER}
-          backgroundColor={C.white}
-          alignItems="center"
-        >
-          <MaterialCommunityIcons
-            name="water-check"
-            size={16}
-            color={C.success}
-          />
-          <TextComponent
-            text={`Hoàn thành ${Math.round(pct * 100)}%`}
-            variant="caption"
-            weight="semibold"
-          />
+        <ViewComponent row gap={6} px={10} py={6} radius={999} border borderColor={FRAME_BORDER} backgroundColor={C.white} alignItems="center">
+          <MaterialCommunityIcons name="water-check" size={16} color={C.success} />
+          <TextComponent text={`Hoàn thành ${Math.round(pct * 100)}%`} variant="caption" weight="semibold" />
         </ViewComponent>
       </ViewComponent>
     </ViewComponent>
@@ -291,19 +204,29 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
   },
-  roundBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 999,
+  addBtn: {
+    height: 48,                  // nhỏ hơn 54
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+    marginTop: 8,                // sát hơn
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
   },
-  heroWrap: { width: 90, height: 90 },
-  heroGlow: {
+  heroWrap: { width: 90, height: 90, marginTop: 6 },
+  heroGlow: { position: 'absolute', width: 90, height: 90, borderRadius: 999 },
+  bottleFrame: {
+    width: 72, height: 72, overflow: 'hidden', // để clip mực nước
+  },
+  waterFill: {
     position: 'absolute',
-    width: 90,
-    height: 90,
-    borderRadius: 999,
+    left: 0, right: 0, bottom: 0,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+    opacity: 0.9,
+  },
+  bottleIcon: {
+    position: 'absolute',
   },
 });
