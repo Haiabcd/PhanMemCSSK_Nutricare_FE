@@ -16,3 +16,15 @@ export async function getMealPlanByDate(
 }
 
 
+// Đổi kế hoạch
+export async function smartSwapMealItem(
+  itemId: string,
+  signal?: AbortSignal
+): Promise<ApiResponse<void>> {
+  const res = await api.put<ApiResponse<void>>(
+    `/meal-plans/${itemId}/swap`,
+    null,
+    { signal }
+  );
+  return res.data;
+}

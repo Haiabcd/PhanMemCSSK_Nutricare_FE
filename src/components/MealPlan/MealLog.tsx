@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Entypo from 'react-native-vector-icons/Entypo';
@@ -6,6 +6,8 @@ import TextComponent from '../TextComponent';
 import ViewComponent from '../ViewComponent';
 import { colors as C } from '../../constants/colors';
 import { MealPlanItemResponse } from '../../types/mealPlan.type';
+import { smartSwapMealItem } from '../../services/planDay.service';
+import { deletePlanLogById } from '../../services/log.service'; // NEW
 
 /* ========= types ========= */
 export type Range = 'day' | 'week';
@@ -31,6 +33,7 @@ export interface MealLogProps {
   onChangeMeal?: (item: MealPlanItemResponse) => void;
   onViewDetail?: (item: MealPlanItemResponse) => void;
   onLogEat?: (mealPlanItemId: string) => Promise<void> | void;
+  onAfterSwap?: () => void; // refetch sau swap hoặc unlog
 }
 
 /* ========= helpers ========= */
@@ -62,7 +65,7 @@ const kcalTotalOf = (sections: Section[]) =>
     0,
   );
 
-/* ========= map items thật -> sections theo mealSlot ========= */
+/* ========= meal order & labels ========= */
 const MEAL_ORDER: Array<'BREAKFAST' | 'LUNCH' | 'SNACK' | 'DINNER'> = [
   'BREAKFAST',
   'LUNCH',
@@ -76,12 +79,67 @@ const MEAL_VN: Record<(typeof MEAL_ORDER)[number], string> = {
   DINNER: 'Bữa tối',
 };
 
-function mapItemsToSections(
+/* ========= stable comparator utils ========= */
+function toNum(x: any, def = Number.MAX_SAFE_INTEGER): number {
+  if (x == null) return def;
+  const n = Number(x);
+  return Number.isFinite(n) ? n : def;
+}
+function toTime(x: any, def = 9_223_372_036_854_775_807n): bigint {
+  try {
+    if (!x) return def;
+    if (typeof x === 'number') return BigInt(Math.floor(x));
+    if (typeof x === 'string') {
+      const t = Date.parse(x);
+      return Number.isFinite(t) ? BigInt(t) : def;
+    }
+    if (x instanceof Date) return BigInt(x.getTime());
+    return def;
+  } catch {
+    return def;
+  }
+}
+
+/** So sánh ổn định: displayOrder/orderIndex/position -> createdAt -> tên -> id */
+function mealItemComparator(
+  a: MealItem,
+  b: MealItem,
+  aOrig?: MealPlanItemResponse,
+  bOrig?: MealPlanItemResponse,
+) {
+  const ao = aOrig as any;
+  const bo = bOrig as any;
+
+  const aOrder = toNum(ao?.displayOrder ?? ao?.orderIndex ?? ao?.position);
+  const bOrder = toNum(bo?.displayOrder ?? bo?.orderIndex ?? bo?.position);
+  if (aOrder !== bOrder) return aOrder - bOrder;
+
+  const aTime = toTime(ao?.createdAt ?? ao?.updatedAt);
+  const bTime = toTime(bo?.createdAt ?? bo?.updatedAt);
+  if (aTime !== bTime) return aTime < bTime ? -1 : 1;
+
+  const aName = (a.title || '').toLowerCase();
+  const bName = (b.title || '').toLowerCase();
+  if (aName !== bName) return aName < bName ? -1 : 1;
+
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/* ========= id -> original map (tối ưu O(1)) ========= */
+const useIdMap = (items?: MealPlanItemResponse[]) =>
+  useMemo(() => {
+    const m = new Map<string, MealPlanItemResponse>();
+    (items ?? []).forEach(it => m.set(it.id, it));
+    return m;
+  }, [items]);
+
+/* ========= map items -> sections (có sort ổn định) ========= */
+function mapItemsToSectionsStable(
   items: MealPlanItemResponse[] | undefined,
+  idMap: Map<string, MealPlanItemResponse>,
 ): Section[] {
   if (!items || items.length === 0) return [];
 
-  // group theo mealSlot
   const grouped = new Map<(typeof MEAL_ORDER)[number], MealItem[]>();
 
   for (const it of items) {
@@ -105,11 +163,14 @@ function mapItemsToSections(
     grouped.get(slot)!.push(mealItem);
   }
 
-  // tạo sections theo thứ tự chuẩn
   const sections: Section[] = [];
   for (const slot of MEAL_ORDER) {
     const itemsInSlot = grouped.get(slot);
     if (!itemsInSlot || itemsInSlot.length === 0) continue;
+
+    itemsInSlot.sort((a, b) =>
+      mealItemComparator(a, b, idMap.get(a.id), idMap.get(b.id)),
+    );
 
     const icon: Section['icon'] =
       slot === 'BREAKFAST'
@@ -172,17 +233,22 @@ function MealItemCard({
   it,
   checked,
   onToggle,
-  // ⬇️ 2 action mới
   onChange,
   onDetail,
+  changeDisabled,
+  changing,
 }: {
   it: MealItem;
   checked?: boolean;
   onToggle?: () => void;
   onChange?: () => void;
   onDetail?: () => void;
+  changeDisabled?: boolean;
+  changing?: boolean;
 }) {
   const [imgError, setImgError] = useState(false);
+
+  const showDisabled = !!changeDisabled || !!changing;
 
   return (
     <ViewComponent style={st.mealCard}>
@@ -250,20 +316,31 @@ function MealItemCard({
 
         {/* ====== Actions: Đổi món / Xem chi tiết ====== */}
         <ViewComponent row gap={10} flex={0}>
+          {/* Nút Đổi món: disabled nếu đã ăn hoặc đang đổi */}
           <Pressable
-            style={[st.btn, st.btnPrimary]}
-            onPress={onChange}
+            style={[st.btn, showDisabled ? st.btnDisabled : st.btnPrimary]}
+            onPress={showDisabled ? undefined : onChange}
+            disabled={showDisabled}
             accessibilityRole="button"
+            accessibilityState={{ disabled: showDisabled }}
           >
             <ViewComponent row gap={6} center flex={0}>
               <MaterialCommunityIcons
-                name="swap-horizontal-bold"
+                name={
+                  changeDisabled
+                    ? 'lock'
+                    : changing
+                    ? 'progress-clock'
+                    : 'swap-horizontal-bold'
+                }
                 size={16}
-                color={C.white}
+                color={showDisabled ? C.slate500 : C.white}
               />
               <TextComponent
-                text="Đổi món"
-                color={C.white}
+                text={
+                  changeDisabled ? 'Đã ăn' : changing ? 'Đang đổi…' : 'Đổi món'
+                }
+                color={showDisabled ? C.slate500 : C.white}
                 size={12}
                 weight="bold"
               />
@@ -362,42 +439,96 @@ export default function MealLog({
   onChangeMeal,
   onViewDetail,
   onLogEat,
+  onAfterSwap,
 }: MealLogProps) {
-  const sections = useMemo<Section[]>(() => mapItemsToSections(items), [items]);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const idMap = useIdMap(items);
+  const sections = useMemo<Section[]>(
+    () => mapItemsToSectionsStable(items, idMap),
+    [items, idMap],
+  );
 
-  // toggle + gọi onLogEat khi chuyển từ chưa chọn -> đã chọn
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [swappingIds, setSwappingIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!items || items.length === 0) {
+      setSelected(new Set());
+      return;
+    }
+    const next = new Set(items.filter(it => it.used === true).map(it => it.id));
+    setSelected(next);
+  }, [items]);
+
+  // Tick: ON -> log; OFF -> xoá log (nếu trước đó used === true)
   const toggle = useCallback(
     async (id: string) => {
-      let nextChecked = false;
+      const willCheck = !selected.has(id); // trạng thái sau khi bấm
+      const original = idMap.get(id);
+      const wasUsed = original?.used === true;
+
+      // cập nhật UI ngay (optimistic)
       setSelected(prev => {
         const next = new Set(prev);
-        if (next.has(id)) {
-          next.delete(id);
-          nextChecked = false;
-        } else {
-          next.add(id);
-          nextChecked = true;
-        }
+        if (willCheck) next.add(id);
+        else next.delete(id);
         return next;
       });
 
-      // Nếu vừa tick ON thì gọi API log ăn
-      if (nextChecked && onLogEat) {
-        try {
-          await onLogEat(id);
-        } catch (e) {
-          // nếu lỗi -> rollback tick
-          setSelected(prev => {
-            const rollback = new Set(prev);
-            rollback.delete(id);
-            return rollback;
-          });
-          console.log('Log ăn thất bại:', e);
+      try {
+        if (willCheck) {
+          // OFF -> ON
+          if (!wasUsed && onLogEat) {
+            await onLogEat(id);
+          }
+          // nếu wasUsed === true mà vẫn ON lại thì không gọi gì (đã có log sẵn)
+        } else {
+          // ON -> OFF: chỉ xoá log nếu trước đó used === true
+          if (wasUsed) {
+            await deletePlanLogById(id);
+            onAfterSwap?.(); // dùng chung để parent refetch
+          }
         }
+      } catch (e) {
+        // rollback nếu lỗi
+        setSelected(prev => {
+          const rollback = new Set(prev);
+          if (willCheck) {
+            // đã add -> remove lại
+            rollback.delete(id);
+          } else {
+            // đã remove -> add lại
+            rollback.add(id);
+          }
+          return rollback;
+        });
+        console.log('Toggle log thất bại:', e);
       }
     },
-    [onLogEat],
+    [selected, onLogEat, idMap, onAfterSwap],
+  );
+
+  // Handler bấm "Đổi món": gọi API smartSwapMealItem nếu nút khả dụng
+  const handleChange = useCallback(
+    async (orig?: MealPlanItemResponse) => {
+      if (!orig) return;
+      if (orig.used === true) return;
+      const id = orig.id;
+
+      setSwappingIds(prev => new Set(prev).add(id));
+      try {
+        await smartSwapMealItem(id);
+        onAfterSwap?.();
+      } catch (e) {
+        console.log('Smart swap thất bại:', e);
+      } finally {
+        setSwappingIds(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    },
+    [onAfterSwap],
   );
 
   return (
@@ -422,16 +553,20 @@ export default function MealLog({
           <ViewComponent key={sec.id} mt={14}>
             <SectionHeader name={sec.name} kcal={kcalTotalOf([sec])} />
             {sec.items.map(it => {
-              // lấy item gốc để truyền ra callback
-              const original = items?.find(x => x.id === it.id);
+              const original = idMap.get(it.id);
+              const changeDisabled = original?.used === true;
+              const changing = swappingIds.has(it.id);
+
               return (
                 <MealItemCard
                   key={it.id}
                   it={it}
                   checked={selected.has(it.id)}
                   onToggle={() => toggle(it.id)}
-                  onChange={() => original && onChangeMeal?.(original)}
+                  onChange={() => original && handleChange(original)}
                   onDetail={() => original && onViewDetail?.(original)}
+                  changeDisabled={changeDisabled}
+                  changing={changing}
                 />
               );
             })}
@@ -477,7 +612,7 @@ const st = StyleSheet.create({
 
   mealThumbWrap: {
     width: '100%',
-    height: 400,
+    height: 260,
     position: 'relative',
     backgroundColor: C.slate100,
   },
@@ -499,7 +634,6 @@ const st = StyleSheet.create({
     borderWidth: 2,
     backgroundColor: C.white,
   },
-  // Tick dùng teal để dịu mắt
   tickOn: { backgroundColor: ACCENT, borderColor: ACCENT },
   tickOff: { borderColor: ACCENT },
 
@@ -530,5 +664,11 @@ const st = StyleSheet.create({
     backgroundColor: ACCENT_SURFACE,
     borderWidth: 1,
     borderColor: ACCENT_BORDER,
+  },
+  // Disabled cho nút Đổi món — phối màu dễ nhìn hơn
+  btnDisabled: {
+    backgroundColor: C.primarySurface,
+    borderWidth: 1,
+    borderColor: C.primaryBorder,
   },
 });
