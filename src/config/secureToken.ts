@@ -29,8 +29,10 @@ export function registerAuthHeaderSetter(fn: (auth?: string) => void) {
 function setAxiosAuthHeader(token: TokenData | null) {
   if (token?.accessToken) {
     const auth = `${token.tokenType ?? 'Bearer'} ${token.accessToken}`;
+    console.log('[AUTH] set axios Authorization =', auth.slice(0, 20) + '...');
     setAuthHeaderFn(auth);
   } else {
+    console.log('[AUTH] clear axios Authorization');
     setAuthHeaderFn(undefined);
   }
 }

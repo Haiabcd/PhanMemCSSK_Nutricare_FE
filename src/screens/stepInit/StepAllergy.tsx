@@ -18,7 +18,7 @@ import TextComponent from '../../components/TextComponent';
 import ViewComponent from '../../components/ViewComponent';
 import GreenScrollbar from '../../components/Step/GreenScrollbar';
 import axios from 'axios';
-import { getAllAllergiesComplete } from '../../services/allergy.service';
+import { getAllAllergies } from '../../services/allergy.service';
 import type { Condition } from '../../types/types';
 
 const normalize = (s: string) =>
@@ -50,7 +50,7 @@ const StepAllergiesScreen = () => {
     (async () => {
       try {
         setLoading(true);
-        const data: Condition[] = await getAllAllergiesComplete(
+        const data: Condition[] = await getAllAllergies(
           controller.signal,
         );
 

@@ -132,6 +132,7 @@ export interface NutritionDto {
   kcal: number;
   proteinG: number;
   carbG: number;
+
   fatG: number;
   fiberG: number;
   sodiumMg: number;

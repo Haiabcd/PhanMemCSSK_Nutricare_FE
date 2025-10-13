@@ -18,7 +18,7 @@ import TextComponent from '../../components/TextComponent';
 import ViewComponent from '../../components/ViewComponent';
 import GreenScrollbar from '../../components/Step/GreenScrollbar';
 import axios from 'axios';
-import { getAllConditionsComplete } from '../../services/condition.service';
+import { getAllConditions } from '../../services/condition.service';
 import type { Condition } from '../../types/types';
 
 /** Chuẩn hoá bỏ dấu để search không phân biệt dấu */
@@ -55,7 +55,7 @@ const StepConditionScreen = () => {
     (async () => {
       try {
         setLoading(true);
-        const data: Condition[] = await getAllConditionsComplete(
+        const data: Condition[] = await getAllConditions(
           controller.signal,
         );
 
