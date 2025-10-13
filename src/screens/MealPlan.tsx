@@ -21,10 +21,10 @@ import type { PlanStackParamList } from '../navigation/PlanNavigator';
 import type { ApiResponse } from '../types/types';
 import type { MealPlanResponse } from '../types/mealPlan.type';
 import { getMealPlanByDate } from '../services/planDay.service';
+import { savePlanLogById } from '../services/log.service';
 import { fmtVNFull, toISODateOnly } from '../helpers/mealPlan.helper';
 import DateButton from '../components/Date/DateButton';
 import DatePickerSheet from '../components/Date/DatePickerSheet';
-
 /* ================== Avatar fallback ================== */
 function Avatar({
   name,
@@ -77,6 +77,7 @@ const MealPlan = () => {
           signal,
         );
         setData(res.data);
+        console.log('Fetched meal plan data:', res.data);
       } catch {
         setData(null);
       } finally {
@@ -101,6 +102,16 @@ const MealPlan = () => {
     const ac = new AbortController();
     fetchData(date, ac.signal, { isRefresh: true });
   };
+
+  const onLogEat = useCallback(
+    async (mealPlanItemId: string) => {
+      console.log('Logging eat for mealPlanItemId:', mealPlanItemId);
+      await savePlanLogById(mealPlanItemId);
+      const ac = new AbortController();
+      await fetchData(date, ac.signal);
+    },
+    [date, fetchData],
+  );
 
   const goTodayAnd = (mode: 'day' | 'week') => {
     setRange(mode);
@@ -262,6 +273,7 @@ const MealPlan = () => {
                 // TODO: mở bottom sheet đổi món cho item
               }}
               onViewDetail={() => navigation.navigate('MealLogDetail')}
+              onLogEat={onLogEat}
             />
           </ViewComponent>
         </ViewComponent>

@@ -30,6 +30,7 @@ export interface MealLogProps {
   onPickDate?: (d: Date) => void;
   onChangeMeal?: (item: MealPlanItemResponse) => void;
   onViewDetail?: (item: MealPlanItemResponse) => void;
+  onLogEat?: (mealPlanItemId: string) => Promise<void> | void;
 }
 
 /* ========= helpers ========= */
@@ -360,19 +361,44 @@ export default function MealLog({
   onPickDate,
   onChangeMeal,
   onViewDetail,
+  onLogEat,
 }: MealLogProps) {
-  // sections cho chế độ 'day'
   const sections = useMemo<Section[]>(() => mapItemsToSections(items), [items]);
-
-  // Local tick chọn món (UI Only)
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const toggle = useCallback((id: string) => {
-    setSelected(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }, []);
+
+  // toggle + gọi onLogEat khi chuyển từ chưa chọn -> đã chọn
+  const toggle = useCallback(
+    async (id: string) => {
+      let nextChecked = false;
+      setSelected(prev => {
+        const next = new Set(prev);
+        if (next.has(id)) {
+          next.delete(id);
+          nextChecked = false;
+        } else {
+          next.add(id);
+          nextChecked = true;
+        }
+        return next;
+      });
+
+      // Nếu vừa tick ON thì gọi API log ăn
+      if (nextChecked && onLogEat) {
+        try {
+          await onLogEat(id);
+        } catch (e) {
+          // nếu lỗi -> rollback tick
+          setSelected(prev => {
+            const rollback = new Set(prev);
+            rollback.delete(id);
+            return rollback;
+          });
+          console.log('Log ăn thất bại:', e);
+        }
+      }
+    },
+    [onLogEat],
+  );
 
   return (
     <ViewComponent>
