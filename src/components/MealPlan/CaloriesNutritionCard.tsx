@@ -17,7 +17,6 @@ export type CaloriesNutritionCardProps = {
     fat: Macro;
     fiber: Macro;
   };
-  modeLabel?: string;
   style?: any;
   titleStyle?: any;
   onPressStatistics?: () => void;
@@ -114,7 +113,6 @@ export default function CaloriesNutritionCard({
   eaten,
   burned = 0,
   macros,
-  modeLabel,
   style,
   titleStyle,
   onPressStatistics,
@@ -160,8 +158,19 @@ export default function CaloriesNutritionCard({
           style={titleStyle}
         />
         <Pressable onPress={onPressStatistics}>
-          <ViewComponent px={10} py={6} radius={999} border borderColor={C.slate50}>
-            <TextComponent text="Thống kê" color={C.textWhite} weight="bold" size={14} />
+          <ViewComponent
+            px={10}
+            py={6}
+            radius={999}
+            border
+            borderColor={C.slate50}
+          >
+            <TextComponent
+              text="Thống kê"
+              color={C.textWhite}
+              weight="bold"
+              size={14}
+            />
           </ViewComponent>
         </Pressable>
       </ViewComponent>
@@ -308,33 +317,6 @@ export default function CaloriesNutritionCard({
           tint={C.success}
         />
       </ViewComponent>
-
-      {/* Mode chip */}
-      {modeLabel ? (
-        <ViewComponent row justifyContent="center" gap={8} mt={12} flex={0}>
-          <TextComponent
-            text="Bạn đang ăn theo chế độ:"
-            color={C.textWhite}
-            size={15}
-            style={{ opacity: 0.9 }}
-          />
-          <ViewComponent
-            px={10}
-            py={4}
-            radius={8}
-            border
-            borderColor={C.greenBorder}
-            backgroundColor={C.greenSurface}
-          >
-            <TextComponent
-              text={modeLabel}
-              color={C.emerald800}
-              size={14}
-              weight="bold"
-            />
-          </ViewComponent>
-        </ViewComponent>
-      ) : null}
     </ViewComponent>
   );
 }

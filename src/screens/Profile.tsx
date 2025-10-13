@@ -114,12 +114,23 @@ export default function ProfileScreen() {
                     navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
                 }),
             },
-        ]);
-    };
+            () => {
+              navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
+            },
+          );
+        },
+      },
+    ]);
+  };
 
-    const onDeleteAccount = () => {
-        Alert.alert('Xóa tài khoản', 'Bạn có chắc muốn xóa tài khoản?', [
-            { text: 'Hủy', style: 'cancel' },
+  const onDeleteAccount = () => {
+    Alert.alert('Xóa tài khoản', 'Bạn có chắc muốn xóa tài khoản?', [
+      { text: 'Hủy', style: 'cancel' },
+      {
+        text: 'Xóa',
+        style: 'destructive',
+        onPress: () => {
+          showToast(
             {
                 text: 'Xóa', style: 'destructive',
                 onPress: () => showToast({ title: 'Đã xóa tài khoản', subtitle: 'Tài khoản của bạn đã được xóa thành công.' }, () => {

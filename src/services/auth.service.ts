@@ -9,7 +9,7 @@ import type {
 import {
   saveTokenPairFromBE,
   removeTokenSecure,
-  getTokenSecure,
+  getTokenSecure, 
   applyAuthHeaderFromKeychain
 } from '../config/secureToken';
 
@@ -36,10 +36,10 @@ export async function onboarding(
 export async function refreshTokens(
   payload: RefreshRequest
 ): Promise<ApiResponse<TokenPairResponse>> {
-  const res = await api.post<ApiResponse<TokenPairResponse>>('/auths/refresh', payload,
-    {
-      headers: { Authorization: undefined },
-    });
+  const res = await api.post<ApiResponse<TokenPairResponse>>('/auths/refresh', payload, 
+  {
+    headers: { Authorization: undefined }, 
+  });
   const pair = res.data?.data ?? null;
   console.log('Gọi refresh token:', pair);
   if (pair) {
