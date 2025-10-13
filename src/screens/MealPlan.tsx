@@ -308,7 +308,9 @@ const MealPlan = () => {
               items={data?.items || []}
               activeDate={date}
               onPickDate={d => setDate(d)}
-              onViewDetail={() => navigation.navigate('MealLogDetail')}
+              onViewDetail={foodId =>
+                navigation.navigate('MealLogDetail', { id: foodId })
+              }
               onLogEat={onLogEat}
               onAfterSwap={onAfterSwap}
             />

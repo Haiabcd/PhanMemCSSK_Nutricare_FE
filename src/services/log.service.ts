@@ -17,14 +17,14 @@ export async function savePlanLogById(
 
 // Lấy dinh dưỡng đã dùng mỗi ngày
 export async function getDailyNutrition(dateIso: string, signal?: AbortSignal) {
-  const res = await api.get<ApiResponse<NutritionResponse>>('/logs', {
+  const res = await api.get<ApiResponse<NutritionResponse>>('/logs/nutriLog', {
     params: { date: dateIso },
     signal, 
   });
   return res.data.data!;
 }
 
-// ❌ Xoá log cho một mục trong meal plan
+// Xoá log cho một mục trong meal plan
 export async function deletePlanLogById(
   mealPlanItemId: string,
   signal?: AbortSignal

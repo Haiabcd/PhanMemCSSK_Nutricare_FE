@@ -14,24 +14,27 @@ export type Range = 'day' | 'week';
 
 export type MealItem = {
   id: string;
+  foodId: string;
   title: string;
   kcal: number;
   img: string;
   weightLine?: string;
 };
+
 export type Section = {
   id: string;
   name: string;
   icon?: 'coffee' | 'silverware-fork-knife' | 'weather-night' | 'leaf';
   items: MealItem[];
 };
+
 export interface MealLogProps {
   range?: Range; // 'day' | 'week'
   items?: MealPlanItemResponse[];
   activeDate?: Date;
   onPickDate?: (d: Date) => void;
   onChangeMeal?: (item: MealPlanItemResponse) => void;
-  onViewDetail?: (item: MealPlanItemResponse) => void;
+  onViewDetail?: (foodId: string) => void; // CHANGED: truyền foodId
   onLogEat?: (mealPlanItemId: string) => Promise<void> | void;
   onAfterSwap?: () => void; // refetch sau swap hoặc unlog
 }
@@ -76,7 +79,7 @@ const MEAL_VN: Record<(typeof MEAL_ORDER)[number], string> = {
   BREAKFAST: 'Bữa sáng',
   LUNCH: 'Bữa trưa',
   SNACK: 'Đồ ăn vặt ',
-  DINNER: 'Bữa tối',
+  DINNER: 'Bữa chiều',
 };
 
 /* ========= stable comparator utils ========= */
@@ -153,11 +156,20 @@ function mapItemsToSectionsStable(
     );
     const title = it.food?.name ?? 'Món';
     const img = it.food?.imageUrl || '';
+    const foodId = it.food?.id || ''; // NEW
+
     const portion = (it as any).portion ?? 1;
     const serving = it.food?.servingName || 'phần ăn';
     const weightLine = `x${portion} · ${serving}`;
 
-    const mealItem: MealItem = { id: it.id, title, kcal, img, weightLine };
+    const mealItem: MealItem = {
+      id: it.id,
+      foodId,
+      title,
+      kcal,
+      img,
+      weightLine,
+    };
 
     if (!grouped.has(slot)) grouped.set(slot, []);
     grouped.get(slot)!.push(mealItem);
@@ -247,7 +259,6 @@ function MealItemCard({
   changing?: boolean;
 }) {
   const [imgError, setImgError] = useState(false);
-
   const showDisabled = !!changeDisabled || !!changing;
 
   return (
@@ -564,7 +575,7 @@ export default function MealLog({
                   checked={selected.has(it.id)}
                   onToggle={() => toggle(it.id)}
                   onChange={() => original && handleChange(original)}
-                  onDetail={() => original && onViewDetail?.(original)}
+                  onDetail={() => it.foodId && onViewDetail?.(it.foodId)} // truyền foodId
                   changeDisabled={changeDisabled}
                   changing={changing}
                 />
