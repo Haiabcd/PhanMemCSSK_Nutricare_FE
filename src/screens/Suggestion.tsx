@@ -1,4 +1,5 @@
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+// src/screens/Suggestion.tsx
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import {
   Image,
   Pressable,
@@ -7,6 +8,7 @@ import {
   StyleSheet,
   useWindowDimensions,
   ScrollView,
+  RefreshControl,
 } from 'react-native';
 import Container from '../components/Container';
 import TextComponent from '../components/TextComponent';
@@ -15,10 +17,13 @@ import Entypo from 'react-native-vector-icons/Entypo';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import McIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { colors as C } from '../constants/colors';
-
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { SuggestionStackParamList } from '../navigation/SuggestionNavigator';
+
+import { getUpcomingFoods } from '../services/suggestion.service';
+import type { PageableResponse } from '../types/types';
+import type { FoodResponse } from '../types/food.type';
 
 /* ================== Avatar fallback ================== */
 function Avatar({
@@ -67,87 +72,152 @@ type Recipe = {
   slot: Slot;
 };
 
-const CATS: Category[] = [
-  'Tất cả',
-  'Bữa sáng',
-  'Bữa trưa',
-  'Bữa chiều',
-  'Bữa phụ',
-];
+const CATS: Category[] = ['Tất cả', 'Bữa sáng', 'Bữa trưa', 'Bữa chiều', 'Bữa phụ'];
 
-const RECIPES: Recipe[] = [
-  {
-    id: '1',
-    title: 'Salad Gà Ớt',
-    desc: 'Món salad tươi ngon, giàu rau củ, phù hợp giảm cân.',
-    cal: 380,
-    protein: 18,
-    image:
-      'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=1200',
-    slot: 'Bữa trưa',
-  },
-  {
-    id: '2',
-    title: 'Quinoa & Cá Hồi',
-    desc: 'Omega-3 từ cá hồi, giàu hạt quinoa cho sức khỏe.',
-    cal: 450,
-    protein: 35,
-    image:
-      'https://images.unsplash.com/photo-1532550907401-a500c9a57435?q=80&w=1200',
-    slot: 'Bữa chiều',
-  },
-  {
-    id: '3',
-    title: 'Sinh Tố Rau Xanh',
-    desc: 'Kết hợp rau xanh & trái cây, vitamin tự nhiên.',
-    cal: 250,
-    protein: 8,
-    image:
-      'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=1200',
-    slot: 'Bữa sáng',
-  },
-  {
-    id: '4',
-    title: 'Gà Tôm Xào Rau',
-    desc: 'Món xào nhẹ, gà và rau củ cân đối.',
-    cal: 400,
-    protein: 30,
-    image:
-      'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=1200',
-    slot: 'Bữa chiều',
-  },
-  {
-    id: '5',
-    title: 'Salad Đậu & Rau',
-    desc: 'Đơn giản với đậu & rau, hợp ăn chay.',
-    cal: 320,
-    protein: 12,
-    image:
-      'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=1200',
-    slot: 'Bữa trưa',
-  },
-  {
-    id: '6',
-    title: 'Sữa Chua & Trái Cây',
-    desc: 'Giàu protein từ sữa chua, trái cây tươi.',
-    cal: 300,
-    protein: 20,
-    image:
-      'https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?q=80&w=1200',
-    slot: 'Bữa phụ',
-  },
-];
+// Map meal slot BE -> UI label (tùy enum BE của bạn)
+const mapMealSlot = (slot?: string): Slot => {
+  if (!slot) return 'Bữa trưa';
+  const s = slot.toLowerCase();
+  if (s.includes('breakfast') || s.includes('sang')) return 'Bữa sáng';
+  if (s.includes('lunch') || s.includes('trua')) return 'Bữa trưa';
+  if (s.includes('dinner') || s.includes('toi') || s.includes('chieu')) return 'Bữa chiều';
+  if (s.includes('snack') || s.includes('phu')) return 'Bữa phụ';
+  return 'Bữa trưa';
+};
+
+// Map FoodResponse -> Recipe cho UI
+const toRecipe = (f: FoodResponse): Recipe => ({
+  id: f.id,
+  title: f.name,
+  desc: f.description ?? '',
+  // @ts-ignore: tuỳ NutritionResponse
+  cal: f.nutrition?.calories ?? f.nutrition?.energyKcal ?? 0,
+  // @ts-ignore
+  protein: f.nutrition?.protein ?? 0,
+  image:
+    f.imageUrl ||
+    'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=1200',
+  // Nếu BE có mealSlots, map slot đầu tiên; nếu không có thì default
+  slot: mapMealSlot((f as any).mealSlots?.[0]),
+});
 
 /* ================== Screen ================== */
 export default function Suggestion() {
+  // ✅ KHAI BÁO navigation CHỈ 1 LẦN
   const navigation =
     useNavigation<NativeStackNavigationProp<SuggestionStackParamList>>();
+
   const { height: screenH } = useWindowDimensions();
   const CONTENT_MIN_HEIGHT = Math.max(420, Math.floor(screenH * 0.79));
 
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [cat, setCat] = useState<Category>('Tất cả');
+
+  // Dữ liệu & phân trang
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [pageMeta, setPageMeta] = useState<PageableResponse<FoodResponse> | null>(null);
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 20;
+
+  // Loading flags
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+
+  // Tránh onEndReached gọi nhiều lần
+  const canLoadMoreRef = useRef(true);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query.trim().toLowerCase()), 180);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  // Tải một trang (mode: replace | append)
+  const fetchPage = useCallback(
+    async (targetPage: number, mode: 'replace' | 'append', signal?: AbortSignal) => {
+      const data = await getUpcomingFoods(targetPage, PAGE_SIZE, signal);
+      console.log(`[UpcomingFoods] page=${targetPage}`, data);
+
+      setPageMeta(data);
+
+      const mapped = (data.content || []).map(toRecipe);
+      setRecipes(prev => (mode === 'replace' ? mapped : [...prev, ...mapped]));
+      setPage(targetPage);
+    },
+    [PAGE_SIZE],
+  );
+
+  // Lần đầu load
+  useEffect(() => {
+    const controller = new AbortController();
+    (async () => {
+      try {
+        setInitialLoading(true);
+        await fetchPage(0, 'replace', controller.signal);
+      } catch (e) {
+        console.error('[UpcomingFoods] initial load error:', e);
+      } finally {
+        setInitialLoading(false);
+      }
+    })();
+    return () => controller.abort();
+  }, [fetchPage]);
+
+  // Pull-to-refresh
+  const onRefresh = useCallback(async () => {
+    const controller = new AbortController();
+    try {
+      setRefreshing(true);
+      canLoadMoreRef.current = true; // reset trạng thái load-more
+      await fetchPage(0, 'replace', controller.signal);
+    } catch (e) {
+      console.error('[UpcomingFoods] refresh error:', e);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchPage]);
+
+  // Load-more cuối danh sách
+  const onEndReached = useCallback(async () => {
+    const isLast = pageMeta?.last ?? false;
+    if (!canLoadMoreRef.current || loadingMore || refreshing || isLast) return;
+    if ((pageMeta?.numberOfElements ?? 0) === 0 && recipes.length === 0) return;
+
+    try {
+      setLoadingMore(true);
+      canLoadMoreRef.current = false;
+      await fetchPage(page + 1, 'append');
+    } catch (e) {
+      console.error('[UpcomingFoods] load-more error:', e);
+    } finally {
+      setLoadingMore(false);
+      setTimeout(() => {
+        canLoadMoreRef.current = true;
+      }, 300);
+    }
+  }, [fetchPage, loadingMore, page, pageMeta, recipes.length, refreshing]);
+
+  const onMomentumScrollBegin = useCallback(() => {
+    canLoadMoreRef.current = true;
+  }, []);
+
+  // Filter theo query & category
+  const filtered = useMemo(() => {
+    return recipes.filter(r => {
+      const matchCat = cat === 'Tất cả' || r.slot === cat;
+      const matchQ =
+        debouncedQuery.length === 0 ||
+        r.title.toLowerCase().includes(debouncedQuery) ||
+        r.desc.toLowerCase().includes(debouncedQuery);
+      return matchCat && matchQ;
+    });
+  }, [debouncedQuery, cat, recipes]);
+
+  const clearFilters = useCallback(() => {
+    setQuery('');
+    setCat('Tất cả');
+  }, []);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const toggleSelect = useCallback((id: string) => {
@@ -156,30 +226,6 @@ export default function Suggestion() {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-  }, []);
-
-  useEffect(() => {
-    const t = setTimeout(
-      () => setDebouncedQuery(query.trim().toLowerCase()),
-      180,
-    );
-    return () => clearTimeout(t);
-  }, [query]);
-
-  const filtered = useMemo(() => {
-    return RECIPES.filter(r => {
-      const matchCat = cat === 'Tất cả' || r.slot === cat;
-      const matchQ =
-        debouncedQuery.length === 0 ||
-        r.title.toLowerCase().includes(debouncedQuery) ||
-        r.desc.toLowerCase().includes(debouncedQuery);
-      return matchCat && matchQ;
-    });
-  }, [debouncedQuery, cat]);
-
-  const clearFilters = useCallback(() => {
-    setQuery('');
-    setCat('Tất cả');
   }, []);
 
   const renderRecipe = useCallback(
@@ -191,16 +237,8 @@ export default function Suggestion() {
           <ViewComponent variant="card" radius={16} flex={1}>
             {/* Ảnh + tick */}
             <ViewComponent style={s.thumbWrap}>
-              <Image
-                source={{ uri: item.image }}
-                style={s.thumb}
-                resizeMode="cover"
-              />
-              <Pressable
-                onPress={() => toggleSelect(item.id)}
-                style={s.tickWrap}
-                hitSlop={8}
-              >
+              <Image source={{ uri: item.image }} style={s.thumb} resizeMode="cover" />
+              <Pressable onPress={() => toggleSelect(item.id)} style={s.tickWrap} hitSlop={8}>
                 <ViewComponent
                   center
                   radius={999}
@@ -230,23 +268,14 @@ export default function Suggestion() {
                   variant="h3"
                   tone="default"
                   numberOfLines={2}
-                  style={{
-                    letterSpacing: 0.15,
-                    height: 44,
-                    lineHeight: 22,
-                  }}
+                  style={{ letterSpacing: 0.15, height: 44, lineHeight: 22 }}
                 />
 
                 <TextComponent
                   text={item.desc}
                   variant="body"
                   numberOfLines={3}
-                  style={{
-                    lineHeight: 18,
-                    height: 54,
-                    textAlignVertical: 'top',
-                    marginBottom: 8,
-                  }}
+                  style={{ lineHeight: 18, height: 54, textAlignVertical: 'top', marginBottom: 8 }}
                 />
 
                 <ViewComponent row gap={8} wrap mb={8}>
@@ -262,11 +291,7 @@ export default function Suggestion() {
                     py={4}
                   >
                     <McIcon name="fire" size={14} color={C.red} />
-                    <TextComponent
-                      text={`${item.cal} kcal`}
-                      variant="caption"
-                      weight="bold"
-                    />
+                    <TextComponent text={`${item.cal} kcal`} variant="caption" weight="bold" />
                   </ViewComponent>
 
                   <ViewComponent
@@ -281,11 +306,7 @@ export default function Suggestion() {
                     py={4}
                   >
                     <McIcon name="food-drumstick" size={14} color={C.success} />
-                    <TextComponent
-                      text={`${item.protein}g protein`}
-                      variant="caption"
-                      weight="bold"
-                    />
+                    <TextComponent text={`${item.protein}g protein`} variant="caption" weight="bold" />
                   </ViewComponent>
                 </ViewComponent>
               </ViewComponent>
@@ -330,13 +351,7 @@ export default function Suggestion() {
           </ViewComponent>
         </ViewComponent>
         <Pressable>
-          <ViewComponent
-            center
-            radius={12}
-            backgroundColor={C.bg}
-            border
-            style={{ width: 42, height: 42 }}
-          >
+          <ViewComponent center radius={12} backgroundColor={C.bg} border style={{ width: 42, height: 42 }}>
             <Entypo name="bell" size={20} color={C.primary} />
           </ViewComponent>
         </Pressable>
@@ -379,20 +394,12 @@ export default function Suggestion() {
           horizontal
           showsHorizontalScrollIndicator={false}
           style={{ marginTop: 10, height: 44, maxHeight: 44 }}
-          contentContainerStyle={{
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flex: 1,
-          }}
+          contentContainerStyle={{ alignItems: 'center', justifyContent: 'space-between', flex: 1 }}
         >
           {CATS.map(c => {
             const active = cat === c;
             return (
-              <Pressable
-                key={`cat-${c}`}
-                onPress={() => setCat(c)}
-                style={{ marginRight: 8 }}
-              >
+              <Pressable key={`cat-${c}`} onPress={() => setCat(c)} style={{ marginRight: 8 }}>
                 <ViewComponent
                   center
                   radius={999}
@@ -427,16 +434,43 @@ export default function Suggestion() {
             contentContainerStyle={{ paddingTop: 10, flexGrow: 1 }}
             renderItem={renderRecipe}
             showsVerticalScrollIndicator={false}
-            ListEmptyComponent={
-              <ViewComponent center style={{ flex: 1, padding: 24 }}>
-                <TextComponent text="Không tìm thấy kết quả" variant="h3" />
-                <TextComponent
-                  text="Thử từ khóa khác hoặc chọn bộ lọc khác."
-                  variant="body"
-                  tone="muted"
-                  style={{ marginTop: 8, textAlign: 'center' }}
-                />
-              </ViewComponent>
+            // Pull-to-refresh
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing || initialLoading}
+                onRefresh={onRefresh}
+                tintColor={C.primary}
+                colors={[C.primary]}
+              />
+            }
+            // Infinite scroll
+            onEndReached={onEndReached}
+            onEndReachedThreshold={0.3}
+            onMomentumScrollBegin={onMomentumScrollBegin}
+            ListFooterComponent={
+              loadingMore ? (
+                <ViewComponent center style={{ padding: 12 }}>
+                  <TextComponent text="Đang tải thêm..." variant="caption" tone="muted" />
+                </ViewComponent>
+              ) : pageMeta?.last ? (
+                <ViewComponent center style={{ padding: 12 }}>
+                  <TextComponent text="Đã hiển thị tất cả" variant="caption" tone="muted" />
+                </ViewComponent>
+              ) : null
+            }
+            // ✅ KHÔNG DÙNG `&&` để tránh trả về `false`
+            ListEmptyComponent={() =>
+              initialLoading ? null : (
+                <ViewComponent center style={{ flex: 1, padding: 24 }}>
+                  <TextComponent text="Không tìm thấy kết quả" variant="h3" />
+                  <TextComponent
+                    text="Thử từ khóa khác hoặc chọn bộ lọc khác."
+                    variant="body"
+                    tone="muted"
+                    style={{ marginTop: 8, textAlign: 'center' }}
+                  />
+                </ViewComponent>
+              )
             }
           />
         </ViewComponent>
@@ -445,7 +479,7 @@ export default function Suggestion() {
   );
 }
 
-/* ================== Styles giữ tối thiểu ================== */
+/* ================== Styles ================== */
 const s = StyleSheet.create({
   avatar: { width: 52, height: 52 },
   searchInput: {
@@ -472,7 +506,7 @@ const s = StyleSheet.create({
     position: 'relative',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    overflow: 'hidden', // ✅ đảm bảo ảnh tuân theo viền bo
+    overflow: 'hidden',
   },
   thumb: {
     width: '100%',
