@@ -48,151 +48,152 @@ import FormField from '../components/Profile/FormField';
 import Dropdown from '../components/Profile/Dropdown';
 
 export default function ProfileScreen() {
-  const [showEdit, setShowEdit] = useState(false);
+    const [showEdit, setShowEdit] = useState(false);
 
-  const [data, setData] = useState<ProfileDto | null>(null);
-  const [myInfo, setMyInfo] = useState<InfoResponse | null>(null);
-  const [editData, setEditData] = useState<ProfileDto | null>(null);
-  const [editInfo, setEditInfo] = useState<InfoResponse | null>(null);
+    const [data, setData] = useState<ProfileDto | null>(null);
+    const [myInfo, setMyInfo] = useState<InfoResponse | null>(null);
+    const [editData, setEditData] = useState<ProfileDto | null>(null);
+    const [editInfo, setEditInfo] = useState<InfoResponse | null>(null);
 
-  const [loadingInfo, setLoadingInfo] = useState(false);
-  const [allowNotif, setAllowNotif] = useState<boolean>(true);
-  const navigation = useNavigation<any>();
-  const [toast, setToast] = useState<{
-    title: string;
-    subtitle?: string;
-    kind?: ToastKind;
-  } | null>(null);
+    const [loadingInfo, setLoadingInfo] = useState(false);
+    const [allowNotif, setAllowNotif] = useState<boolean>(true);
+    const navigation = useNavigation<any>();
+    const [toast, setToast] = useState<{ title: string; subtitle?: string; kind?: ToastKind } | null>(null);
 
-  type PickerType = 'condition' | 'allergy';
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerType, setPickerType] = useState<PickerType>('condition');
+    type PickerType = 'condition' | 'allergy';
+    const [pickerOpen, setPickerOpen] = useState(false);
+    const [pickerType, setPickerType] = useState<PickerType>('condition');
 
-  const [conditions, setConditions] = useState<Condition[]>([]);
-  const [allergies, setAllergies] = useState<Allergy[]>([]);
-  const [loading, setLoading] = useState(false);
+    const [conditions, setConditions] = useState<Condition[]>([]);
+    const [allergies, setAllergies] = useState<Allergy[]>([]);
+    const [loading, setLoading] = useState(false);
 
-  const [loginChoiceOpen, setLoginChoiceOpen] = useState(false);
-  const onLoginWith = (provider: 'google' | 'facebook') => {
-    setLoginChoiceOpen(false);
-    navigation.navigate('Login', { provider });
-  };
+    const [loginChoiceOpen, setLoginChoiceOpen] = useState(false);
+    const onLoginWith = (provider: 'google' | 'facebook') => {
+        setLoginChoiceOpen(false);
+        navigation.navigate('Login', { provider });
+    };
 
-  // Gộp tất cả API
-  const fetchData = useCallback(async (signal?: AbortSignal) => {
-    try {
-      setLoading(true);
-      setLoadingInfo(true);
-      const [conditionRes, allergyRes, myInfoRes] = await Promise.all([
-        getAllConditions(signal),
-        getAllAllergies(signal),
-        getMyInfo(signal),
-      ]);
+    // Gộp tất cả API
+    const fetchData = useCallback(async (signal?: AbortSignal) => {
+        try {
+            setLoading(true);
+            setLoadingInfo(true);
+            const [conditionRes, allergyRes, myInfoRes] = await Promise.all([
+                getAllConditions(signal),
+                getAllAllergies(signal),
+                getMyInfo(signal),
+            ]);
 
-      setConditions(conditionRes);
-      setAllergies(allergyRes);
+            setConditions(conditionRes);
+            setAllergies(allergyRes);
 
-      const info = myInfoRes.data as InfoResponse;
-      setMyInfo(info);
-      setData(info.profileCreationResponse);
-      setEditData(info.profileCreationResponse);
-      setEditInfo({
-        ...info,
-        conditions: [...(info.conditions ?? [])],
-        allergies: [...(info.allergies ?? [])],
-      });
-    } catch (err: any) {
-      if (err?.name !== 'CanceledError')
-        console.error('❌ fetchData error:', err?.response?.data ?? err);
-    } finally {
-      setLoading(false);
-      setLoadingInfo(false);
-    }
-  }, []);
+            const info = myInfoRes.data as InfoResponse;
+            setMyInfo(info);
+            setData(info.profileCreationResponse);
+            setEditData(info.profileCreationResponse);
+            setEditInfo({
+                ...info,
+                conditions: [...(info.conditions ?? [])],
+                allergies: [...(info.allergies ?? [])],
+            });
+        } catch (err: any) {
+            if (err?.name !== 'CanceledError') console.error('❌ fetchData error:', err?.response?.data ?? err);
+        } finally {
+            setLoading(false);
+            setLoadingInfo(false);
+        }
+    }, []);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchData(controller.signal);
-    return () => controller.abort();
-  }, [fetchData]);
+    useEffect(() => {
+        const controller = new AbortController();
+        fetchData(controller.signal);
+        return () => controller.abort();
+    }, [fetchData]);
 
-  const showToast = (
-    opts: {
-      title: string;
-      subtitle?: string;
-      kind?: ToastKind;
-      duration?: number;
-    },
-    cb?: () => void,
-  ) => {
-    const { title, subtitle, kind = 'success', duration = 1400 } = opts;
-    setToast({ title, subtitle, kind });
-    setTimeout(() => {
-      setToast(null);
-      cb && cb();
-    }, duration);
-  };
+    const showToast = (opts: { title: string; subtitle?: string; kind?: ToastKind; duration?: number }, cb?: () => void) => {
+        const { title, subtitle, kind = 'success', duration = 1400 } = opts;
+        setToast({ title, subtitle, kind });
+        setTimeout(() => { setToast(null); cb && cb(); }, duration);
+    };
 
-  const onOpenEdit = () => {
-    if (data) setEditData({ ...data });
-    if (myInfo)
-      setEditInfo({
-        ...myInfo,
-        conditions: [...(myInfo.conditions ?? [])],
-        allergies: [...(myInfo.allergies ?? [])],
-      });
-    setShowEdit(true);
-  };
+    const onOpenEdit = () => {
+        if (data) setEditData({ ...data });
+        if (myInfo)
+            setEditInfo({
+                ...myInfo,
+                conditions: [...(myInfo.conditions ?? [])],
+                allergies: [...(myInfo.allergies ?? [])],
+            });
+        setShowEdit(true);
+    };
 
-  const onLogout = () => {
-    Alert.alert(
-      'Đăng xuất',
-      'Bạn có chắc chắn muốn đăng xuất?',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Đăng xuất',
-          style: 'destructive',
-          onPress: () => {
-            showToast(
-              {
-                title: 'Đăng xuất thành công',
-                subtitle: 'Hẹn gặp lại bạn sớm nhé!',
-              },
-              () =>
-                navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] }),
-            );
-          },
-        },
-      ],
-      { cancelable: true },
-    );
-  };
+    const onLogout = () => {
+        Alert.alert(
+            'Đăng xuất',
+            'Bạn có chắc chắn muốn đăng xuất?',
+            [
+                { text: 'Hủy', style: 'cancel' },
+                {
+                    text: 'Đăng xuất',
+                    style: 'destructive',
+                    onPress: () => {
+                        showToast(
+                            { title: 'Đăng xuất thành công', subtitle: 'Hẹn gặp lại bạn sớm nhé!' },
+                            () => navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] })
+                        );
+                    },
+                },
+            ],
+            { cancelable: true }
+        );
+    };
 
-  const onDeleteAccount = () => {
-    Alert.alert(
-      'Xóa tài khoản',
-      'Bạn có chắc muốn xóa tài khoản?',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Xóa',
-          style: 'destructive',
-          onPress: () => {
-            showToast(
-              {
-                title: 'Đã xóa tài khoản',
-                subtitle: 'Tài khoản của bạn đã được xóa thành công.',
-              },
-              () =>
-                navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] }),
-            );
-          },
-        },
-      ],
-      { cancelable: true },
-    );
-  };
+    const onDeleteAccount = () => {
+        Alert.alert(
+            'Xóa tài khoản',
+            'Bạn có chắc muốn xóa tài khoản?',
+            [
+                { text: 'Hủy', style: 'cancel' },
+                {
+                    text: 'Xóa',
+                    style: 'destructive',
+                    onPress: () => {
+                        showToast(
+                            { title: 'Đã xóa tài khoản', subtitle: 'Tài khoản của bạn đã được xóa thành công.' },
+                            () => navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] })
+                        );
+                    },
+                },
+            ],
+            { cancelable: true }
+        );
+    };
+
+
+    const openPicker = (type: PickerType) => { setPickerType(type); setPickerOpen(true); };
+
+    return (
+        <Container>
+            {loading && <ActivityIndicator size="large" color="#22C55E" />}
+            <LoadingOverlay visible={loadingInfo} label="Đang đồng bộ..." />
+
+            <ToastCenter visible={!!toast} title={toast?.title ?? ''} subtitle={toast?.subtitle} kind={toast?.kind ?? 'success'} />
+
+            {/* Header */}
+            <ViewComponent row between alignItems="center">
+                <ViewComponent row alignItems="center" gap={10} flex={0}>
+                    <HeaderAvatar name="Anh Hải" />
+                    <ViewComponent flex={0}>
+                        <TextComponent text="Xin chào," variant="caption" tone="muted" />
+                        <TextComponent text="Anh Hải" variant="subtitle" weight="bold" />
+                    </ViewComponent>
+                </ViewComponent>
+
+                <Pressable style={styles.iconContainer} onPress={() => navigation.navigate('Notification')}>
+                    <Entypo name="bell" size={20} color={C.primary} />
+                </Pressable>
+            </ViewComponent>
 
   const openPicker = (type: PickerType) => {
     setPickerType(type);
