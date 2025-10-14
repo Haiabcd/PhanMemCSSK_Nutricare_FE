@@ -265,7 +265,7 @@ export default function CaloriesNutritionCard({
             />
           </ViewComponent>
 
-          <ViewComponent row alignItems="center" gap={8}>
+          {/* <ViewComponent row alignItems="center" gap={8}>
             <MaterialCommunityIcons name="fire" size={18} color={C.red} />
             <TextComponent
               text="Tiêu hao"
@@ -277,7 +277,7 @@ export default function CaloriesNutritionCard({
               color={C.textWhite}
               weight="bold"
             />
-          </ViewComponent>
+          </ViewComponent> */}
         </ViewComponent>
       </ViewComponent>
 

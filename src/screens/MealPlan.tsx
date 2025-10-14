@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Image,
   StyleSheet,
@@ -6,6 +6,7 @@ import {
   Pressable,
   ActivityIndicator,
   RefreshControl,
+  InteractionManager,
 } from 'react-native';
 import Entypo from 'react-native-vector-icons/Entypo';
 import Container from '../components/Container';
@@ -18,15 +19,15 @@ import { colors as C } from '../constants/colors';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { PlanStackParamList } from '../navigation/PlanNavigator';
-import type { ApiResponse } from '../types/types';
+import type { NutritionResponse } from '../types/types';
 import type { MealPlanResponse } from '../types/mealPlan.type';
 import { getMealPlanByDate } from '../services/planDay.service';
-import { savePlanLogById } from '../services/log.service';
+import { getDailyNutrition, savePlanLogById } from '../services/log.service';
 import { fmtVNFull, toISODateOnly } from '../helpers/mealPlan.helper';
 import DateButton from '../components/Date/DateButton';
 import DatePickerSheet from '../components/Date/DatePickerSheet';
-/* ================== Avatar fallback ================== */
-function Avatar({
+
+const Avatar = React.memo(function Avatar({
   name,
   photoUri,
 }: {
@@ -52,7 +53,7 @@ function Avatar({
       />
     </ViewComponent>
   );
-}
+});
 
 const MealPlan = () => {
   const [range, setRange] = useState<'day' | 'week'>('day');
@@ -60,32 +61,32 @@ const MealPlan = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<PlanStackParamList>>();
   const [data, setData] = useState<MealPlanResponse | null>(null);
+  const [dailyNutri, setDailyNutri] = useState<NutritionResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
 
   const fetchData = useCallback(
     async (d: Date, signal?: AbortSignal, opts?: { isRefresh?: boolean }) => {
-      if (opts?.isRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+      opts?.isRefresh ? setRefreshing(true) : setLoading(true);
       try {
-        const res: ApiResponse<MealPlanResponse> = await getMealPlanByDate(
-          toISODateOnly(d),
-          signal,
-        );
-        setData(res.data);
-        console.log('Fetched meal plan data:', res.data);
+        const dateIso = toISODateOnly(d);
+        const [planRes, nutriRes] = await Promise.all([
+          getMealPlanByDate(dateIso, signal),
+          getDailyNutrition(dateIso, signal),
+        ]);
+
+        if (signal?.aborted) return;
+        setData(planRes.data ?? null);
+        setDailyNutri(nutriRes ?? null);
       } catch {
-        setData(null);
-      } finally {
-        if (opts?.isRefresh) {
-          setRefreshing(false);
-        } else {
-          setLoading(false);
+        if (!signal?.aborted) {
+          setData(null);
+          setDailyNutri(null);
         }
+      } finally {
+        if (signal?.aborted) return;
+        opts?.isRefresh ? setRefreshing(false) : setLoading(false);
       }
     },
     [],
@@ -93,19 +94,23 @@ const MealPlan = () => {
 
   useEffect(() => {
     const ac = new AbortController();
-    fetchData(date, ac.signal);
-    return () => ac.abort();
+    const task = InteractionManager.runAfterInteractions(() => {
+      fetchData(date, ac.signal);
+    });
+    return () => {
+      ac.abort();
+      // @ts-ignore
+      task?.cancel?.();
+    };
   }, [date, fetchData]);
 
-  // Kéo để làm mới (refetch ngày hiện tại)
-  const onRefresh = () => {
+  const onRefresh = useCallback(() => {
     const ac = new AbortController();
     fetchData(date, ac.signal, { isRefresh: true });
-  };
+  }, [date, fetchData]);
 
   const onLogEat = useCallback(
     async (mealPlanItemId: string) => {
-      console.log('Logging eat for mealPlanItemId:', mealPlanItemId);
       await savePlanLogById(mealPlanItemId);
       const ac = new AbortController();
       await fetchData(date, ac.signal);
@@ -113,21 +118,56 @@ const MealPlan = () => {
     [date, fetchData],
   );
 
-  const goTodayAnd = (mode: 'day' | 'week') => {
+  const onAfterSwap = useCallback(async () => {
+    const ac = new AbortController();
+    await fetchData(date, ac.signal);
+  }, [date, fetchData]);
+
+  const goTodayAnd = useCallback((mode: 'day' | 'week') => {
     setRange(mode);
     setDate(new Date());
-  };
+  }, []);
 
-  const kcalTarget = data?.targetNutrition?.kcal ?? 0;
-  const macrosFromTarget = {
-    carbs: { cur: 0, total: Math.round(data?.targetNutrition?.carbG ?? 0) },
-    protein: {
-      cur: 0,
-      total: Math.round(data?.targetNutrition?.proteinG ?? 0),
-    },
-    fat: { cur: 0, total: Math.round(data?.targetNutrition?.fatG ?? 0) },
-    fiber: { cur: 0, total: Math.round(data?.targetNutrition?.fiberG ?? 0) },
-  };
+  const kcalTarget = useMemo(
+    () => Number(data?.targetNutrition?.kcal ?? 0),
+    [data?.targetNutrition?.kcal],
+  );
+
+  const eatenKcal = useMemo(
+    () => Number(dailyNutri?.kcal ?? 0),
+    [dailyNutri?.kcal],
+  );
+
+  const macrosFromTarget = useMemo(
+    () => ({
+      carbs: {
+        cur: Math.round(Number(dailyNutri?.carbG ?? 0)),
+        total: Math.round(Number(data?.targetNutrition?.carbG ?? 0)),
+      },
+      protein: {
+        cur: Math.round(Number(dailyNutri?.proteinG ?? 0)),
+        total: Math.round(Number(data?.targetNutrition?.proteinG ?? 0)),
+      },
+      fat: {
+        cur: Math.round(Number(dailyNutri?.fatG ?? 0)),
+        total: Math.round(Number(data?.targetNutrition?.fatG ?? 0)),
+      },
+      fiber: {
+        cur: Math.round(Number(dailyNutri?.fiberG ?? 0)),
+        total: Math.round(Number(data?.targetNutrition?.fiberG ?? 0)),
+      },
+    }),
+    [
+      dailyNutri?.carbG,
+      dailyNutri?.proteinG,
+      dailyNutri?.fatG,
+      dailyNutri?.fiberG,
+      data?.targetNutrition?.carbG,
+      data?.targetNutrition?.proteinG,
+      data?.targetNutrition?.fatG,
+      data?.targetNutrition?.fiberG,
+    ],
+  );
 
   return (
     <Container>
@@ -240,7 +280,6 @@ const MealPlan = () => {
           />
         }
       >
-        {/* Loading overlay nhỏ gọn (chỉ khi loading lần đầu hoặc đổi ngày) */}
         {loading && !refreshing ? (
           <ViewComponent center style={{ paddingVertical: 24 }}>
             <ActivityIndicator size="small" color={C.primary} />
@@ -253,7 +292,7 @@ const MealPlan = () => {
         <ViewComponent mb={12}>
           <CaloriesNutritionCard
             target={kcalTarget}
-            eaten={1000}
+            eaten={eatenKcal}
             burned={0}
             macros={macrosFromTarget}
             onPressStatistics={() => navigation.navigate('Statistics')}
@@ -269,11 +308,11 @@ const MealPlan = () => {
               items={data?.items || []}
               activeDate={date}
               onPickDate={d => setDate(d)}
-              onChangeMeal={item => {
-                // TODO: mở bottom sheet đổi món cho item
-              }}
-              onViewDetail={() => navigation.navigate('MealLogDetail')}
+              onViewDetail={foodId =>
+                navigation.navigate('MealLogDetail', { id: foodId })
+              }
               onLogEat={onLogEat}
+              onAfterSwap={onAfterSwap}
             />
           </ViewComponent>
         </ViewComponent>
