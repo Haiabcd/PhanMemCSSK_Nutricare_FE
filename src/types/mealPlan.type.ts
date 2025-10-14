@@ -9,6 +9,7 @@ export interface MealPlanItemResponse {
    rank:number;
    note:string;
    nutrition: NutritionResponse;
+   used: boolean;
 }
 
 
