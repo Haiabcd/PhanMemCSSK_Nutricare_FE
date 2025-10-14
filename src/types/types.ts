@@ -156,3 +156,8 @@ export interface NutritionResponse {
   sodiumMg: number;
   sugarMg: number;
 }
+
+export interface WaterLogCreationRequest {
+  drankAt: string;  // ISO-8601 UTC, ví dụ "2025-10-14T08:30:00Z"
+  amountMl: number; // >= 0
+}
