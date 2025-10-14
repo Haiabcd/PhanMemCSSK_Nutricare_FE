@@ -1,5 +1,4 @@
-// ... (các import giữ nguyên)
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, Image, Pressable, TextInput, ActivityIndicator, Platform,
   FlatList, TouchableOpacity, NativeSyntheticEvent, NativeScrollEvent,
@@ -15,6 +14,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { launchImageLibrary, launchCamera, type ImageLibraryOptions, type CameraOptions } from 'react-native-image-picker';
 import Dropdown from '../components/Track/Dropdown';
+
+import { getLogs } from '../services/log.service';
+import type { MealSlot } from '../types/types';
+import type { LogResponse } from '../types/log.type';
 
 type TabKey = 'scan' | 'manual' | 'history';
 type MealType = 'Sáng' | 'Trưa' | 'Tối' | 'Phụ';
@@ -35,6 +38,10 @@ const fmtVNFull = (d: Date) => {
   const mm = `${d.getMonth() + 1}`.padStart(2, '0');
   return `${dow}, ${dd} Tháng ${mm}`;
 };
+
+// YYYY-MM-DD (local) cho BE
+const toYMDLocal = (d: Date) =>
+  new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
 const INPUT_TEXT_COLOR = '#0f172a';
 const PLACEHOLDER_COLOR = '#94a3b8';
@@ -125,15 +132,82 @@ export default function Track() {
   const [unitScan, setUnitScan] = useState<UnitType>('phần');
   const [selectedImageUri, setSelectedImageUri] = useState<string | undefined>(undefined);
 
-  const historyData: Record<MealType, { name: string; cal: number; p: number; c: number; f: number; ings?: string[]; qty?: string; unit?: UnitType }[]> = {
-    Sáng: [
-      { name: 'Bánh mì thịt', cal: 400, p: 22, c: 45, f: 14, ings: ['Bánh mì', 'Thịt', 'Rau'], qty: '1', unit: 'phần' },
-      { name: 'Sữa chua + trái cây', cal: 230, p: 12, c: 30, f: 6, qty: '1', unit: 'ly' },
-    ],
-    Trưa: [{ name: 'Salad gà', cal: 300, p: 30, c: 20, f: 12, qty: '1', unit: 'phần' }],
-    Tối: [{ name: 'Cơm tấm', cal: 520, p: 20, c: 70, f: 15, qty: '1', unit: 'đĩa' as UnitType }],
-    Phụ: [{ name: 'Táo + hạt', cal: 180, p: 5, c: 22, f: 7, qty: '1', unit: 'phần' }],
+  // ============== HISTORY (API) ==============
+  const [logs, setLogs] = useState<LogResponse[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+
+  // Gọi API cho TẤT CẢ mealSlot
+  useEffect(() => {
+    if (tab !== 'history') return; // chỉ fetch khi đang ở tab history
+    const ac = new AbortController();
+
+    (async () => {
+      try {
+        setHistoryLoading(true);
+        setHistoryError(null);
+
+        const ymd = toYMDLocal(date); // YYYY-MM-DD local
+        const slots: MealSlot[] = ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK'];
+
+        const results = await Promise.all(
+          slots.map(slot =>
+            getLogs(ymd, slot, ac.signal)
+              .then(arr => Array.isArray(arr) ? arr : [])
+              .catch(err => {
+                console.log('[HISTORY] getLogs failed for', slot, '-', err?.message ?? err);
+                return [];
+              })
+          )
+        );
+
+        const merged = results.flat();
+        setLogs(merged);
+
+        // Debug ra console
+        console.log('[HISTORY] date=', ymd);
+        console.log('[HISTORY] merged logs:', merged);
+
+        const groupedDebug: Record<MealSlot, LogResponse[]> = {
+          BREAKFAST: results[0] ?? [],
+          LUNCH: results[1] ?? [],
+          DINNER: results[2] ?? [],
+          SNACK: results[3] ?? [],
+        };
+        console.log('[HISTORY] grouped by slot:', groupedDebug);
+
+      } catch (e: any) {
+        setHistoryError(e?.message ?? 'Không thể tải lịch sử');
+        setLogs([]);
+      } finally {
+        setHistoryLoading(false);
+      }
+    })();
+
+    return () => ac.abort();
+  }, [tab, date]);
+
+  // Gom nhóm theo mealSlot để render
+  const groupLabel: Record<MealSlot, string> = {
+    BREAKFAST: 'Sáng',
+    LUNCH: 'Trưa',
+    DINNER: 'Tối',
+    SNACK: 'Phụ',
   };
+
+  const groupedLogs = useMemo(() => {
+    const g: Record<MealSlot, LogResponse[]> = {
+      BREAKFAST: [],
+      LUNCH: [],
+      DINNER: [],
+      SNACK: [],
+    };
+    for (const item of logs) {
+      const slot = (item?.mealSlot as MealSlot) || 'SNACK';
+      if (g[slot]) g[slot].push(item);
+    }
+    return g;
+  }, [logs]);
 
   const [scanChoiceOpen, setScanChoiceOpen] = useState(false);
 
@@ -165,15 +239,14 @@ export default function Track() {
     } catch (e) { setShowScanCalendar(false); }
   };
 
-  // ⬇️ Khi chọn món từ danh sách: áp cứng vào các input + khóa vĩ chất + mở section vĩ chất
   const chooseMeal = (m: { name: string; cal: number; p: number; c: number; f: number }) => {
     setMealName(m.name);
     setCal(String(m.cal));
     setProtein(String(m.p));
     setCarbs(String(m.c));
     setFat(String(m.f));
-    setShowMacroSection(true);   // mở phần vĩ chất để nhìn thấy ngay
-    setMacrosLocked(true);       // khóa input vĩ chất (không cho sửa)
+    setShowMacroSection(true);
+    setMacrosLocked(true);
     setOpenMealList(false);
     setOpenKey(null);
   };
@@ -305,7 +378,6 @@ export default function Track() {
                         />
                       </View>
 
-                      {/* Tăng khoảng cách nút Lưu bữa ăn */}
                       <Pressable style={[styles.actionBtn, { marginTop: 18 }]} onPress={() => setOpenKey(null)}>
                         <Text style={styles.actionText}>Lưu bữa ăn</Text>
                       </Pressable>
@@ -372,7 +444,7 @@ export default function Track() {
                             </TouchableOpacity>
                           )}
                           ListEmptyComponent={
-                            <Text style={{ textAlign: 'center', color: '#64748b', paddingVertical: 12 }}>
+                            <Text style={{ textAlign: 'center,', color: '#64748b', paddingVertical: 12 }}>
                               Không tìm thấy món phù hợp
                             </Text>
                           }
@@ -498,44 +570,74 @@ export default function Track() {
                     </>
                   )}
 
-                  {/* Tăng khoảng cách nút Thêm bữa ăn */}
                   <Pressable style={[styles.actionBtn, { marginTop: 18 }]} onPress={() => { setOpenKey(null); }}>
                     <Text style={styles.actionText}>Thêm bữa ăn</Text>
                   </Pressable>
                 </View>
               )}
 
-              {/* ========== HISTORY ========== */}
+              {/* ========== HISTORY (API) ========== */}
               {tab === 'history' && (
                 <View style={{ width: '100%' }}>
                   <Text style={styles.sectionTitle}>LỊCH SỬ BỮA ĂN</Text>
-                  {(Object.keys(historyData) as MealType[]).map(type => (
-                    <View key={type} style={{ marginBottom: 16 }}>
-                      <Text style={styles.groupHeader}>{type === 'Tối' ? 'Chiều tối' : type}</Text>
-                      {historyData[type].map((m, i) => (
-                        <View key={i} style={styles.historyCard}>
-                          <Text style={styles.mealName}>{m.name}</Text>
-                          <Text>Calo: {m.cal} kcal, Protein: {m.p}g, Carbs: {m.c}g, Fat: {m.f}g</Text>
-                          <Text style={{ marginTop: 2, color: '#334155' }}>
-                            Số lượng: {m.qty ?? '1'} {m.unit ?? 'phần'}
-                          </Text>
-                          {m.ings?.length ? (
-                            <Text style={{ marginTop: 4 }}>
-                              <Text style={{ fontWeight: '700' }}>Nguyên liệu:</Text> {m.ings.join(', ')}
-                            </Text>
-                          ) : null}
-                          <View style={styles.rowBtns}>
-                            <Pressable style={[styles.badge, styles.badgeEditSoft]} onPress={() => setOpenKey(null)}>
-                              <Text style={styles.badgeTextEdit}>Sửa</Text>
-                            </Pressable>
-                            <Pressable style={[styles.badge, styles.badgeDeleteSoft]} onPress={() => setOpenKey(null)}>
-                              <Text style={styles.badgeTextDelete}>Xóa</Text>
-                            </Pressable>
-                          </View>
-                        </View>
-                      ))}
+
+                  {historyLoading ? (
+                    <View style={{ paddingVertical: 16 }}>
+                      <ActivityIndicator />
+                      <Text style={{ textAlign: 'center', color: '#64748b', marginTop: 6 }}>Đang tải...</Text>
                     </View>
-                  ))}
+                  ) : historyError ? (
+                    <View style={{ paddingVertical: 16 }}>
+                      <Text style={{ textAlign: 'center', color: '#b91c1c' }}>{historyError}</Text>
+                    </View>
+                  ) : logs.length === 0 ? (
+                    <View style={{ paddingVertical: 16 }}>
+                      <Text style={{ textAlign: 'center', color: '#64748b' }}>Chưa có log cho ngày này</Text>
+                    </View>
+                  ) : (
+                    (['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK'] as MealSlot[]).map(slot => {
+                      const items = groupedLogs[slot] || [];
+                      if (!items.length) return null;
+                      return (
+                        <View key={slot} style={{ marginBottom: 16 }}>
+                          <Text style={styles.groupHeader}>{groupLabel[slot] === 'Tối' ? 'Chiều tối' : groupLabel[slot]}</Text>
+                          {items.map((m, i) => (
+                            <View key={`${m.id ?? i}`} style={styles.historyCard}>
+                              <Text style={styles.mealName}>{(m as any).name ?? 'Món ăn'}</Text>
+                              {'kcal' in m || 'calories' in m ? (
+                                <Text>
+                                  Calo: {(m as any).kcal ?? (m as any).calories ?? '-'} kcal
+                                </Text>
+                              ) : null}
+                              {'proteinG' in m || 'carbG' in m || 'fatG' in m ? (
+                                <Text>
+                                  Protein: {(m as any).proteinG ?? '-'}g, Carbs: {(m as any).carbG ?? '-'}g, Fat: {(m as any).fatG ?? '-'}g
+                                </Text>
+                              ) : null}
+                              {'quantity' in m || 'unit' in m ? (
+                                <Text style={{ marginTop: 2, color: '#334155' }}>
+                                  Số lượng: {(m as any).quantity ?? '1'} {(m as any).unit ?? 'phần'}
+                                </Text>
+                              ) : null}
+                              {Array.isArray((m as any).ingredients) && (m as any).ingredients.length ? (
+                                <Text style={{ marginTop: 4 }}>
+                                  <Text style={{ fontWeight: '700' }}>Nguyên liệu:</Text> {(m as any).ingredients.join(', ')}
+                                </Text>
+                              ) : null}
+                              <View style={styles.rowBtns}>
+                                <Pressable style={[styles.badge, styles.badgeEditSoft]} onPress={() => setOpenKey(null)}>
+                                  <Text style={styles.badgeTextEdit}>Sửa</Text>
+                                </Pressable>
+                                <Pressable style={[styles.badge, styles.badgeDeleteSoft]} onPress={() => setOpenKey(null)}>
+                                  <Text style={styles.badgeTextDelete}>Xóa</Text>
+                                </Pressable>
+                              </View>
+                            </View>
+                          ))}
+                        </View>
+                      );
+                    })
+                  )}
                 </View>
               )}
             </View>
@@ -719,14 +821,6 @@ const styles = StyleSheet.create({
 });
 
 /**
- * Android: ĐẢM BẢO `windowSoftInputMode="adjustResize"` trong AndroidManifest (activity) hoặc
- * trong React Navigation (Native Stack) bằng screenOptions (nếu dùng). Ví dụ AndroidManifest:
- *
- * <activity
- *   android:name=".MainActivity"
- *   android:windowSoftInputMode="adjustResize"
- *   ... />
- *
- * iOS: Dùng KeyboardAvoidingView (đã cấu hình) là đủ, có thể tinh chỉnh `keyboardVerticalOffset`
- * theo chiều cao header/TabBar thực tế.
+ * Android: bảo đảm `adjustResize` cho windowSoftInputMode.
+ * iOS: đã dùng KeyboardAvoidingView.
  */
