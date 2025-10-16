@@ -1,8 +1,8 @@
 import './src/config/api';
 import React, { useEffect, useState } from 'react';
+import { NavigationContainer } from '@react-navigation/native';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import BottomNavigator from './src/navigation/BottomNavigator';
-import { NavigationContainer } from '@react-navigation/native';
 import {
   applyAuthHeaderFromKeychain,
   isTokenExpiredSecure,
@@ -12,16 +12,25 @@ import {
 } from './src/config/secureToken';
 import { refreshWithStoredToken } from './src/services/auth.service';
 
+import {
+  schedulePrePostRange,
+  registerForegroundHandlers,
+  registerBackgroundHandler,
+  ensureNotificationReady,
+} from './src/notifications/notifeeClient';
+
+// 🟢 Bắt buộc: đăng ký background handler ngoài component
+registerBackgroundHandler();
+
 function App() {
   const [ready, setReady] = useState(false);
   const [isAuthed, setIsAuthed] = useState(false);
 
+  // 🔐 Auth init
   useEffect(() => {
     (async () => {
-      // 1) Gắn Authorization header nếu đã có token từ trước
       await applyAuthHeaderFromKeychain();
 
-      // (DEBUG) In token đang lưu trong Keychain
       if (__DEV__) {
         try {
           const t = await getTokenSecure();
@@ -31,25 +40,18 @@ function App() {
         }
       }
 
-      // 2) Kiểm tra đang có access token không
       let authed = await hasTokenSecure();
-
-      // 3) Nếu có token nhưng sắp/hết hạn → thử refresh
       if (authed) {
         try {
           const willExpire = await isTokenExpiredSecure();
-          if (willExpire) {
-            await refreshWithStoredToken();
-          }
+          if (willExpire) await refreshWithStoredToken();
           authed = true;
         } catch (e: any) {
           const status = e?.response?.status ?? e?.status;
           if (status === 400 || status === 401) {
-            console.log('Gọi removeTokenSecure ở App.tsx');
             await removeTokenSecure();
             authed = false;
           } else {
-            console.log('Lỗi không xác định khi refresh token:', e);
             authed = await hasTokenSecure();
           }
         }
@@ -58,6 +60,20 @@ function App() {
       setReady(true);
     })();
   }, []);
+
+  // 📱 Foreground handler
+  useEffect(() => {
+    const unsub = registerForegroundHandlers();
+    return () => unsub?.();
+  }, []);
+
+  // 🔔 Lên lịch thật: báo 30' trước & 30' sau 3 bữa
+  useEffect(() => {
+    if (!ready) return;
+    ensureNotificationReady()
+      .then(() => schedulePrePostRange(7)) // đặt cho 7 ngày tới
+      .catch(console.warn);
+  }, [ready]);
 
   if (!ready) return null;
 
