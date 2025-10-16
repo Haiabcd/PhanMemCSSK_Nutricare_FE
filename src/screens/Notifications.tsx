@@ -1,6 +1,6 @@
 // screens/NotificationScreen.tsx
 import React from 'react';
-import { StyleSheet, FlatList, View, Pressable, Image } from 'react-native';
+import { StyleSheet, FlatList, View, Pressable, Image, RefreshControl } from 'react-native';
 import Container from '../components/Container';
 import TextComponent from '../components/TextComponent';
 import ViewComponent from '../components/ViewComponent';
@@ -9,33 +9,12 @@ import Entypo from 'react-native-vector-icons/Entypo';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { PlanStackParamList } from '../navigation/PlanNavigator';
+import { useNotifications } from '../hooks/useNotifications';
+import { clearNotiHistory } from '../storage/notifications';
 
-type Notification = {
-    id: string;
-    type: 'meal' | 'water' | 'reminder' | 'suggestion';
-    title: string;
-    message: string;
-    time: string;
-    day: string; // "Hôm nay", "Hôm qua"...
-};
-
-const DATA: Notification[] = [
-    { id: '1', type: 'meal', title: 'Đến giờ ăn trưa', message: 'Hãy bổ sung bữa trưa để duy trì năng lượng.', time: '11:45', day: 'Hôm nay' },
-    { id: '2', type: 'water', title: 'Uống nước', message: 'Đã 2 giờ bạn chưa uống nước.', time: '10:30', day: 'Hôm nay' },
-    { id: '3', type: 'suggestion', title: 'Gợi ý món ăn', message: 'Salad gà áp chảo ít dầu cho bữa tối.', time: '20:00', day: 'Hôm qua' },
-];
-
-/* ============== Avatar fallback ============== */
 function Avatar({ name, photoUri }: { name: string; photoUri?: string | null }) {
-    const initials = name
-        .split(' ')
-        .map(n => n[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase();
-
+    const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
     if (photoUri) return <Image source={{ uri: photoUri }} style={s.avatar} />;
-
     return (
         <ViewComponent center style={s.avatarFallback} flex={0}>
             <TextComponent text={initials} variant="subtitle" weight="bold" tone="primary" />
@@ -45,19 +24,10 @@ function Avatar({ name, photoUri }: { name: string; photoUri?: string | null }) 
 
 export default function NotificationScreen() {
     const navigation = useNavigation<NativeStackNavigationProp<PlanStackParamList>>();
+    const { loading, sections, refresh } = useNotifications();
 
-    // Gom nhóm theo ngày
-    const grouped = DATA.reduce((acc, item) => {
-        if (!acc[item.day]) acc[item.day] = [];
-        acc[item.day].push(item);
-        return acc;
-    }, {} as Record<string, Notification[]>);
-
-    const sections = Object.entries(grouped);
-
-    const onOpenSettings = () => {
-        // TODO: navigation.navigate('NotificationSettings')
-        console.log('Đi đến cài đặt thông báo');
+    const onClear = async () => {
+        await clearNotiHistory();
     };
 
     return (
@@ -71,9 +41,14 @@ export default function NotificationScreen() {
                     </ViewComponent>
                 </ViewComponent>
 
-                <Pressable style={s.iconContainer} onPress={() => { }}>
-                    <Entypo name="bell" size={20} color={C.primary} />
-                </Pressable>
+                <ViewComponent row gap={10} flex={0}>
+                    <Pressable style={s.iconContainer} onPress={onClear}>
+                        <Entypo name="trash" size={18} color={C.primary} />
+                    </Pressable>
+                    <Pressable style={s.iconContainer} onPress={() => { }}>
+                        <Entypo name="bell" size={20} color={C.primary} />
+                    </Pressable>
+                </ViewComponent>
             </ViewComponent>
 
             <View style={s.line} />
@@ -82,55 +57,56 @@ export default function NotificationScreen() {
                 <TextComponent text="Thông báo" variant="h2" weight="bold" />
             </ViewComponent>
 
-            <FlatList
-                data={sections}
-                keyExtractor={([day]) => day}
-                contentContainerStyle={{ paddingBottom: 24 }}
-                renderItem={({ item: [day, notis] }) => (
-                    <View style={{ marginBottom: 28 }}>
-                        {/* Tiêu đề ngày */}
-                        <TextComponent
-                            text={day}
-                            weight="bold"
-                            tone="primary"
-                            style={{ marginBottom: 12 }}
-                        />
+            {sections.length === 0 ? (
+                <ViewComponent mt={40} center>
+                    <TextComponent text="Chưa có thông báo nào." tone="muted" />
+                </ViewComponent>
+            ) : (
+                <FlatList
+                    data={sections}
+                    keyExtractor={([day]) => day}
+                    contentContainerStyle={{ paddingBottom: 24 }}
+                    refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}
+                    renderItem={({ item: [day, notis] }) => (
+                        <View style={{ marginBottom: 28 }}>
+                            <TextComponent
+                                text={day}
+                                weight="bold"
+                                tone="primary"
+                                style={{ marginBottom: 12 }}
+                            />
+                            {notis.map(n => {
+                                const time = `${String(n.at.getHours()).padStart(2, '0')}:${String(n.at.getMinutes()).padStart(2, '0')}`;
+                                const iconName =
+                                    n.type === 'meal' ? 'bowl' :
+                                        n.type === 'water' ? 'drop' :
+                                            n.type === 'suggestion' ? 'light-bulb' : 'bell';
 
-                        {notis.map(n => (
-                            <ViewComponent
-                                key={n.id}
-                                row
-                                alignItems="center"
-                                p={14}
-                                mb={12}
-                                radius={16}
-                                style={s.card}
-                            >
-                                <View style={s.iconWrap}>
-                                    <Entypo
-                                        name={
-                                            n.type === 'meal'
-                                                ? 'bowl'
-                                                : n.type === 'water'
-                                                    ? 'drop'
-                                                    : n.type === 'reminder'
-                                                        ? 'bell'
-                                                        : 'light-bulb'
-                                        }
-                                        size={20}
-                                        color={C.primary}
-                                    />
-                                </View>
-                                <View style={{ flex: 1, marginLeft: 12 }}>
-                                    <TextComponent text={n.title} weight="bold" />
-                                    <TextComponent text={n.message} size={13} tone="muted" />
-                                </View>
-                                <TextComponent text={n.time} size={12} tone="muted" />
-                            </ViewComponent>
-                        ))}
-                    </View>
-                )}
-            />
+                                return (
+                                    <ViewComponent
+                                        key={n.id}
+                                        row
+                                        alignItems="center"
+                                        p={14}
+                                        mb={12}
+                                        radius={16}
+                                        style={s.card}
+                                    >
+                                        <View style={s.iconWrap}>
+                                            <Entypo name={iconName} size={20} color={C.primary} />
+                                        </View>
+                                        <View style={{ flex: 1, marginLeft: 12 }}>
+                                            <TextComponent text={n.title} weight="bold" />
+                                            <TextComponent text={n.message} size={13} tone="muted" />
+                                        </View>
+                                        <TextComponent text={time} size={12} tone="muted" />
+                                    </ViewComponent>
+                                );
+                            })}
+                        </View>
+                    )}
+                />
+            )}
         </Container>
     );
 }

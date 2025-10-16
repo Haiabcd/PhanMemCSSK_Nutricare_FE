@@ -7,6 +7,18 @@ import notifee, {
     AuthorizationStatus,
 } from '@notifee/react-native';
 import { Alert, Platform, Linking } from 'react-native';
+import { appendNotiHistory } from '../storage/notifications';
+
+
+// Khai báo kiểu data đi kèm notification
+type NotiData = {
+    [key: string]: unknown;
+    kind?: string;                 // 'meal-pre' | 'meal-post' | ...
+    meal?: string;                 // 'breakfast' | 'lunch' | 'dinner'
+    date?: string;                 // 'yyyymmdd'
+};
+
+type NotiKind = 'meal-pre' | 'meal-post' | 'other';
 
 /** ✅ Khởi tạo quyền + kênh, tự mở Settings nếu bị chặn hoặc giới hạn nền */
 export async function ensureNotificationReady() {
@@ -110,6 +122,8 @@ export async function schedulePreOnly(meal: MealKey, forDate: Date) {
     // nổ 30 phút trước giờ start
     let fireTime = new Date(start.getTime() - 30 * 60 * 1000);
 
+    console.log('[SCHED] PRE', meal, 'for', forDate.toDateString(), '-> fires at', fireTime.toLocaleString());
+
     // nếu đã trễ → đẩy sang ngày sau
     if (fireTime.getTime() <= Date.now()) {
         const tomorrowStart = new Date(start);
@@ -132,7 +146,7 @@ export async function schedulePreOnly(meal: MealKey, forDate: Date) {
             android: { channelId: 'meal', pressAction: { id: 'default' } },
             title: preTitle(MEALS[meal].title),
             body: preBody(MEALS[meal].title),
-            data: { meal, kind: 'pre', date: ymd(fireTime) },
+            data: { meal, kind: 'meal-pre', date: ymd(forDate) },
         },
         trigger,
     );
@@ -149,6 +163,8 @@ export async function schedulePostOnly(meal: MealKey, forDate: Date) {
 
     // nổ 30 phút sau giờ end
     let fireTime = new Date(end.getTime() + 30 * 60 * 1000);
+
+    console.log('[SCHED] POST', meal, 'for', forDate.toDateString(), '-> fires at', fireTime.toLocaleString());
 
     // nếu đã trễ → đẩy sang ngày sau
     if (fireTime.getTime() <= Date.now()) {
@@ -176,7 +192,7 @@ export async function schedulePostOnly(meal: MealKey, forDate: Date) {
             },
             title: postTitle(MEALS[meal].title),
             body: postBody(MEALS[meal].title),
-            data: { meal, kind: 'post', date: ymd(fireTime) },
+            data: { meal, kind: 'meal-post', date: ymd(forDate) },
         },
         trigger,
     );
@@ -208,10 +224,19 @@ export async function onMealLogged(meal: MealKey, date: Date) {
 /** Foreground handler */
 export function registerForegroundHandlers() {
     return notifee.onForegroundEvent(async ({ type, detail }) => {
-        if (
-            type === EventType.ACTION_PRESS &&
-            detail.pressAction?.id === MARK_EATEN_ACTION_ID
-        ) {
+        if (type === EventType.DELIVERED && detail.notification) {
+            const n = detail.notification; const d = n.data || {};
+            await appendNotiHistory({
+                id: n.id || String(Math.random()),
+                title: n.title || '',
+                message: n.body || '',
+                at: new Date().toISOString(),
+                kind: (d.kind as any) || 'other',
+                meal: (d.meal as any) || undefined,
+            });
+        }
+
+        if (type === EventType.ACTION_PRESS && detail.pressAction?.id === MARK_EATEN_ACTION_ID) {
             const meal = (detail.notification?.data?.meal as MealKey) || 'breakfast';
             const dateStr = detail.notification?.data?.date as string | undefined;
             await cancelPostReminder(meal, parseYmd(dateStr));
@@ -222,12 +247,52 @@ export function registerForegroundHandlers() {
 /** Background handler */
 export const registerBackgroundHandler = () =>
     notifee.onBackgroundEvent(async ({ type, detail }) => {
-        if (
-            type === EventType.ACTION_PRESS &&
-            detail.pressAction?.id === MARK_EATEN_ACTION_ID
-        ) {
-            const meal = (detail.notification?.data?.meal as MealKey) || 'breakfast';
-            const dateStr = detail.notification?.data?.date as string | undefined;
-            await cancelPostReminder(meal, parseYmd(dateStr));
+        try {
+            // ----- Ghi lịch sử khi thông báo nổ ở background -----
+            if (type === EventType.DELIVERED && detail.notification) {
+                const n = detail.notification;
+                const raw: NotiData = (n.data ?? {}) as NotiData;
+
+                // kind: string -> 'meal-pre' | 'meal-post' | 'other'
+                const kindStr = typeof raw.kind === 'string' ? raw.kind : 'other';
+                const kind: NotiKind =
+                    kindStr === 'meal-pre' || kindStr === 'meal-post' ? kindStr : 'other';
+
+                // meal: chỉ nhận 1 trong 3 giá trị, sai thì để undefined
+                const mealStr = typeof raw.meal === 'string' ? raw.meal : undefined;
+                const meal: MealKey | undefined =
+                    mealStr === 'breakfast' || mealStr === 'lunch' || mealStr === 'dinner'
+                        ? (mealStr as MealKey)
+                        : undefined;
+
+                await appendNotiHistory({
+                    id: n.id || `bg-${Date.now()}`,
+                    title: n.title || '',
+                    message: n.body || '',
+                    at: new Date().toISOString(),
+                    kind,
+                    meal,
+                });
+            }
+
+            // ----- Nút "✅ Đã ăn rồi" -> huỷ post của ngày đó -----
+            if (type === EventType.ACTION_PRESS && detail.pressAction?.id === MARK_EATEN_ACTION_ID) {
+                const d: NotiData = (detail.notification?.data ?? {}) as NotiData;
+
+                const mealStr = typeof d.meal === 'string' ? d.meal : undefined;
+                const meal: MealKey = (mealStr === 'breakfast' || mealStr === 'lunch' || mealStr === 'dinner'
+                    ? mealStr
+                    : 'breakfast') as MealKey;
+
+                const dateStr = typeof d.date === 'string' ? d.date : undefined;
+                await cancelPostReminder(meal, parseYmd(dateStr));
+            }
+
+            // (tuỳ chọn) xử lý user chạm notification mặc định:
+            // if (type === EventType.ACTION_PRESS && detail.pressAction?.id === 'default') { ... }
+        } catch (e) {
+            console.log('[BG] onBackgroundEvent error:', e);
         }
     });
+
+
