@@ -1,7 +1,6 @@
 
 import { api } from '../config/api';
 import type { ApiResponse , NutritionResponse} from '../types/types';
-
 import axios from 'axios';
 import type { LogResponse } from '../types/log.type';
 import type { MealSlot } from '../types/types';
@@ -21,7 +20,7 @@ export async function savePlanLogById(
 
 export const getLogs = async (
   date: string,
-  mealSlot?: MealSlot,
+  mealSlot: MealSlot,
   signal?: AbortSignal
 ): Promise<LogResponse[]> => {
   try {
@@ -46,6 +45,7 @@ export const getLogs = async (
     throw error;
   }
 };
+
 // Lấy dinh dưỡng đã dùng mỗi ngày
 export async function getDailyNutrition(dateIso: string, signal?: AbortSignal) {
   const res = await api.get<ApiResponse<NutritionResponse>>('/logs/nutriLog', {
@@ -55,15 +55,11 @@ export async function getDailyNutrition(dateIso: string, signal?: AbortSignal) {
   return res.data.data!;
 }
 
-// Xoá log cho một mục trong meal plan
+// Xoá 1 plan log theo id
 export async function deletePlanLogById(
-  mealPlanItemId: string,
+  id: string,
   signal?: AbortSignal
 ): Promise<ApiResponse<void>> {
-  const res = await api.delete<ApiResponse<void>>(
-    '/logs/plan', {
-    data: { mealPlanItemId },
-    signal,
-  });
+  const res = await api.delete<ApiResponse<void>>(`/logs/${id}`, { signal });
   return res.data;
 }

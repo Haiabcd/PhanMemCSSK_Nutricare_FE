@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import McIcon from 'react-native-vector-icons/MaterialCommunityIcons';
-import Entypo from 'react-native-vector-icons/Entypo';
 import Container from '../components/Container';
 import TextComponent from '../components/TextComponent';
 import ViewComponent from '../components/ViewComponent';
@@ -43,157 +42,158 @@ import InfoItem from '../components/Profile/InfoItem';
 import { getAllConditions } from '../services/condition.service';
 import { getAllAllergies } from '../services/allergy.service';
 import ToastCenter, { ToastKind } from '../components/Profile/ToastCenter';
-import HeaderAvatar from '../components/Profile/HeaderAvatar';
 import FormField from '../components/Profile/FormField';
 import Dropdown from '../components/Profile/Dropdown';
+import AppHeader from '../components/AppHeader';
+
+type PickerType = 'condition' | 'allergy';
 
 export default function ProfileScreen() {
-    const [showEdit, setShowEdit] = useState(false);
+  const navigation = useNavigation<any>();
 
-    const [data, setData] = useState<ProfileDto | null>(null);
-    const [myInfo, setMyInfo] = useState<InfoResponse | null>(null);
-    const [editData, setEditData] = useState<ProfileDto | null>(null);
-    const [editInfo, setEditInfo] = useState<InfoResponse | null>(null);
+  const [showEdit, setShowEdit] = useState(false);
 
-    const [loadingInfo, setLoadingInfo] = useState(false);
-    const [allowNotif, setAllowNotif] = useState<boolean>(true);
-    const navigation = useNavigation<any>();
-    const [toast, setToast] = useState<{ title: string; subtitle?: string; kind?: ToastKind } | null>(null);
+  const [data, setData] = useState<ProfileDto | null>(null);
+  const [myInfo, setMyInfo] = useState<InfoResponse | null>(null);
+  const [editData, setEditData] = useState<ProfileDto | null>(null);
+  const [editInfo, setEditInfo] = useState<InfoResponse | null>(null);
 
-    type PickerType = 'condition' | 'allergy';
-    const [pickerOpen, setPickerOpen] = useState(false);
-    const [pickerType, setPickerType] = useState<PickerType>('condition');
+  const [loadingInfo, setLoadingInfo] = useState(false);
+  const [allowNotif, setAllowNotif] = useState<boolean>(true);
+  const [toast, setToast] = useState<{
+    title: string;
+    subtitle?: string;
+    kind?: ToastKind;
+  } | null>(null);
 
-    const [conditions, setConditions] = useState<Condition[]>([]);
-    const [allergies, setAllergies] = useState<Allergy[]>([]);
-    const [loading, setLoading] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerType, setPickerType] = useState<PickerType>('condition');
 
-    const [loginChoiceOpen, setLoginChoiceOpen] = useState(false);
-    const onLoginWith = (provider: 'google' | 'facebook') => {
-        setLoginChoiceOpen(false);
-        navigation.navigate('Login', { provider });
-    };
+  const [conditions, setConditions] = useState<Condition[]>([]);
+  const [allergies, setAllergies] = useState<Allergy[]>([]);
+  const [loading, setLoading] = useState(false);
 
-    // Gộp tất cả API
-    const fetchData = useCallback(async (signal?: AbortSignal) => {
-        try {
-            setLoading(true);
-            setLoadingInfo(true);
-            const [conditionRes, allergyRes, myInfoRes] = await Promise.all([
-                getAllConditions(signal),
-                getAllAllergies(signal),
-                getMyInfo(signal),
-            ]);
+  const [loginChoiceOpen, setLoginChoiceOpen] = useState(false);
+  const onLoginWith = (provider: 'google' | 'facebook') => {
+    setLoginChoiceOpen(false);
+    navigation.navigate('Login', { provider });
+  };
 
-            setConditions(conditionRes);
-            setAllergies(allergyRes);
+  // Gộp tất cả API
+  const fetchData = useCallback(async (signal?: AbortSignal) => {
+    try {
+      setLoading(true);
+      setLoadingInfo(true);
+      const [conditionRes, allergyRes, myInfoRes] = await Promise.all([
+        getAllConditions(signal),
+        getAllAllergies(signal),
+        getMyInfo(signal),
+      ]);
 
-            const info = myInfoRes.data as InfoResponse;
-            setMyInfo(info);
-            setData(info.profileCreationResponse);
-            setEditData(info.profileCreationResponse);
-            setEditInfo({
-                ...info,
-                conditions: [...(info.conditions ?? [])],
-                allergies: [...(info.allergies ?? [])],
-            });
-        } catch (err: any) {
-            if (err?.name !== 'CanceledError') console.error('❌ fetchData error:', err?.response?.data ?? err);
-        } finally {
-            setLoading(false);
-            setLoadingInfo(false);
-        }
-    }, []);
+      setConditions(conditionRes);
+      setAllergies(allergyRes);
 
-    useEffect(() => {
-        const controller = new AbortController();
-        fetchData(controller.signal);
-        return () => controller.abort();
-    }, [fetchData]);
+      const info = myInfoRes.data as InfoResponse;
+      setMyInfo(info);
+      setData(info.profileCreationResponse);
+      setEditData(info.profileCreationResponse);
+      setEditInfo({
+        ...info,
+        conditions: [...(info.conditions ?? [])],
+        allergies: [...(info.allergies ?? [])],
+      });
+    } catch (err: any) {
+      if (err?.name !== 'CanceledError')
+        console.error('❌ fetchData error:', err?.response?.data ?? err);
+    } finally {
+      setLoading(false);
+      setLoadingInfo(false);
+    }
+  }, []);
 
-    const showToast = (opts: { title: string; subtitle?: string; kind?: ToastKind; duration?: number }, cb?: () => void) => {
-        const { title, subtitle, kind = 'success', duration = 1400 } = opts;
-        setToast({ title, subtitle, kind });
-        setTimeout(() => { setToast(null); cb && cb(); }, duration);
-    };
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchData(controller.signal);
+    return () => controller.abort();
+  }, [fetchData]);
 
-    const onOpenEdit = () => {
-        if (data) setEditData({ ...data });
-        if (myInfo)
-            setEditInfo({
-                ...myInfo,
-                conditions: [...(myInfo.conditions ?? [])],
-                allergies: [...(myInfo.allergies ?? [])],
-            });
-        setShowEdit(true);
-    };
+  const showToast = (
+    opts: {
+      title: string;
+      subtitle?: string;
+      kind?: ToastKind;
+      duration?: number;
+    },
+    cb?: () => void,
+  ) => {
+    const { title, subtitle, kind = 'success', duration = 1400 } = opts;
+    setToast({ title, subtitle, kind });
+    setTimeout(() => {
+      setToast(null);
+      cb && cb();
+    }, duration);
+  };
 
-    const onLogout = () => {
-        Alert.alert(
-            'Đăng xuất',
-            'Bạn có chắc chắn muốn đăng xuất?',
-            [
-                { text: 'Hủy', style: 'cancel' },
-                {
-                    text: 'Đăng xuất',
-                    style: 'destructive',
-                    onPress: () => {
-                        showToast(
-                            { title: 'Đăng xuất thành công', subtitle: 'Hẹn gặp lại bạn sớm nhé!' },
-                            () => navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] })
-                        );
-                    },
-                },
-            ],
-            { cancelable: true }
-        );
-    };
+  const onOpenEdit = () => {
+    if (data) setEditData({ ...data });
+    if (myInfo)
+      setEditInfo({
+        ...myInfo,
+        conditions: [...(myInfo.conditions ?? [])],
+        allergies: [...(myInfo.allergies ?? [])],
+      });
+    setShowEdit(true);
+  };
 
-    const onDeleteAccount = () => {
-        Alert.alert(
-            'Xóa tài khoản',
-            'Bạn có chắc muốn xóa tài khoản?',
-            [
-                { text: 'Hủy', style: 'cancel' },
-                {
-                    text: 'Xóa',
-                    style: 'destructive',
-                    onPress: () => {
-                        showToast(
-                            { title: 'Đã xóa tài khoản', subtitle: 'Tài khoản của bạn đã được xóa thành công.' },
-                            () => navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] })
-                        );
-                    },
-                },
-            ],
-            { cancelable: true }
-        );
-    };
+  const onLogout = () => {
+    Alert.alert(
+      'Đăng xuất',
+      'Bạn có chắc chắn muốn đăng xuất?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Đăng xuất',
+          style: 'destructive',
+          onPress: () => {
+            showToast(
+              {
+                title: 'Đăng xuất thành công',
+                subtitle: 'Hẹn gặp lại bạn sớm nhé!',
+              },
+              () =>
+                navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] }),
+            );
+          },
+        },
+      ],
+      { cancelable: true },
+    );
+  };
 
-
-    const openPicker = (type: PickerType) => { setPickerType(type); setPickerOpen(true); };
-
-    return (
-        <Container>
-            {loading && <ActivityIndicator size="large" color="#22C55E" />}
-            <LoadingOverlay visible={loadingInfo} label="Đang đồng bộ..." />
-
-            <ToastCenter visible={!!toast} title={toast?.title ?? ''} subtitle={toast?.subtitle} kind={toast?.kind ?? 'success'} />
-
-            {/* Header */}
-            <ViewComponent row between alignItems="center">
-                <ViewComponent row alignItems="center" gap={10} flex={0}>
-                    <HeaderAvatar name="Anh Hải" />
-                    <ViewComponent flex={0}>
-                        <TextComponent text="Xin chào," variant="caption" tone="muted" />
-                        <TextComponent text="Anh Hải" variant="subtitle" weight="bold" />
-                    </ViewComponent>
-                </ViewComponent>
-
-                <Pressable style={styles.iconContainer} onPress={() => navigation.navigate('Notification')}>
-                    <Entypo name="bell" size={20} color={C.primary} />
-                </Pressable>
-            </ViewComponent>
+  const onDeleteAccount = () => {
+    Alert.alert(
+      'Xóa tài khoản',
+      'Bạn có chắc muốn xóa tài khoản?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Xóa',
+          style: 'destructive',
+          onPress: () => {
+            showToast(
+              {
+                title: 'Đã xóa tài khoản',
+                subtitle: 'Tài khoản của bạn đã được xóa thành công.',
+              },
+              () =>
+                navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] }),
+            );
+          },
+        },
+      ],
+      { cancelable: true },
+    );
+  };
 
   const openPicker = (type: PickerType) => {
     setPickerType(type);
@@ -213,40 +213,18 @@ export default function ProfileScreen() {
       />
 
       {/* Header */}
-      <ViewComponent row between alignItems="center">
-        <ViewComponent row alignItems="center" gap={10} flex={0}>
-          <HeaderAvatar name="Anh Hải" />
-          <ViewComponent flex={0}>
-            <TextComponent text="Xin chào," variant="caption" tone="muted" />
-            <TextComponent text="Anh Hải" variant="subtitle" weight="bold" />
-          </ViewComponent>
-        </ViewComponent>
-
-        <Pressable
-          style={styles.iconContainer}
-          onPress={() => navigation.navigate('Notification')}
-        >
-          <Entypo name="bell" size={20} color={C.primary} />
-        </Pressable>
-      </ViewComponent>
+      <AppHeader
+        loading={loading}
+        onPressBell={() => navigation.navigate('Notification')}
+      />
 
       <ScrollView
         style={styles.screen}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Avatar lớn */}
-        <ViewComponent alignItems="center" mt={16} mb={14}>
-          <Image
-            source={{
-              uri: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?q=80&w=600',
-            }}
-            style={styles.bigAvatar}
-          />
-        </ViewComponent>
-
         {/* Grid info */}
-        <ViewComponent row wrap mt={6} mb={4} gap={0}>
+        <ViewComponent row wrap mt={20} mb={4} gap={0}>
           {data && !showEdit ? (
             <>
               <InfoItem
@@ -346,7 +324,8 @@ export default function ProfileScreen() {
                   onChangeText={t =>
                     setEditData({
                       ...editData,
-                      birthYear: new Date().getFullYear() - parseInt(t),
+                      birthYear:
+                        new Date().getFullYear() - parseInt(t || '0', 10),
                     })
                   }
                   placeholder="VD: 25"
@@ -383,7 +362,10 @@ export default function ProfileScreen() {
                   value={editData.heightCm ? `${editData.heightCm}` : ''}
                   keyboardType="number-pad"
                   onChangeText={t =>
-                    setEditData({ ...editData, heightCm: parseInt(t) })
+                    setEditData({
+                      ...editData,
+                      heightCm: parseInt(t || '0', 10),
+                    })
                   }
                   placeholder="VD: 175"
                   style={styles.input}
@@ -402,7 +384,10 @@ export default function ProfileScreen() {
                   value={editData.weightKg ? `${editData.weightKg}` : ''}
                   keyboardType="number-pad"
                   onChangeText={t =>
-                    setEditData({ ...editData, weightKg: parseInt(t) })
+                    setEditData({
+                      ...editData,
+                      weightKg: parseInt(t || '0', 10),
+                    })
                   }
                   placeholder="VD: 70"
                   style={styles.input}
@@ -773,38 +758,11 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  iconContainer: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: C.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-
   screen: { flex: 1, backgroundColor: C.bg, borderRadius: 16 },
   scrollContent: { paddingBottom: 28 },
-
-  bigAvatar: {
-    width: 92,
-    height: 92,
-    borderRadius: 999,
-    borderWidth: 4,
-    borderColor: C.greenSurface,
-    backgroundColor: C.white,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-
-  // layout 2 cột cho form
   half: { width: '48%' },
   halfPlaceholder: { width: '48%', opacity: 0 },
 
-  // input dùng cho TextInput (Dropdown đã tự có style riêng)
   input: {
     height: 46,
     borderRadius: 14,

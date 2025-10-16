@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
-  Image,
   StyleSheet,
   ScrollView,
   Pressable,
@@ -8,7 +7,6 @@ import {
   RefreshControl,
   InteractionManager,
 } from 'react-native';
-import Entypo from 'react-native-vector-icons/Entypo';
 import Container from '../components/Container';
 import CaloriesNutritionCard from '../components/MealPlan/CaloriesNutritionCard';
 import HydrationSummaryCard from '../components/MealPlan/HydrationCard';
@@ -16,7 +14,7 @@ import MealLog from '../components/MealPlan/MealLog';
 import TextComponent from '../components/TextComponent';
 import ViewComponent from '../components/ViewComponent';
 import { colors as C } from '../constants/colors';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { PlanStackParamList } from '../navigation/PlanNavigator';
 import type { NutritionResponse } from '../types/types';
@@ -26,34 +24,7 @@ import { getDailyNutrition, savePlanLogById } from '../services/log.service';
 import { fmtVNFull, toISODateOnly } from '../helpers/mealPlan.helper';
 import DateButton from '../components/Date/DateButton';
 import DatePickerSheet from '../components/Date/DatePickerSheet';
-
-const Avatar = React.memo(function Avatar({
-  name,
-  photoUri,
-}: {
-  name: string;
-  photoUri?: string | null;
-}) {
-  const initials = name
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-
-  if (photoUri) return <Image source={{ uri: photoUri }} style={s.avatar} />;
-
-  return (
-    <ViewComponent center style={s.avatarFallback} flex={0}>
-      <TextComponent
-        text={initials}
-        variant="subtitle"
-        weight="bold"
-        tone="primary"
-      />
-    </ViewComponent>
-  );
-});
+import AppHeader from '../components/AppHeader';
 
 const MealPlan = () => {
   const [range, setRange] = useState<'day' | 'week'>('day');
@@ -103,6 +74,14 @@ const MealPlan = () => {
       task?.cancel?.();
     };
   }, [date, fetchData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const ac = new AbortController();
+      fetchData(date, ac.signal);
+      return () => ac.abort();
+    }, [date, fetchData]),
+  );
 
   const onRefresh = useCallback(() => {
     const ac = new AbortController();
@@ -171,27 +150,11 @@ const MealPlan = () => {
 
   return (
     <Container>
-      {/* Header */}
-      <ViewComponent row between alignItems="center">
-        <ViewComponent row alignItems="center" gap={10} flex={0}>
-          <Avatar name="Anh Hải" />
-          <ViewComponent flex={0}>
-            <TextComponent text="Xin chào," variant="caption" tone="muted" />
-            <TextComponent text="Anh Hải Nè" variant="subtitle" weight="bold" />
-          </ViewComponent>
-        </ViewComponent>
-
-        <Pressable
-          style={s.iconContainer}
-          onPress={() => navigation.navigate('Notification')}
-          accessibilityRole="button"
-          accessibilityLabel="Mở thông báo"
-          hitSlop={8}
-          disabled={loading}
-        >
-          <Entypo name="bell" size={20} color={C.primary} />
-        </Pressable>
-      </ViewComponent>
+      {/* Header dùng chung */}
+      <AppHeader
+        loading={loading}
+        onPressBell={() => navigation.navigate('Notification')}
+      />
 
       <ViewComponent style={s.line} />
 
@@ -321,7 +284,6 @@ const MealPlan = () => {
         <ViewComponent mt={12} mb={12}>
           <HydrationSummaryCard
             target={data?.waterTargetMl || 2000}
-            step={0.25}
             initial={0}
             palette={C}
           />
@@ -334,28 +296,7 @@ const MealPlan = () => {
 export default MealPlan;
 
 const s = StyleSheet.create({
-  iconContainer: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: C.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  avatarFallback: {
-    width: 52,
-    height: 52,
-    borderRadius: 999,
-    backgroundColor: C.bg,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  avatar: { width: 52, height: 52, borderRadius: 999 },
-
   line: { height: 2, backgroundColor: C.border, marginVertical: 12 },
-
   segmentBtn: {
     minWidth: 100,
     height: 40,

@@ -7,7 +7,6 @@ import ViewComponent from '../ViewComponent';
 import { colors as C } from '../../constants/colors';
 import { MealPlanItemResponse } from '../../types/mealPlan.type';
 import { smartSwapMealItem } from '../../services/planDay.service';
-import { deletePlanLogById } from '../../services/log.service'; // NEW
 
 /* ========= types ========= */
 export type Range = 'day' | 'week';
@@ -103,7 +102,6 @@ function toTime(x: any, def = 9_223_372_036_854_775_807n): bigint {
   }
 }
 
-/** So sánh ổn định: displayOrder/orderIndex/position -> createdAt -> tên -> id */
 function mealItemComparator(
   a: MealItem,
   b: MealItem,
@@ -188,10 +186,10 @@ function mapItemsToSectionsStable(
       slot === 'BREAKFAST'
         ? 'coffee'
         : slot === 'LUNCH'
-          ? 'silverware-fork-knife'
-          : slot === 'DINNER'
-            ? 'weather-night'
-            : 'leaf';
+        ? 'silverware-fork-knife'
+        : slot === 'DINNER'
+        ? 'weather-night'
+        : 'leaf';
 
     sections.push({
       id: slot,
@@ -247,7 +245,6 @@ function MealItemCard({
   onToggle,
   onChange,
   onDetail,
-  changeDisabled,
   changing,
 }: {
   it: MealItem;
@@ -255,11 +252,10 @@ function MealItemCard({
   onToggle?: () => void;
   onChange?: () => void;
   onDetail?: () => void;
-  changeDisabled?: boolean;
   changing?: boolean;
 }) {
   const [imgError, setImgError] = useState(false);
-  const showDisabled = !!changeDisabled || !!changing;
+  const showDisabled = !!changing; // only disabled when swapping
 
   return (
     <ViewComponent style={st.mealCard}>
@@ -281,11 +277,13 @@ function MealItemCard({
           />
         )}
 
+        {/* Tick chỉ cho phép bật (không cho bỏ tick) */}
         <Pressable
           onPress={onToggle}
           style={st.tickWrap}
           hitSlop={6}
           accessibilityRole="button"
+          accessibilityState={{ disabled: checked }}
         >
           <ViewComponent
             style={[st.tickCircle, checked ? st.tickOn : st.tickOff]}
@@ -327,9 +325,9 @@ function MealItemCard({
 
         {/* ====== Actions: Đổi món / Xem chi tiết ====== */}
         <ViewComponent row gap={10} flex={0}>
-          {/* Nút Đổi món: disabled nếu đã ăn hoặc đang đổi */}
+          {/* Nút Đổi món: chỉ disable khi đang đổi */}
           <Pressable
-            style={[st.btn, showDisabled ? st.btnDisabled : st.btnPrimary]}
+            style={[st.btn, st.btnPrimary]}
             onPress={showDisabled ? undefined : onChange}
             disabled={showDisabled}
             accessibilityRole="button"
@@ -337,20 +335,12 @@ function MealItemCard({
           >
             <ViewComponent row gap={6} center flex={0}>
               <MaterialCommunityIcons
-                name={
-                  changeDisabled
-                    ? 'lock'
-                    : changing
-                    ? 'progress-clock'
-                    : 'swap-horizontal-bold'
-                }
+                name={changing ? 'progress-clock' : 'swap-horizontal-bold'}
                 size={16}
                 color={showDisabled ? C.slate500 : C.white}
               />
               <TextComponent
-                text={
-                  changeDisabled ? 'Đã ăn' : changing ? 'Đang đổi…' : 'Đổi món'
-                }
+                text={changing ? 'Đang đổi…' : 'Đổi món'}
                 color={showDisabled ? C.slate500 : C.white}
                 size={12}
                 weight="bold"
@@ -447,75 +437,57 @@ export default function MealLog({
   items,
   activeDate = new Date(),
   onPickDate,
-  onChangeMeal,
   onViewDetail,
   onLogEat,
   onAfterSwap,
 }: MealLogProps) {
-  const idMap = useIdMap(items);
+  // 1) LỌC: chỉ hiển thị item chưa dùng và chưa hoán đổi
+  const visibleItems = useMemo(
+    () => (items ?? []).filter(it => it?.used !== true && it?.swapped !== true),
+    [items],
+  );
+
+  // 2) Dựa trên danh sách đã lọc
+  const idMap = useIdMap(visibleItems);
   const sections = useMemo<Section[]>(
-    () => mapItemsToSectionsStable(items, idMap),
-    [items, idMap],
+    () => mapItemsToSectionsStable(visibleItems, idMap),
+    [visibleItems, idMap],
   );
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [swappingIds, setSwappingIds] = useState<Set<string>>(new Set());
 
+  // Khi nguồn dữ liệu thay đổi, reset tick (vì used/swapped đã bị ẩn khỏi UI)
   useEffect(() => {
-    if (!items || items.length === 0) {
-      setSelected(new Set());
-      return;
-    }
-    const next = new Set(items.filter(it => it.used === true).map(it => it.id));
-    setSelected(next);
-  }, [items]);
+    setSelected(new Set());
+  }, [visibleItems]);
 
-  // Tick: ON -> log; OFF -> xoá log (nếu trước đó used === true)
+  // Tick: CHỈ CHO PHÉP BẬT (ON). Không hỗ trợ OFF (bỏ tick) nữa.
   const toggle = useCallback(
     async (id: string) => {
-      const willCheck = !selected.has(id); // trạng thái sau khi bấm
-      const original = idMap.get(id);
-      const wasUsed = original?.used === true;
+      if (selected.has(id)) return; // đã tick rồi, bỏ qua
 
       // cập nhật UI ngay (optimistic)
       setSelected(prev => {
         const next = new Set(prev);
-        if (willCheck) next.add(id);
-        else next.delete(id);
+        next.add(id);
         return next;
       });
 
       try {
-        if (willCheck) {
-          // OFF -> ON
-          if (!wasUsed && onLogEat) {
-            await onLogEat(id);
-          }
-          // nếu wasUsed === true mà vẫn ON lại thì không gọi gì (đã có log sẵn)
-        } else {
-          // ON -> OFF: chỉ xoá log nếu trước đó used === true
-          if (wasUsed) {
-            await deletePlanLogById(id);
-            onAfterSwap?.(); // dùng chung để parent refetch
-          }
+        if (onLogEat) {
+          await onLogEat(id);
         }
       } catch (e) {
-        // rollback nếu lỗi
         setSelected(prev => {
           const rollback = new Set(prev);
-          if (willCheck) {
-            // đã add -> remove lại
-            rollback.delete(id);
-          } else {
-            // đã remove -> add lại
-            rollback.add(id);
-          }
+          rollback.delete(id);
           return rollback;
         });
         console.log('Toggle log thất bại:', e);
       }
     },
-    [selected, onLogEat, idMap, onAfterSwap],
+    [selected, onLogEat],
   );
 
   // Handler bấm "Đổi món": gọi API smartSwapMealItem nếu nút khả dụng
@@ -565,7 +537,6 @@ export default function MealLog({
             <SectionHeader name={sec.name} kcal={kcalTotalOf([sec])} />
             {sec.items.map(it => {
               const original = idMap.get(it.id);
-              const changeDisabled = original?.used === true;
               const changing = swappingIds.has(it.id);
 
               return (
@@ -575,8 +546,7 @@ export default function MealLog({
                   checked={selected.has(it.id)}
                   onToggle={() => toggle(it.id)}
                   onChange={() => original && handleChange(original)}
-                  onDetail={() => it.foodId && onViewDetail?.(it.foodId)} // truyền foodId
-                  changeDisabled={changeDisabled}
+                  onDetail={() => it.foodId && onViewDetail?.(it.foodId)}
                   changing={changing}
                 />
               );
@@ -675,11 +645,5 @@ const st = StyleSheet.create({
     backgroundColor: ACCENT_SURFACE,
     borderWidth: 1,
     borderColor: ACCENT_BORDER,
-  },
-  // Disabled cho nút Đổi món — phối màu dễ nhìn hơn
-  btnDisabled: {
-    backgroundColor: C.primarySurface,
-    borderWidth: 1,
-    borderColor: C.primaryBorder,
   },
 });
