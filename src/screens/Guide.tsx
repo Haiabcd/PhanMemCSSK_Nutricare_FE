@@ -37,7 +37,7 @@ import type {
 } from '../types/types';
 
 /* ================== Cấu hình YouTube ================== */
-const YOUTUBE_API_KEY = 'AIzaSyDQy86mIJha934eUWygww4BjyKMUGRq0-c';
+const YOUTUBE_API_KEY = 'AIzaSyD63wZGYUgGZAIESv7nb6YK2vSwVM6aV4s';
 const REGION = 'VN';
 const FALLBACK_THUMB =
     'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=800&auto=format&fit=crop';
@@ -208,10 +208,13 @@ function Card({ item }: { item: Item }) {
 const ageFromBirthYear = (y?: number | null) =>
     typeof y === 'number' ? new Date().getFullYear() - y : undefined;
 
-// Query cho VIDEO dinh dưỡng (giữ nguyên)
+// Query cho VIDEO dinh dưỡng — đã bias về món ăn/công thức/recipe
 function buildQueryFromInfo(info?: InfoResponse | null, userText?: string) {
     const terms: string[] = [];
-    if (!info) return (userText?.trim() || 'dinh dưỡng') + ' tiếng Việt';
+    if (!info) {
+        const base = (userText?.trim() || 'dinh dưỡng món ăn công thức nấu ăn healthy recipes');
+        return `${base} tiếng Việt`;
+    }
 
     const p: ProfileDto | undefined = info.profileCreationResponse;
 
@@ -219,13 +222,13 @@ function buildQueryFromInfo(info?: InfoResponse | null, userText?: string) {
 
     switch (p?.goal) {
         case 'LOSE':
-            terms.push('giảm cân', 'low calorie');
+            terms.push('giảm cân', 'low calorie', 'healthy recipes', 'ăn kiêng');
             break;
         case 'GAIN':
-            terms.push('tăng cân lành mạnh', 'tăng cơ', 'calorie surplus');
+            terms.push('tăng cân lành mạnh', 'tăng cơ', 'high protein', 'calorie surplus');
             break;
         case 'MAINTAIN':
-            terms.push('duy trì cân nặng');
+            terms.push('duy trì cân nặng', 'balanced diet');
             break;
     }
 
@@ -242,7 +245,7 @@ function buildQueryFromInfo(info?: InfoResponse | null, userText?: string) {
 
     switch (p?.activityLevel) {
         case 'SEDENTARY':
-            terms.push('ít vận động', 'bài tập nhẹ nhàng');
+            terms.push('ít vận động');
             break;
         case 'LIGHTLY_ACTIVE':
             terms.push('bài tập nhẹ');
@@ -260,19 +263,24 @@ function buildQueryFromInfo(info?: InfoResponse | null, userText?: string) {
         const name = (c?.name || '').toLowerCase();
         if (!name) return;
         if (name.includes('tiểu đường') || name.includes('đái tháo đường') || name.includes('diabetes')) {
-            terms.push('thực đơn cho người tiểu đường', 'low glycemic', 'giảm đường huyết');
+            terms.push('thực đơn cho người tiểu đường', 'low glycemic');
         } else if (name.includes('huyết áp') || name.includes('hypertension')) {
-            terms.push('ít muối', 'dinh dưỡng cho người huyết áp cao');
+            terms.push('ít muối', 'tốt cho tim mạch');
         } else if (name.includes('mỡ máu') || name.includes('cholesterol')) {
-            terms.push('ít chất béo bão hoà', 'tốt cho tim mạch');
+            terms.push('ít chất béo bão hoà', 'heart healthy');
         } else {
             terms.push(`${c.name} dinh dưỡng`);
         }
     });
 
-    terms.push('dinh dưỡng', 'ăn uống lành mạnh', 'meal prep');
-    const unique = Array.from(new Set(terms)).slice(0, 7).join(' | ');
-    return `${unique} tiếng Việt`;
+    // ===== ép trọng tâm về MÓN ĂN / CÔNG THỨC / RECIPE =====
+    terms.push(
+        'dinh dưỡng', 'món ăn', 'cách nấu', 'công thức', 'recipe', 'cooking',
+        'healthy recipes', 'meal prep', 'ăn gì', 'thực đơn', 'tiếng Việt'
+    );
+
+    const unique = Array.from(new Set(terms)).slice(0, 10).join(' | ');
+    return unique;
 }
 
 // Query cho VIDEO TẬP LUYỆN (mới)
@@ -359,6 +367,29 @@ function buildQS(params: Record<string, any>) {
 
 const FALLBACK_ERROR = 'Không tải được dữ liệu từ YouTube. Vui lòng thử lại.';
 
+// ===== Từ khóa nhận diện video về món ăn/nấu ăn/dinh dưỡng =====
+const FOOD_KEYWORDS = [
+    // tiếng Việt (ưu tiên)
+    'cách nấu', 'nấu ăn', 'công thức', 'món', 'món ăn', 'bữa ăn', 'thực đơn',
+    'ăn gì', 'ăn như thế nào', 'ăn như nào', 'ăn đúng cách', 'dinh dưỡng',
+    'đồ ăn', 'ẩm thực', 'healthy', 'giảm cân ăn', 'tăng cân ăn', 'meal prep',
+    'thực phẩm', 'nấu', 'luộc', 'hấp', 'chiên', 'xào', 'om', 'kho', 'soup', 'súp',
+    // English (để bắt video kênh việt nhưng đặt title eng)
+    'recipe', 'recipes', 'how to cook', 'cooking', 'meal prep', 'what i eat',
+    'nutrition', 'nutritional', 'healthy recipes', 'diet', 'keto', 'low carb', 'high protein',
+];
+
+function includesAny(haystack: string, keywords: string[]) {
+    const s = haystack.toLowerCase();
+    return keywords.some(k => s.includes(k.toLowerCase()));
+}
+
+/** Nhận diện video có liên quan món ăn/nấu ăn/dinh dưỡng */
+function isFoodVideo(item: Item) {
+    const text = [item.title, item.desc, item.meta, item.channel].filter(Boolean).join(' ').toLowerCase();
+    return includesAny(text, FOOD_KEYWORDS);
+}
+
 async function fetchYoutubeVideos(apiKey: string, q: string, maxResults = 12, pageToken?: string) {
     const base = 'https://www.googleapis.com/youtube/v3/search';
     const query = buildQS({
@@ -369,6 +400,7 @@ async function fetchYoutubeVideos(apiKey: string, q: string, maxResults = 12, pa
         safeSearch: 'moderate',
         relevanceLanguage: 'vi',
         regionCode: REGION,
+        order: 'relevance', // ưu tiên khớp chủ đề
         pageToken,
         key: apiKey,
     });
@@ -465,9 +497,11 @@ export default function NutritionGuide() {
         try {
             const { items, nextPageToken } = await fetchYoutubeVideos(YOUTUBE_API_KEY, videoQuery, 12);
             const blocked = (myInfo?.allergies || []).map((a: UserAllergyResponse) => a.name.toLowerCase());
-            const filtered = items.filter(
-                (v) => !blocked.some((b) => (v.title + ' ' + v.desc).toLowerCase().includes(b))
-            );
+            // chặn dị ứng + BẮT BUỘC phải là video món ăn/nấu ăn/dinh dưỡng
+            const filtered = items
+                .filter((v) => !blocked.some((b) => (v.title + ' ' + v.desc).toLowerCase().includes(b)))
+                .filter(isFoodVideo);
+
             setYtItems(filtered);
             setNextToken(nextPageToken);
         } catch (e) {
@@ -487,7 +521,8 @@ export default function NutritionGuide() {
                 12,
                 nextToken
             );
-            setYtItems((prev) => [...prev, ...more]);
+            const moreFiltered = more.filter(isFoodVideo);
+            setYtItems((prev) => [...prev, ...moreFiltered]);
             setNextToken(nextPageToken);
         } catch (e) {
             if (__DEV__) console.warn('[YouTube][loadMore] error', e);
