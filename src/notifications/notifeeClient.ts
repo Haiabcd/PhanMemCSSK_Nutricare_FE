@@ -162,7 +162,7 @@ export async function schedulePostOnly(meal: MealKey, forDate: Date) {
     end.setHours(def.endHour, 0, 0, 0);
 
     // nổ 30 phút sau giờ end
-    let fireTime = new Date(end.getTime() + 30 * 60 * 1000);
+    let fireTime = new Date(end.getTime() + 5 * 60 * 1000);
 
     console.log('[SCHED] POST', meal, 'for', forDate.toDateString(), '-> fires at', fireTime.toLocaleString());
 
@@ -170,7 +170,7 @@ export async function schedulePostOnly(meal: MealKey, forDate: Date) {
     if (fireTime.getTime() <= Date.now()) {
         const tomorrowEnd = new Date(end);
         tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
-        fireTime = new Date(tomorrowEnd.getTime() + 30 * 60 * 1000);
+        fireTime = new Date(tomorrowEnd.getTime() + 5 * 60 * 1000);
     }
 
     const id = makeId(meal, fireTime, 'post');

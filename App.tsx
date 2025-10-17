@@ -12,12 +12,21 @@ import {
 } from './src/config/secureToken';
 import { refreshWithStoredToken } from './src/services/auth.service';
 
+// Ăn
 import {
   schedulePrePostRange,
   registerForegroundHandlers,
   registerBackgroundHandler,
   ensureNotificationReady,
 } from './src/notifications/notifeeClient';
+
+// Uống
+import {
+  registerHydrationForeground,
+  registerHydrationBackground,
+  bootstrapHydrationSchedule,
+} from './src/notifications/hydrationAuto';
+
 
 // 🟢 Bắt buộc: đăng ký background handler ngoài component
 registerBackgroundHandler();
@@ -74,6 +83,19 @@ function App() {
       .then(() => schedulePrePostRange(7)) // đặt cho 7 ngày tới
       .catch(console.warn);
   }, [ready]);
+
+  useEffect(() => {
+    if (!ready || !isAuthed) return;
+
+    const unsubFG = registerHydrationForeground();  // Đã uống
+    const unsubBG = registerHydrationBackground();
+
+    bootstrapHydrationSchedule(7).catch(console.log); // tự động lên lịch 7 ngày cho "uống nước"
+
+    return () => {
+      unsubFG && unsubFG();
+    };
+  }, [ready, isAuthed]);
 
   if (!ready) return null;
 
