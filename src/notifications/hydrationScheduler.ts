@@ -67,7 +67,11 @@ export const HYDRATION_PLANS: Record<GoalKey, Plan> = {
 
 /** ====== Chuẩn bị quyền thông báo ====== */
 export async function ensureHydrationReady() {
-    await notifee.createChannel({ id: CHANNEL_ID, name: 'Hydration Reminders', importance: AndroidImportance.HIGH });
+    await notifee.createChannel({
+        id: CHANNEL_ID,
+        name: 'Hydration Reminders',
+        importance: AndroidImportance.HIGH,
+    });
 
     const settings = await notifee.getNotificationSettings();
     if (settings.authorizationStatus === AuthorizationStatus.AUTHORIZED) return;
@@ -84,7 +88,11 @@ export async function ensureHydrationReady() {
                 {
                     text: 'Mở Cài đặt',
                     onPress: async () => {
-                        try { await notifee.openNotificationSettings(); } catch { await Linking.openSettings().catch(() => { }); }
+                        try {
+                            await notifee.openNotificationSettings();
+                        } catch {
+                            await Linking.openSettings().catch(() => { });
+                        }
                         Alert.alert(
                             '⚙️ Gợi ý',
                             '1) Ứng dụng > NutriCare > Báo thức & nhắc nhở → BẬT\n2) Pin > Không tối ưu hoá cho NutriCare',
@@ -103,10 +111,9 @@ const dateAtTime = (base: Date, hhmm: string) => {
     const [hh, mm] = hhmm.split(':').map((x) => parseInt(x, 10));
     return new Date(base.getFullYear(), base.getMonth(), base.getDate(), hh, mm, 0, 0);
 };
-const fiveMinsBefore = (d: Date) => new Date(d.getTime() - 5 * 60 * 1000);
 const makeId = (date: Date, idx: number) => `hydration-${ymd(date)}-${idx}`;
 
-/** ====== Lên lịch theo ngày ====== */
+/** ====== Lên lịch theo ngày (bắn ĐÚNG GIỜ uống) ====== */
 export async function scheduleHydrationForDate(goal: GoalKey, forDate: Date) {
     await ensureHydrationReady();
     const plan = HYDRATION_PLANS[goal];
@@ -114,13 +121,13 @@ export async function scheduleHydrationForDate(goal: GoalKey, forDate: Date) {
     for (let i = 0; i < plan.slots.length; i++) {
         const s = plan.slots[i];
         const drinkAt = dateAtTime(forDate, s.time);
-        let fireAt = fiveMinsBefore(drinkAt);
+        let fireAt = drinkAt; // ⏰ Bắn đúng giờ uống
 
-        // Nếu giờ nhắc đã trôi qua → chuyển sang ngày mai
+        // Nếu giờ đó đã trôi qua → chuyển sang NGÀY MAI cùng khung giờ
         if (fireAt.getTime() <= Date.now()) {
             const tmr = new Date(forDate);
             tmr.setDate(tmr.getDate() + 1);
-            fireAt = fiveMinsBefore(dateAtTime(tmr, s.time));
+            fireAt = dateAtTime(tmr, s.time);
         }
 
         const id = makeId(fireAt, i);
@@ -132,13 +139,13 @@ export async function scheduleHydrationForDate(goal: GoalKey, forDate: Date) {
             alarmManager: { allowWhileIdle: true },
         };
 
-        // 🚫 KHÔNG hiển thị số ml
+        // ✅ Nội dung thông báo theo yêu cầu
         await notifee.createTriggerNotification(
             {
                 id,
                 android: { channelId: CHANNEL_ID, pressAction: { id: 'default' }, actions },
-                title: `💧 ${s.title} (còn ~ 5 phút’)`,
-                body: s.note ? `${s.note} • Nhắc uống nước` : 'Nhắc uống nước',
+                title: `Đã đến giờ uống nước bữa ${s.title}`,
+                body: 'Hãy cập nhật cho mình nhé',
                 data: { kind: 'hydration', time: s.time, date: ymd(forDate), idx: String(i) },
             },
             trigger,
@@ -175,5 +182,3 @@ export async function hydrationBackgroundHandler({ type, detail }: Event) {
         console.log('[Hydration][BG] error', e);
     }
 }
-
-
