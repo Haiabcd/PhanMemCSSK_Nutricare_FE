@@ -41,7 +41,7 @@ registerAuthHeaderSetter((auth?: string) => {
 });
 
 // Các endpoint không chạy refresh khi 401
-const AUTH_WHITELIST = ['/auths/onboarding', '/auths/refresh'];
+const AUTH_WHITELIST = ['/auths/onboarding', '/auths/refresh', '/auths/logout'];
 
 // Trạng thái refresh + hàng đợi khi refresh đang diễn ra
 let isRefreshing = false;

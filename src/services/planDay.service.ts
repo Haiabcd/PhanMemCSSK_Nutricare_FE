@@ -1,9 +1,10 @@
 import { api } from '../config/api';
-import type { ApiResponse } from '../types/types';
+import type { ApiResponse ,MealSlot} from '../types/types';
 import type { MealPlanResponse } from '../types/mealPlan.type';
+import type { FoodResponse } from '../types/food.type';
 
 
-// Lấy meal plan tuần hiện tại (Thứ 2 -> CN)
+// Lấy meal plan theo ngày
 export async function getMealPlanByDate(
   date: string,
   signal?: AbortSignal
@@ -26,5 +27,23 @@ export async function smartSwapMealItem(
     null,
     { signal }
   );
+  return res.data;
+}
+
+
+//Hàm đề xuất
+export async function suggestAllowedFoods(
+  opts: { slot?: MealSlot; limit?: number } = {},
+  signal?: AbortSignal
+): Promise<ApiResponse<FoodResponse[]>> {
+  const { slot, limit } = opts;
+
+  const safeLimit =
+    typeof limit === 'number' ? Math.min(Math.max(limit, 1), 100) : undefined;
+
+  const res = await api.get<ApiResponse<FoodResponse[]>>('/meal-plans/suggest', {
+    params: { slot, limit: safeLimit },
+    signal,
+  });
   return res.data;
 }

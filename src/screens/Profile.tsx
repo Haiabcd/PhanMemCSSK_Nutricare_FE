@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Image,
   TextInput,
   Pressable,
   ScrollView,
@@ -8,6 +7,8 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
+  Linking,
+  useWindowDimensions,
 } from 'react-native';
 import McIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Container from '../components/Container';
@@ -15,7 +16,6 @@ import TextComponent from '../components/TextComponent';
 import ViewComponent from '../components/ViewComponent';
 import { colors as C } from '../constants/colors';
 import { useNavigation } from '@react-navigation/native';
-import { getMyInfo } from '../services/user.service';
 import type {
   Allergy,
   Condition,
@@ -24,6 +24,7 @@ import type {
   UserAllergyResponse,
   UserConditionResponse,
 } from '../types/types';
+import type { UpdateRequest } from '../types/user.type';
 import LoadingOverlay from '../components/LoadingOverlay';
 import {
   calcAge,
@@ -35,21 +36,45 @@ import {
   GOAL_OPTIONS,
   GENDER_OPTIONS,
   ACTIVITY_OPTIONS,
+  toYMDLocal,
 } from '../helpers/profile.helper';
 import MultiSelectModal from '../components/Profile/MultiSelectModal';
 import LoginChoiceModal from '../components/Profile/LoginModal';
 import InfoItem from '../components/Profile/InfoItem';
-import { getAllConditions } from '../services/condition.service';
-import { getAllAllergies } from '../services/allergy.service';
 import ToastCenter, { ToastKind } from '../components/Profile/ToastCenter';
 import FormField from '../components/Profile/FormField';
 import Dropdown from '../components/Profile/Dropdown';
 import AppHeader from '../components/AppHeader';
+import {
+  startGoogleOAuth,
+  logout as logoutApi,
+} from '../services/auth.service'; // 👈 thêm import logout
+import { getAllConditions } from '../services/condition.service';
+import { getAllAllergies } from '../services/allergy.service';
+import { getMyInfo, updateProfile } from '../services/user.service';
+import { getOrCreateDeviceId } from '../config/deviceId';
+import { useHeader } from '../context/HeaderProvider';
+import { getTokenSecure, removeTokenSecure } from '../config/secureToken'; // 👈 cần để lấy refreshToken & fallback xoá local
 
 type PickerType = 'condition' | 'allergy';
 
+// ===== Helpers =====
+const formatTargetDeltaForDisplay = (goal: string, delta: number) => {
+  if (goal === 'LOSE') return Math.abs(delta);
+  if (goal === 'MAINTAIN') return 0;
+  return Math.abs(delta);
+};
+
+const normalizeTargetDeltaForApi = (goal: string, delta: number) => {
+  if (goal === 'LOSE') return -Math.abs(delta || 0);
+  if (goal === 'MAINTAIN') return 0;
+  return Math.abs(delta || 0);
+};
+
 export default function ProfileScreen() {
   const navigation = useNavigation<any>();
+  const { width } = useWindowDimensions();
+  const isSmall = width < 370;
 
   const [showEdit, setShowEdit] = useState(false);
 
@@ -73,11 +98,15 @@ export default function ProfileScreen() {
   const [allergies, setAllergies] = useState<Allergy[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // OAuth
   const [loginChoiceOpen, setLoginChoiceOpen] = useState(false);
-  const onLoginWith = (provider: 'google' | 'facebook') => {
-    setLoginChoiceOpen(false);
-    navigation.navigate('Login', { provider });
-  };
+  const [oauthStarting, setOauthStarting] = useState(false);
+
+  // ✅ hook để làm mới/clear header sau khi update / logout
+  const { refresh: refreshHeader, reset: resetHeader } = useHeader();
+
+  // ====== thêm trạng thái để hiện overlay khi đang logout ======
+  const [loggingOut, setLoggingOut] = useState(false);
 
   // Gộp tất cả API
   const fetchData = useCallback(async (signal?: AbortSignal) => {
@@ -145,6 +174,7 @@ export default function ProfileScreen() {
     setShowEdit(true);
   };
 
+  // ====== Đăng xuất: gọi API logout với refreshToken trong Keychain ======
   const onLogout = () => {
     Alert.alert(
       'Đăng xuất',
@@ -154,40 +184,40 @@ export default function ProfileScreen() {
         {
           text: 'Đăng xuất',
           style: 'destructive',
-          onPress: () => {
-            showToast(
-              {
-                title: 'Đăng xuất thành công',
-                subtitle: 'Hẹn gặp lại bạn sớm nhé!',
-              },
-              () =>
-                navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] }),
-            );
-          },
-        },
-      ],
-      { cancelable: true },
-    );
-  };
+          onPress: async () => {
+            setLoggingOut(true);
+            try {
+              const cur = await getTokenSecure();
+              const refreshToken = cur?.refreshToken;
 
-  const onDeleteAccount = () => {
-    Alert.alert(
-      'Xóa tài khoản',
-      'Bạn có chắc muốn xóa tài khoản?',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Xóa',
-          style: 'destructive',
-          onPress: () => {
-            showToast(
-              {
-                title: 'Đã xóa tài khoản',
-                subtitle: 'Tài khoản của bạn đã được xóa thành công.',
-              },
-              () =>
-                navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] }),
-            );
+              if (refreshToken) {
+                // Gọi BE để thu hồi refresh token family
+                await logoutApi({ refreshToken });
+              } else {
+                // Không có refresh token => xoá local cho sạch (phòng trường hợp lỗi trước đó)
+                await removeTokenSecure();
+              }
+
+              // Clear header context dùng chung
+              resetHeader?.();
+
+              showToast(
+                {
+                  title: 'Đăng xuất thành công',
+                  subtitle: 'Hẹn gặp lại bạn sớm nhé!',
+                },
+                () =>
+                  navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] }),
+              );
+            } catch (e) {
+              // Dù BE lỗi, vẫn xoá token local để đảm bảo người dùng đã đăng xuất ở client
+              await removeTokenSecure();
+              resetHeader?.();
+              Alert.alert('Thông báo', 'Đã đăng xuất ở phía thiết bị.');
+              navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
+            } finally {
+              setLoggingOut(false);
+            }
           },
         },
       ],
@@ -200,10 +230,140 @@ export default function ProfileScreen() {
     setPickerOpen(true);
   };
 
+  // ====== Hiển thị nút theo provider ======
+  const provider = myInfo?.provider ?? 'NONE';
+  const isGuest = provider === 'NONE';
+  const isLoggedIn =
+    provider === 'SUPABASE_GOOGLE' || provider === 'SUPABASE_FACEBOOK';
+
+  // Login
+  const onLoginWith = useCallback(
+    async (providerPick: 'google' | 'facebook') => {
+      setLoginChoiceOpen(false);
+
+      if (providerPick === 'google') {
+        try {
+          setOauthStarting(true);
+          const deviceId = await getOrCreateDeviceId();
+          const res = await startGoogleOAuth(deviceId);
+          const url = res?.data?.authorizeUrl;
+          if (!url) {
+            Alert.alert('Lỗi', 'Không nhận được liên kết đăng nhập Google.');
+            return;
+          }
+          await Linking.openURL(url);
+        } catch (e) {
+          console.log('startGoogleOAuth error:', e);
+          Alert.alert(
+            'Lỗi',
+            'Không thể bắt đầu đăng nhập Google. Vui lòng thử lại.',
+          );
+        } finally {
+          setOauthStarting(false);
+        }
+        return;
+      }
+
+      navigation.navigate('Login', { provider: 'facebook' });
+    },
+    [navigation],
+  );
+
+  // ====== Lưu thay đổi: gọi API update + refresh header ======
+  const handleSave = useCallback(async () => {
+    if (!editData || !editInfo) {
+      console.log('Thiếu dữ liệu editData/editInfo để build UpdateRequest');
+      return;
+    }
+
+    const conditionIds: string[] = (editInfo.conditions ?? []).map(
+      (x: any) => x?.id ?? x?.conditionId ?? x,
+    );
+    const allergyIds: string[] = (editInfo.allergies ?? []).map(
+      (x: any) => x?.id ?? x?.allergyId ?? x,
+    );
+
+    // Chuẩn hóa delta theo goal cho API
+    const normalizedDelta = normalizeTargetDeltaForApi(
+      editData.goal,
+      Number(editData.targetWeightDeltaKg || 0),
+    );
+
+    const payload: UpdateRequest = {
+      profile: {
+        id: editData.id,
+        heightCm: editData.heightCm,
+        weightKg: editData.weightKg,
+        targetWeightDeltaKg: normalizedDelta, // 👈 nếu LOSE luôn là số âm
+        targetDurationWeeks: editData.targetDurationWeeks,
+        gender: editData.gender,
+        birthYear: editData.birthYear,
+        goal: editData.goal,
+        activityLevel: editData.activityLevel,
+        name: (editData.name ?? '').trim(),
+      },
+      conditions: conditionIds,
+      allergies: allergyIds,
+      startDate: toYMDLocal(new Date()),
+    };
+
+    setLoading(true);
+    const ac = new AbortController();
+    try {
+      await updateProfile(payload, ac.signal);
+
+      // ✅ Optimistic update local UI
+      setData(prev =>
+        prev
+          ? { ...prev, ...payload.profile }
+          : (payload.profile as ProfileDto),
+      );
+      setMyInfo(prev =>
+        prev
+          ? {
+              ...prev,
+              profileCreationResponse: {
+                ...(prev.profileCreationResponse ?? {}),
+                ...payload.profile,
+              } as ProfileDto,
+              conditions: editInfo.conditions ?? [],
+              allergies: editInfo.allergies ?? [],
+            }
+          : prev,
+      );
+
+      // ✅ Refresh lại header dùng chung (avatar/tên)
+      await refreshHeader();
+
+      showToast(
+        {
+          title: 'Đã lưu thay đổi',
+          subtitle: 'Hồ sơ và tiêu đề đã được cập nhật.',
+        },
+        () => setShowEdit(false),
+      );
+    } catch (err: any) {
+      console.log('updateProfile error:', err?.response?.data ?? err);
+      Alert.alert('Lỗi', 'Không thể cập nhật hồ sơ. Vui lòng thử lại.');
+    } finally {
+      setLoading(false);
+    }
+  }, [editData, editInfo, refreshHeader]);
+
   return (
     <Container>
       {loading && <ActivityIndicator size="large" color="#22C55E" />}
-      <LoadingOverlay visible={loadingInfo} label="Đang đồng bộ..." />
+
+      <LoadingOverlay
+        visible={loadingInfo || oauthStarting || loggingOut}
+        label={
+          oauthStarting
+            ? 'Đang mở Google...'
+            : loggingOut
+            ? 'Đang đăng xuất...'
+            : 'Đang đồng bộ...'
+        }
+      />
 
       <ToastCenter
         visible={!!toast}
@@ -212,7 +372,7 @@ export default function ProfileScreen() {
         kind={toast?.kind ?? 'success'}
       />
 
-      {/* Header */}
+      {/* Header dùng chung */}
       <AppHeader
         loading={loading}
         onPressBell={() => navigation.navigate('Notification')}
@@ -267,6 +427,7 @@ export default function ProfileScreen() {
                 label="Dị ứng"
                 value={`${getAllergyNames(myInfo?.allergies ?? [])}`}
               />
+
               <TextComponent
                 text="Mục tiêu chi tiết"
                 variant="subtitle"
@@ -281,7 +442,10 @@ export default function ProfileScreen() {
               <InfoItem
                 icon="scale-bathroom"
                 label="Mức thay đổi cân nặng"
-                value={`${data.targetWeightDeltaKg} kg`}
+                value={`${formatTargetDeltaForDisplay(
+                  data.goal as any,
+                  data.targetWeightDeltaKg,
+                )} kg`}
               />
               <InfoItem
                 icon="calendar-clock"
@@ -512,18 +676,23 @@ export default function ProfileScreen() {
                 <FormField
                   icon="scale-bathroom"
                   label="Mức thay đổi cân nặng (kg)"
-                  style={styles.half}
+                  style={isSmall ? styles.full : styles.half}
                 >
                   <TextInput
                     value={
-                      editData.targetWeightDeltaKg
-                        ? `${editData.targetWeightDeltaKg}`
+                      editData.targetWeightDeltaKg !== undefined &&
+                      editData.targetWeightDeltaKg !== null
+                        ? `${formatTargetDeltaForDisplay(
+                            editData.goal as any,
+                            Number(editData.targetWeightDeltaKg),
+                          )}`
                         : ''
                     }
                     onChangeText={t =>
                       setEditData(prev => ({
                         ...prev!,
-                        targetWeightDeltaKg: parseFloat(t || '0'),
+                        // lưu dương; khi gửi sẽ chuẩn hóa dấu theo goal
+                        targetWeightDeltaKg: Math.abs(parseFloat(t || '0')),
                       }))
                     }
                     placeholder="Nhập mức thay đổi cân nặng"
@@ -534,7 +703,7 @@ export default function ProfileScreen() {
                 <FormField
                   icon="calendar-clock"
                   label="Thời gian đạt mục tiêu (tuần)"
-                  style={styles.half}
+                  style={isSmall ? styles.full : styles.half}
                 >
                   <TextInput
                     value={
@@ -557,10 +726,7 @@ export default function ProfileScreen() {
             )}
 
             <ViewComponent row gap={10} mt={6}>
-              <Pressable
-                style={styles.saveBtn}
-                onPress={() => setShowEdit(false)}
-              >
+              <Pressable style={styles.saveBtn} onPress={handleSave}>
                 <TextComponent
                   text="Lưu Thay Đổi"
                   tone="inverse"
@@ -612,7 +778,11 @@ export default function ProfileScreen() {
                 <McIcon name="bell-outline" size={16} color={C.success} />
               </ViewComponent>
               <ViewComponent>
-                <TextComponent text="Gửi thông báo" weight="semibold" />
+                <TextComponent
+                  text="Gửi thông báo"
+                  weight="semibold"
+                  style={{ marginBottom: 5 }}
+                />
                 <TextComponent
                   text="Nhận nhắc nhở và cập nhật dinh dưỡng"
                   variant="caption"
@@ -628,94 +798,74 @@ export default function ProfileScreen() {
             />
           </ViewComponent>
 
-          <Pressable
-            style={[styles.settingRowPress]}
-            onPress={() => setLoginChoiceOpen(true)}
-          >
-            <ViewComponent
-              row
-              alignItems="center"
-              gap={10}
-              style={{ flexShrink: 1 }}
-            >
-              <ViewComponent
-                center
-                style={[styles.settingIcon, { backgroundColor: '#dcfce7' }]}
+          {/* Chỉ hiện khi CHƯA đăng nhập (provider = NONE) */}
+          {isGuest && (
+            <>
+              <Pressable
+                style={[styles.settingRowPress]}
+                onPress={() => setLoginChoiceOpen(true)}
               >
-                <McIcon name="login" size={16} color={C.success} />
-              </ViewComponent>
-              <ViewComponent>
-                <TextComponent
-                  text="Đăng nhập ngay"
-                  weight="semibold"
-                  color={C.success}
-                />
-                <TextComponent
-                  text="Đăng nhập để đồng bộ và lưu trữ dữ liệu khi đổi thiết bị"
-                  variant="caption"
-                  tone="muted"
-                />
-              </ViewComponent>
-            </ViewComponent>
-            <McIcon name="chevron-right" size={18} color={C.slate500} />
-          </Pressable>
+                <ViewComponent
+                  row
+                  alignItems="center"
+                  gap={10}
+                  style={{ flexShrink: 1 }}
+                >
+                  <ViewComponent
+                    center
+                    style={[styles.settingIcon, { backgroundColor: '#dcfce7' }]}
+                  >
+                    <McIcon name="login" size={16} color={C.success} />
+                  </ViewComponent>
+                  <ViewComponent>
+                    <TextComponent
+                      text="Đăng nhập ngay"
+                      weight="semibold"
+                      color={C.success}
+                      style={{ marginBottom: 5 }}
+                    />
+                    <TextComponent
+                      text="Đăng nhập để đồng bộ và lưu trữ dữ liệu khi đổi thiết bị"
+                      variant="caption"
+                      tone="muted"
+                    />
+                  </ViewComponent>
+                </ViewComponent>
+                <McIcon name="chevron-right" size={18} color={C.slate500} />
+              </Pressable>
+            </>
+          )}
 
-          <Pressable style={[styles.settingRowPress]} onPress={onDeleteAccount}>
-            <ViewComponent
-              row
-              alignItems="center"
-              gap={10}
-              style={{ flexShrink: 1 }}
-            >
+          {/* Chỉ hiện khi ĐÃ đăng nhập (Google/Facebook) */}
+          {isLoggedIn && (
+            <Pressable style={[styles.settingRowPress]} onPress={onLogout}>
               <ViewComponent
-                center
-                style={[styles.settingIcon, { backgroundColor: '#fee2e2' }]}
+                row
+                alignItems="center"
+                gap={10}
+                style={{ flex: 1, minWidth: 0 }}
               >
-                <McIcon name="trash-can-outline" size={16} color={C.red} />
-              </ViewComponent>
-              <ViewComponent>
+                <ViewComponent
+                  center
+                  style={[styles.settingIcon, { backgroundColor: '#ebf5ff' }]}
+                >
+                  <McIcon name="logout" size={16} color={C.primary} />
+                </ViewComponent>
                 <TextComponent
-                  text="Xóa tài khoản"
+                  text="Đăng xuất"
                   weight="semibold"
-                  color={C.red}
-                />
-                <TextComponent
-                  text="Xóa vĩnh viễn dữ liệu và tài khoản"
-                  variant="caption"
-                  tone="muted"
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
                 />
               </ViewComponent>
-            </ViewComponent>
-            <McIcon name="chevron-right" size={18} color={C.slate500} />
-          </Pressable>
-
-          <Pressable style={[styles.settingRowPress]} onPress={onLogout}>
-            <ViewComponent
-              row
-              alignItems="center"
-              gap={10}
-              style={{ flex: 1, minWidth: 0 }}
-            >
-              <ViewComponent
-                center
-                style={[styles.settingIcon, { backgroundColor: '#ebf5ff' }]}
-              >
-                <McIcon name="logout" size={16} color={C.primary} />
-              </ViewComponent>
-              <TextComponent
-                text="Đăng xuất"
-                weight="semibold"
-                numberOfLines={1}
-                ellipsizeMode="tail"
+              <McIcon
+                name="chevron-right"
+                size={18}
+                color={C.slate500}
+                style={{ marginLeft: 'auto' }}
               />
-            </ViewComponent>
-            <McIcon
-              name="chevron-right"
-              size={18}
-              color={C.slate500}
-              style={{ marginLeft: 'auto' }}
-            />
-          </Pressable>
+            </Pressable>
+          )}
         </ViewComponent>
       </ScrollView>
 
@@ -758,9 +908,10 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: C.bg, borderRadius: 16 },
+  screen: { flex: 1, backgroundColor: C.bg, borderRadius: 16, marginTop: 20 },
   scrollContent: { paddingBottom: 28 },
   half: { width: '48%' },
+  full: { width: '100%' },
   halfPlaceholder: { width: '48%', opacity: 0 },
 
   input: {

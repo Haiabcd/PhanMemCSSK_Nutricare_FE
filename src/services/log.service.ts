@@ -2,7 +2,7 @@
 import { api } from '../config/api';
 import type { ApiResponse , NutritionResponse} from '../types/types';
 import axios from 'axios';
-import type { LogResponse } from '../types/log.type';
+import type { LogResponse,PlanLogManualRequest } from '../types/log.type';
 import type { MealSlot } from '../types/types';
 
 // Lưu log cho một mục trong meal plan
@@ -61,5 +61,14 @@ export async function deletePlanLogById(
   signal?: AbortSignal
 ): Promise<ApiResponse<void>> {
   const res = await api.delete<ApiResponse<void>>(`/logs/${id}`, { signal });
+  return res.data;
+}
+
+
+export async function saveManualLog(
+  payload: PlanLogManualRequest,
+  signal?: AbortSignal
+): Promise<ApiResponse<void>> {
+  const res = await api.post<ApiResponse<void>>('/logs/save/manual', payload, { signal });
   return res.data;
 }

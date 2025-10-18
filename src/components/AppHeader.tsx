@@ -1,20 +1,15 @@
-// components/AppHeader.tsx
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, StyleSheet, Pressable, InteractionManager } from 'react-native';
+import React, { useMemo } from 'react';
+import { Image, StyleSheet, Pressable } from 'react-native';
 import Entypo from 'react-native-vector-icons/Entypo';
-import { useFocusEffect } from '@react-navigation/native';
-
-import ViewComponent from './ViewComponent'; // chỉnh path nếu khác
-import TextComponent from './TextComponent'; // chỉnh path nếu khác
-import { colors as C } from '../constants/colors'; // chỉnh path nếu khác
-
-import { getHeader } from '../services/user.service';
-import type { HeaderResponse } from '../types/user.type';
+import ViewComponent from './ViewComponent';
+import TextComponent from './TextComponent';
+import { colors as C } from '../constants/colors';
+import { useHeader } from '../context/HeaderProvider';
 
 type AppHeaderProps = {
   loading?: boolean;
   onPressBell?: () => void;
-  greetingText?: string; // mặc định: "Xin chào,"
+  greetingText?: string;
 };
 
 const Avatar = React.memo(function Avatar({
@@ -24,7 +19,7 @@ const Avatar = React.memo(function Avatar({
   name: string;
   photoUri?: string | null;
 }) {
-  const [imgError, setImgError] = useState(false);
+  const [imgError, setImgError] = React.useState(false);
   const initials =
     (name || 'U')
       .trim()
@@ -32,7 +27,6 @@ const Avatar = React.memo(function Avatar({
       .map(n => n[0]?.toUpperCase() || '')
       .join('')
       .slice(0, 2) || 'U';
-
   const showInitials = !photoUri || photoUri.trim() === '' || imgError;
 
   if (showInitials) {
@@ -47,7 +41,6 @@ const Avatar = React.memo(function Avatar({
       </ViewComponent>
     );
   }
-
   return (
     <Image
       source={{ uri: photoUri }}
@@ -62,40 +55,7 @@ export default function AppHeader({
   onPressBell,
   greetingText = 'Xin chào,',
 }: AppHeaderProps) {
-  const [header, setHeader] = useState<HeaderResponse | null>(null);
-
-  const fetchHeader = useCallback(async (signal?: AbortSignal) => {
-    try {
-      const res = await getHeader(signal);
-      if (signal?.aborted) return;
-      setHeader(res?.data ?? null);
-    } catch {
-      if (!signal?.aborted) setHeader(null);
-    }
-  }, []);
-
-  // Lần đầu sau interaction
-  useEffect(() => {
-    const ac = new AbortController();
-    const task = InteractionManager.runAfterInteractions(() => {
-      fetchHeader(ac.signal);
-    });
-    return () => {
-      ac.abort();
-      // @ts-ignore
-      task?.cancel?.();
-    };
-  }, [fetchHeader]);
-
-  // Refetch khi màn focus
-  useFocusEffect(
-    useCallback(() => {
-      const ac = new AbortController();
-      fetchHeader(ac.signal);
-      return () => ac.abort();
-    }, [fetchHeader]),
-  );
-
+  const { header, loading: headerLoading } = useHeader();
   const displayName = useMemo(
     () => header?.name?.trim() || 'bạn',
     [header?.name],
@@ -117,7 +77,7 @@ export default function AppHeader({
         accessibilityRole="button"
         accessibilityLabel="Mở thông báo"
         hitSlop={8}
-        disabled={loading}
+        disabled={loading || headerLoading}
       >
         <Entypo name="bell" size={20} color={C.primary} />
       </Pressable>

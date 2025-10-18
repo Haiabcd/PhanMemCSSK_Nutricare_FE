@@ -1,11 +1,10 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   StyleSheet,
   ScrollView,
   Pressable,
   ActivityIndicator,
   RefreshControl,
-  InteractionManager,
 } from 'react-native';
 import Container from '../components/Container';
 import CaloriesNutritionCard from '../components/MealPlan/CaloriesNutritionCard';
@@ -25,6 +24,7 @@ import { fmtVNFull, toISODateOnly } from '../helpers/mealPlan.helper';
 import DateButton from '../components/Date/DateButton';
 import DatePickerSheet from '../components/Date/DatePickerSheet';
 import AppHeader from '../components/AppHeader';
+import LoadingOverlay from '../components/LoadingOverlay';
 
 const MealPlan = () => {
   const [range, setRange] = useState<'day' | 'week'>('day');
@@ -37,14 +37,22 @@ const MealPlan = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
 
+  // Dedupe in-flight theo ngày để chặn gọi trùng
+  const inFlightKey = useRef<string | null>(null);
+
   const fetchData = useCallback(
     async (d: Date, signal?: AbortSignal, opts?: { isRefresh?: boolean }) => {
+      const key = toISODateOnly(d);
+
+      // Chặn gọi trùng (trừ khi là refresh)
+      if (!opts?.isRefresh && inFlightKey.current === key) return;
+      inFlightKey.current = key;
+
       opts?.isRefresh ? setRefreshing(true) : setLoading(true);
       try {
-        const dateIso = toISODateOnly(d);
         const [planRes, nutriRes] = await Promise.all([
-          getMealPlanByDate(dateIso, signal),
-          getDailyNutrition(dateIso, signal),
+          getMealPlanByDate(key, signal),
+          getDailyNutrition(key, signal),
         ]);
 
         if (signal?.aborted) return;
@@ -57,24 +65,14 @@ const MealPlan = () => {
         }
       } finally {
         if (signal?.aborted) return;
+        if (inFlightKey.current === key) inFlightKey.current = null;
         opts?.isRefresh ? setRefreshing(false) : setLoading(false);
       }
     },
     [],
   );
 
-  useEffect(() => {
-    const ac = new AbortController();
-    const task = InteractionManager.runAfterInteractions(() => {
-      fetchData(date, ac.signal);
-    });
-    return () => {
-      ac.abort();
-      // @ts-ignore
-      task?.cancel?.();
-    };
-  }, [date, fetchData]);
-
+  // Chỉ dùng MỘT nơi để fetch: useFocusEffect (bỏ useEffect để tránh double-call)
   useFocusEffect(
     useCallback(() => {
       const ac = new AbortController();
@@ -84,28 +82,35 @@ const MealPlan = () => {
   );
 
   const onRefresh = useCallback(() => {
+    if (loading || refreshing) return;
     const ac = new AbortController();
     fetchData(date, ac.signal, { isRefresh: true });
-  }, [date, fetchData]);
+  }, [date, fetchData, loading, refreshing]);
 
   const onLogEat = useCallback(
     async (mealPlanItemId: string) => {
+      if (loading) return;
       await savePlanLogById(mealPlanItemId);
       const ac = new AbortController();
       await fetchData(date, ac.signal);
     },
-    [date, fetchData],
+    [date, fetchData, loading],
   );
 
   const onAfterSwap = useCallback(async () => {
+    if (loading) return;
     const ac = new AbortController();
     await fetchData(date, ac.signal);
-  }, [date, fetchData]);
+  }, [date, fetchData, loading]);
 
-  const goTodayAnd = useCallback((mode: 'day' | 'week') => {
-    setRange(mode);
-    setDate(new Date());
-  }, []);
+  const goTodayAnd = useCallback(
+    (mode: 'day' | 'week') => {
+      if (loading) return;
+      setRange(mode);
+      setDate(new Date());
+    },
+    [loading],
+  );
 
   const kcalTarget = useMemo(
     () => Number(data?.targetNutrition?.kcal ?? 0),
@@ -150,7 +155,7 @@ const MealPlan = () => {
 
   return (
     <Container>
-      {/* Header dùng chung */}
+      {/* Header */}
       <AppHeader
         loading={loading}
         onPressBell={() => navigation.navigate('Notification')}
@@ -180,7 +185,7 @@ const MealPlan = () => {
           style={loading ? { opacity: 0.6 } : undefined}
         >
           <Pressable
-            onPress={() => !loading && goTodayAnd('day')}
+            onPress={() => goTodayAnd('day')}
             style={[s.segmentBtn, range === 'day' && s.segmentBtnActive]}
             accessibilityRole="button"
             accessibilityState={{
@@ -201,7 +206,7 @@ const MealPlan = () => {
           </Pressable>
 
           <Pressable
-            onPress={() => !loading && goTodayAnd('week')}
+            onPress={() => goTodayAnd('week')}
             style={[s.segmentBtn, range === 'week' && s.segmentBtnActive]}
             accessibilityRole="button"
             accessibilityState={{
@@ -243,14 +248,6 @@ const MealPlan = () => {
           />
         }
       >
-        {loading && !refreshing ? (
-          <ViewComponent center style={{ paddingVertical: 24 }}>
-            <ActivityIndicator size="small" color={C.primary} />
-            <ViewComponent style={{ height: 8 }} />
-            <TextComponent text="Đang tải dữ liệu..." tone="muted" size={12} />
-          </ViewComponent>
-        ) : null}
-
         {/* Calories & Dinh dưỡng */}
         <ViewComponent mb={12}>
           <CaloriesNutritionCard
@@ -270,7 +267,7 @@ const MealPlan = () => {
               range={range}
               items={data?.items || []}
               activeDate={date}
-              onPickDate={d => setDate(d)}
+              onPickDate={d => !loading && setDate(d)}
               onViewDetail={foodId =>
                 navigation.navigate('MealLogDetail', { id: foodId })
               }
@@ -289,6 +286,7 @@ const MealPlan = () => {
           />
         </ViewComponent>
       </ScrollView>
+      <LoadingOverlay visible={loading && !refreshing} />
     </Container>
   );
 };
