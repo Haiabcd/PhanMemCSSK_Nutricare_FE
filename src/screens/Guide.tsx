@@ -15,7 +15,6 @@ import {
     ActivityIndicator,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import McIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Entypo from 'react-native-vector-icons/Entypo';
 
 import Container from '../components/Container';
@@ -29,6 +28,8 @@ import type { GuideStackParamList } from '../navigation/GuideNavigator';
 
 // API & types
 import { getMyInfo } from '../services/user.service';
+import { findNewsfeedRecommendations, type RecommendationItemDto } from '../services/recommendation.service';
+
 import type {
     InfoResponse,
     ProfileDto,
@@ -37,7 +38,7 @@ import type {
 } from '../types/types';
 
 /* ================== Cấu hình YouTube ================== */
-const YOUTUBE_API_KEY = 'AIzaSyD63wZGYUgGZAIESv7nb6YK2vSwVM6aV4s';
+const YOUTUBE_API_KEY = 'AIzaSyD1rMC8n1IhSBHRUmHZ7nRCA9RvDXibGZc';
 const REGION = 'VN';
 const FALLBACK_THUMB =
     'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=800&auto=format&fit=crop';
@@ -50,12 +51,8 @@ type Item = {
     title: string;
     desc: string;
     kind: Kind;
-    cal?: number;
-    protein?: number;
     image: string;
     meta?: string;
-    weightLine?: string;
-    cta?: string;
     url?: string;
     channel?: string;
     publishedAt?: string;
@@ -66,28 +63,6 @@ const FILTERS: { key: Kind; label: string }[] = [
     { key: 'meal', label: 'Tập luyện' },
     { key: 'article', label: 'Bài báo' },
     { key: 'video', label: 'Video' },
-];
-
-// (Giữ lại DATA_STATIC cho tab khác nếu cần hiển thị trong "Tất cả" – nhưng tab "Tập luyện" sẽ dùng video từ YouTube)
-const DATA_STATIC: Item[] = [
-    {
-        id: '1',
-        title: 'Salad Gà Ớt',
-        desc: 'Món salad tươi ngon, giàu rau củ, phù hợp giảm cân.',
-        kind: 'article', // đổi sang article để tránh xuất hiện ở tab "Tập luyện"
-        image:
-            'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=800&auto=format&fit=crop',
-        cta: 'ĐỌC BÀI',
-    },
-    {
-        id: '2',
-        title: 'Ăn Kiêng Khỏe Mạnh',
-        desc: 'Các mẹo đơn giản để duy trì chế độ ăn cân bằng và lành mạnh.',
-        kind: 'article',
-        image:
-            'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?q=80&w=800&auto=format&fit=crop',
-        cta: 'ĐỌC BÀI',
-    },
 ];
 
 /* ================== Avatar ================== */
@@ -108,8 +83,7 @@ function Avatar({ name, photoUri }: { name: string; photoUri?: string | null }) 
 
 /* ================== Card ================== */
 function Card({ item }: { item: Item }) {
-    const kindLabel =
-        item.kind === 'meal' ? 'Tập luyện' : item.kind === 'article' ? 'Bài báo' : 'Video';
+    const kindLabel = item.kind === 'meal' ? 'Tập luyện' : item.kind === 'article' ? 'Bài báo' : 'Video';
 
     const handlePress = () => {
         if (item.url) {
@@ -138,8 +112,8 @@ function Card({ item }: { item: Item }) {
                             <TextComponent text={kindLabel} variant="caption" weight="bold" tone="inverse" />
                         </ViewComponent>
 
-                        {/* play overlay: hiện nếu có url (video YouTube) */}
-                        {item.url && (
+                        {/* play overlay */}
+                        {item.url && item.kind === 'video' && (
                             <ViewComponent
                                 center
                                 radius={16}
@@ -169,8 +143,6 @@ function Card({ item }: { item: Item }) {
                                 numberOfLines={3}
                                 style={{ lineHeight: 18, height: 54, textAlignVertical: 'top', marginTop: 2 }}
                             />
-
-                            {/* Meta */}
                             <ViewComponent row gap={8} wrap style={{ marginTop: 8 }}>
                                 {!!item.meta && (
                                     <TextComponent text={item.meta} variant="caption" tone="muted" numberOfLines={1} />
@@ -178,8 +150,7 @@ function Card({ item }: { item: Item }) {
                             </ViewComponent>
                         </View>
 
-                        {/* CTA (không cần cho video) */}
-                        {!item.url && (
+                        {item.kind !== 'video' && !item.url && (
                             <View style={{ marginTop: 10 }}>
                                 <ViewComponent
                                     center
@@ -188,7 +159,7 @@ function Card({ item }: { item: Item }) {
                                     style={{ paddingVertical: 10, borderColor: C.primaryBorder, backgroundColor: C.primarySurface }}
                                 >
                                     <TextComponent
-                                        text={item.cta ?? 'XEM THÊM'}
+                                        text={'XEM THÊM'}
                                         variant="caption"
                                         weight="bold"
                                         style={{ color: C.primaryDark, letterSpacing: 0.3 }}
@@ -204,18 +175,16 @@ function Card({ item }: { item: Item }) {
     );
 }
 
-/* ================== Helpers build query trực tiếp từ InfoResponse ================== */
+/* ================== Helpers build query từ InfoResponse ================== */
 const ageFromBirthYear = (y?: number | null) =>
     typeof y === 'number' ? new Date().getFullYear() - y : undefined;
 
-// Query cho VIDEO dinh dưỡng — đã bias về món ăn/công thức/recipe
 function buildQueryFromInfo(info?: InfoResponse | null, userText?: string) {
     const terms: string[] = [];
     if (!info) {
-        const base = (userText?.trim() || 'dinh dưỡng món ăn công thức nấu ăn healthy recipes');
+        const base = userText?.trim() || 'dinh dưỡng món ăn công thức nấu ăn healthy recipes';
         return `${base} tiếng Việt`;
     }
-
     const p: ProfileDto | undefined = info.profileCreationResponse;
 
     if (userText?.trim()) terms.push(userText.trim());
@@ -273,53 +242,55 @@ function buildQueryFromInfo(info?: InfoResponse | null, userText?: string) {
         }
     });
 
-    // ===== ép trọng tâm về MÓN ĂN / CÔNG THỨC / RECIPE =====
     terms.push(
-        'dinh dưỡng', 'món ăn', 'cách nấu', 'công thức', 'recipe', 'cooking',
-        'healthy recipes', 'meal prep', 'ăn gì', 'thực đơn', 'tiếng Việt'
+        'dinh dưỡng',
+        'món ăn',
+        'cách nấu',
+        'công thức',
+        'recipe',
+        'cooking',
+        'healthy recipes',
+        'meal prep',
+        'ăn gì',
+        'thực đơn',
+        'tiếng Việt'
     );
 
     const unique = Array.from(new Set(terms)).slice(0, 10).join(' | ');
     return unique;
 }
 
-// Query cho VIDEO TẬP LUYỆN (mới)
+// ===== Workout query
 function buildWorkoutQueryFromInfo(info?: InfoResponse | null, userText?: string) {
     const terms: string[] = [];
     if (!info) return (userText?.trim() || 'bài tập tại nhà') + ' tiếng Việt';
 
     const p = info.profileCreationResponse;
-
-    // Ưu tiên text người dùng
     if (userText?.trim()) terms.push(userText.trim());
 
-    // Mục tiêu
     switch (p.goal) {
         case 'LOSE':
-            terms.push('giảm mỡ', 'giảm cân', 'cardio', 'HIIT', 'fat burning workout');
+            terms.push('giảm mỡ', 'giảm cân', 'cardio', 'HIIT', 'đốt mỡ');
             break;
         case 'GAIN':
-            terms.push('tăng cơ', 'strength training', 'full body workout', 'hypertrophy');
+            terms.push('tăng cơ', 'sức mạnh', 'full body workout', 'hypertrophy');
             break;
         case 'MAINTAIN':
             terms.push('duy trì thể lực', 'fitness routine', 'mobility', 'balance');
             break;
     }
 
-    // Giới tính
     if (p.gender === 'MALE') terms.push('bài tập cho nam');
     if (p.gender === 'FEMALE') terms.push('bài tập cho nữ');
 
-    // Nhóm tuổi
     const age = ageFromBirthYear(p.birthYear);
     if (typeof age === 'number') {
-        if (age < 18) terms.push('teen workout');
+        if (age < 18) terms.push('bài tập cho teen');
         else if (age < 30) terms.push('workout người trẻ');
         else if (age < 50) terms.push('workout người trưởng thành');
         else terms.push('workout người trung niên low impact');
     }
 
-    // Mức vận động → cường độ
     switch (p.activityLevel) {
         case 'SEDENTARY':
             terms.push('beginner', 'low impact', 'bài tập nhẹ nhàng');
@@ -336,14 +307,13 @@ function buildWorkoutQueryFromInfo(info?: InfoResponse | null, userText?: string
             break;
     }
 
-    // Bệnh nền → an toàn/chỉ định
     (info.conditions || []).forEach((c) => {
         const n = (c?.name || '').toLowerCase();
         if (!n) return;
         if (n.includes('tiểu đường') || n.includes('diabetes')) {
-            terms.push('workout for diabetes', 'low impact cardio', 'glucose control');
+            terms.push('workout cho người tiểu đường', 'low impact cardio', 'glucose control');
         } else if (n.includes('huyết áp') || n.includes('hypertension')) {
-            terms.push('low impact', 'avoid high intensity interval', 'breathing technique');
+            terms.push('low impact', 'tránh HIIT quá gắt', 'breathing technique');
         } else if (n.includes('cholesterol') || n.includes('mỡ máu')) {
             terms.push('cardio vừa phải', 'heart health workout');
         } else {
@@ -351,8 +321,8 @@ function buildWorkoutQueryFromInfo(info?: InfoResponse | null, userText?: string
         }
     });
 
-    // Từ khoá nền + ngôn ngữ
-    terms.push('bài tập tại nhà', 'home workout', 'no equipment', 'tiếng Việt');
+    // Bảo đảm ưu tiên tiếng Việt
+    terms.push('bài tập tại nhà', 'home workout', 'không dụng cụ', 'tiếng Việt');
 
     return Array.from(new Set(terms)).slice(0, 8).join(' | ');
 }
@@ -367,27 +337,35 @@ function buildQS(params: Record<string, any>) {
 
 const FALLBACK_ERROR = 'Không tải được dữ liệu từ YouTube. Vui lòng thử lại.';
 
-// ===== Từ khóa nhận diện video về món ăn/nấu ăn/dinh dưỡng =====
+// ===== Nhận diện video món ăn/nấu ăn/dinh dưỡng
 const FOOD_KEYWORDS = [
-    // tiếng Việt (ưu tiên)
-    'cách nấu', 'nấu ăn', 'công thức', 'món', 'món ăn', 'bữa ăn', 'thực đơn',
-    'ăn gì', 'ăn như thế nào', 'ăn như nào', 'ăn đúng cách', 'dinh dưỡng',
-    'đồ ăn', 'ẩm thực', 'healthy', 'giảm cân ăn', 'tăng cân ăn', 'meal prep',
-    'thực phẩm', 'nấu', 'luộc', 'hấp', 'chiên', 'xào', 'om', 'kho', 'soup', 'súp',
-    // English (để bắt video kênh việt nhưng đặt title eng)
-    'recipe', 'recipes', 'how to cook', 'cooking', 'meal prep', 'what i eat',
-    'nutrition', 'nutritional', 'healthy recipes', 'diet', 'keto', 'low carb', 'high protein',
+    'cách nấu', 'nấu ăn', 'công thức', 'món', 'món ăn', 'bữa ăn', 'thực đơn', 'ăn gì', 'ăn đúng cách', 'dinh dưỡng',
+    'đồ ăn', 'ẩm thực', 'healthy', 'giảm cân ăn', 'tăng cân ăn', 'meal prep', 'thực phẩm', 'nấu', 'luộc', 'hấp', 'chiên',
+    'xào', 'om', 'kho', 'soup', 'súp', 'recipe', 'recipes', 'how to cook', 'cooking', 'what i eat', 'nutrition', 'nutritional',
+    'healthy recipes', 'diet', 'keto', 'low carb', 'high protein',
 ];
 
 function includesAny(haystack: string, keywords: string[]) {
     const s = haystack.toLowerCase();
-    return keywords.some(k => s.includes(k.toLowerCase()));
+    return keywords.some((k) => s.includes(k.toLowerCase()));
 }
 
-/** Nhận diện video có liên quan món ăn/nấu ăn/dinh dưỡng */
 function isFoodVideo(item: Item) {
     const text = [item.title, item.desc, item.meta, item.channel].filter(Boolean).join(' ').toLowerCase();
     return includesAny(text, FOOD_KEYWORDS);
+}
+
+// ===== Nhận diện tiếng Việt (dùng cho tab Tập luyện)
+const VIET_KEYWORDS = [
+    'bài tập', 'tập luyện', 'giảm cân', 'giảm mỡ', 'đốt mỡ', 'khởi động', 'không dụng cụ', 'tại nhà', 'phút',
+    'toàn thân', 'bụng', 'eo', 'lưng', 'ngực', 'tay', 'chân', 'mông', 'vai', 'cường độ', 'thấp', 'vừa', 'cao'
+];
+const VIET_DIACRITIC_RE = /[ăâđêôơưĂÂĐÊÔƠƯàáạảãằắặẳẵầấậẩẫèéẹẻẽìíịỉĩòóọỏõồốộổỗờớợởỡùúụủũừứựửữỳýỵỷỹ]/;
+
+function isVietnameseItem(item: Item) {
+    const s = [item.title, item.desc, item.channel].filter(Boolean).join(' ');
+    const lower = s.toLowerCase();
+    return VIET_DIACRITIC_RE.test(s) || VIET_KEYWORDS.some(k => lower.includes(k));
 }
 
 async function fetchYoutubeVideos(apiKey: string, q: string, maxResults = 12, pageToken?: string) {
@@ -400,28 +378,20 @@ async function fetchYoutubeVideos(apiKey: string, q: string, maxResults = 12, pa
         safeSearch: 'moderate',
         relevanceLanguage: 'vi',
         regionCode: REGION,
-        order: 'relevance', // ưu tiên khớp chủ đề
+        order: 'relevance',
         pageToken,
         key: apiKey,
     });
     const url = `${base}?${query}`;
 
     let res: Response;
-    try {
-        res = await fetch(url);
-    } catch {
-        throw new Error(FALLBACK_ERROR);
-    }
+    try { res = await fetch(url); } catch { throw new Error(FALLBACK_ERROR); }
 
     const rawText = await res.text();
     if (!res.ok) throw new Error(FALLBACK_ERROR);
 
     let data: any = {};
-    try {
-        data = JSON.parse(rawText);
-    } catch {
-        throw new Error(FALLBACK_ERROR);
-    }
+    try { data = JSON.parse(rawText); } catch { throw new Error(FALLBACK_ERROR); }
 
     const rawItems = Array.isArray(data.items) ? data.items : [];
 
@@ -448,7 +418,7 @@ async function fetchYoutubeVideos(apiKey: string, q: string, maxResults = 12, pa
                 id: `yt_${vid}`,
                 title,
                 desc: desc || 'Video hữu ích.',
-                kind: 'video', // NOTE: khi dùng cho "Tập luyện", ta sẽ gán lại kind='meal' ở bước xử lý
+                kind: 'video',
                 image: thumb,
                 url,
                 channel: sn.channelTitle || '',
@@ -461,6 +431,19 @@ async function fetchYoutubeVideos(apiKey: string, q: string, maxResults = 12, pa
     return { items, nextPageToken: data.nextPageToken as string | undefined };
 }
 
+/* ================== Interleave helper ================== */
+function interleave<T>(...lists: T[][]): T[] {
+    const max = Math.max(0, ...lists.map((l) => l.length));
+    const out: T[] = [];
+    for (let i = 0; i < max; i++) {
+        for (const list of lists) {
+            if (list[i] !== undefined) out.push(list[i]);
+        }
+    }
+    return out;
+}
+
+/* ================== 👉 BÀI BÁO: gọi API trực tiếp tại đây ================== */
 /* ================== Screen ================== */
 export default function NutritionGuide() {
     const [active, setActive] = useState<Kind>('all');
@@ -486,6 +469,101 @@ export default function NutritionGuide() {
         return () => ac.abort();
     }, []);
 
+    /* ====== BÀI BÁO ====== */
+    const PAGE_SIZE = 12;
+    const [articleItems, setArticleItems] = useState<Item[]>([]);
+    const [articleLimit, setArticleLimit] = useState(PAGE_SIZE);
+    const [loadingArticles, setLoadingArticles] = useState(false);
+    const [loadingMoreArticles, setLoadingMoreArticles] = useState(false);
+    const [hasMoreArticles, setHasMoreArticles] = useState(true);
+
+    // ✅ mapArticles dùng type từ service
+    const mapArticles = useCallback((arr: RecommendationItemDto[]): Item[] => {
+        const articlesOnly = (arr || []).filter((a) => (a.type || 'article') === 'article');
+        return articlesOnly.map((a) => {
+            const dateStr = a.published ? new Date(a.published).toLocaleDateString('vi-VN') : '';
+            const stableKey =
+                a.url?.trim() ||
+                `${(a.source || '').trim()}|${(a.title || '').trim()}` ||
+                Math.random().toString(36).slice(2);
+
+            return {
+                id: `ar_${stableKey}`,
+                title: (a.title || '').trim() || 'Bài viết',
+                desc: a.source || '',
+                kind: 'article' as Kind,
+                image: a.imageUrl || FALLBACK_THUMB,
+                url: a.url || undefined,
+                meta: [a.source, dateStr].filter(Boolean).join(' • '),
+                publishedAt: a.published || undefined,
+            };
+        });
+    }, []);
+
+
+    // ✅ reloadArticles
+    const reloadArticles = useCallback(
+        async (limit = PAGE_SIZE) => {
+            setLoadingArticles(true);
+            try {
+                const data = await findNewsfeedRecommendations(limit);
+                const mapped = mapArticles(data);
+
+                const seen = new Set<string>();
+                const unique = mapped.filter((i) => {
+                    const k = i.url || i.id;
+                    if (seen.has(k)) return false;
+                    seen.add(k);
+                    return true;
+                });
+
+                setArticleItems(unique);
+                setArticleLimit(limit);
+                setHasMoreArticles(unique.length >= limit);
+            } catch (e) {
+                console.log('[Articles][reload] error', e);
+                setArticleItems([]);
+                setHasMoreArticles(false);
+            } finally {
+                setLoadingArticles(false);
+            }
+        },
+        [mapArticles]
+    );
+
+
+    // ✅ loadMoreArticles
+    const loadMoreArticles = useCallback(async () => {
+        if (loadingArticles || loadingMoreArticles || !hasMoreArticles) return;
+        setLoadingMoreArticles(true);
+        try {
+            const nextLimit = articleLimit + PAGE_SIZE;
+            const data = await findNewsfeedRecommendations(nextLimit);
+            const mapped = mapArticles(data);
+
+            const seen = new Set(articleItems.map((i) => i.url || i.id));
+            const delta = mapped.filter((i) => !seen.has(i.url || i.id));
+
+            if (delta.length > 0) {
+                setArticleItems((prev) => [...prev, ...delta]);
+                setArticleLimit(nextLimit);
+                setHasMoreArticles(true);
+            } else {
+                setHasMoreArticles(false);
+            }
+        } catch (e) {
+            console.log('[Articles][loadMore] error', e);
+            setHasMoreArticles(false);
+        } finally {
+            setLoadingMoreArticles(false);
+        }
+    }, [articleLimit, articleItems, loadingArticles, loadingMoreArticles, hasMoreArticles, mapArticles]);
+
+
+    useEffect(() => {
+        reloadArticles(PAGE_SIZE);
+    }, [reloadArticles]);
+
     /* ====== VIDEO dinh dưỡng (tab "Video") ====== */
     const videoQuery = useMemo(() => buildQueryFromInfo(myInfo, q), [myInfo, q]);
     const [ytItems, setYtItems] = useState<Item[]>([]);
@@ -497,11 +575,9 @@ export default function NutritionGuide() {
         try {
             const { items, nextPageToken } = await fetchYoutubeVideos(YOUTUBE_API_KEY, videoQuery, 12);
             const blocked = (myInfo?.allergies || []).map((a: UserAllergyResponse) => a.name.toLowerCase());
-            // chặn dị ứng + BẮT BUỘC phải là video món ăn/nấu ăn/dinh dưỡng
             const filtered = items
                 .filter((v) => !blocked.some((b) => (v.title + ' ' + v.desc).toLowerCase().includes(b)))
                 .filter(isFoodVideo);
-
             setYtItems(filtered);
             setNextToken(nextPageToken);
         } catch (e) {
@@ -515,12 +591,7 @@ export default function NutritionGuide() {
         if (!nextToken || loading) return;
         setLoading(true);
         try {
-            const { items: more, nextPageToken } = await fetchYoutubeVideos(
-                YOUTUBE_API_KEY,
-                videoQuery,
-                12,
-                nextToken
-            );
+            const { items: more, nextPageToken } = await fetchYoutubeVideos(YOUTUBE_API_KEY, videoQuery, 12, nextToken);
             const moreFiltered = more.filter(isFoodVideo);
             setYtItems((prev) => [...prev, ...moreFiltered]);
             setNextToken(nextPageToken);
@@ -541,14 +612,14 @@ export default function NutritionGuide() {
         setLoadingWorkout(true);
         try {
             const { items, nextPageToken } = await fetchYoutubeVideos(YOUTUBE_API_KEY, workoutQuery, 12);
-            // gán kind='meal' để hiển thị dưới tab "Tập luyện"
             const mapped = items.map((it) => ({ ...it, kind: 'meal' as Kind }));
 
-            // chặn dị ứng (ít khi áp dụng cho video tập luyện, nhưng vẫn lọc theo tiêu đề/mô tả)
             const blocked = (myInfo?.allergies || []).map((a: UserAllergyResponse) => a.name.toLowerCase());
-            const filtered = mapped.filter(
-                (v) => !blocked.some((b) => (v.title + ' ' + v.desc).toLowerCase().includes(b))
-            );
+
+            // 💡 CHỈ GIỮ VIDEO TIẾNG VIỆT
+            const filtered = mapped
+                .filter((v) => !blocked.some((b) => (v.title + ' ' + v.desc).toLowerCase().includes(b)))
+                .filter(isVietnameseItem);
 
             setWorkoutItems(filtered);
             setNextWorkoutToken(nextPageToken);
@@ -567,10 +638,14 @@ export default function NutritionGuide() {
                 YOUTUBE_API_KEY,
                 workoutQuery,
                 12,
-                nextWorkoutToken
+                nextWorkoutToken,
             );
             const mapped = more.map((it) => ({ ...it, kind: 'meal' as Kind }));
-            setWorkoutItems((prev) => [...prev, ...mapped]);
+
+            // 💡 CHỈ GIỮ VIDEO TIẾNG VIỆT cho phần load-more
+            const moreFiltered = mapped.filter(isVietnameseItem);
+
+            setWorkoutItems((prev) => [...prev, ...moreFiltered]);
             setNextWorkoutToken(nextPageToken);
         } catch (e) {
             if (__DEV__) console.warn('[YouTube][loadMoreWorkout] error', e);
@@ -579,7 +654,6 @@ export default function NutritionGuide() {
         }
     }, [nextWorkoutToken, workoutQuery, loadingWorkout]);
 
-    // Tự tải mỗi khi query đổi
     useEffect(() => {
         reload();
     }, [reload]);
@@ -587,13 +661,13 @@ export default function NutritionGuide() {
         reloadWorkout();
     }, [reloadWorkout]);
 
-    // Hợp nhất hiển thị
+    // ===== Hợp nhất hiển thị – trộn xen kẽ 3 phần
     const ALL_DATA: Item[] = useMemo(() => {
         if (active === 'video') return ytItems;
         if (active === 'meal') return workoutItems;
-        // Tất cả: trộn bài báo tĩnh + cả hai nhóm video
-        return [...DATA_STATIC, ...workoutItems, ...ytItems];
-    }, [active, ytItems, workoutItems]);
+        if (active === 'article') return articleItems;
+        return interleave(workoutItems, articleItems, ytItems);
+    }, [active, ytItems, workoutItems, articleItems]);
 
     // Lọc theo search + filter chip
     const filtered = useMemo(() => {
@@ -606,11 +680,18 @@ export default function NutritionGuide() {
         });
     }, [ALL_DATA, active, q]);
 
+    // ====== NEW: cờ tiện dụng để biết còn tải / còn trang không
+    const anyLoading = loading || loadingWorkout || loadingArticles || loadingMoreArticles;
+    const noMore =
+        (active === 'article' && !hasMoreArticles && articleItems.length > 0) ||
+        (active === 'video' && !nextToken && ytItems.length > 0) ||
+        (active === 'meal' && !nextWorkoutToken && workoutItems.length > 0);
+
     const CONTENT_MIN_HEIGHT = Math.max(420, Math.floor(screenH * 0.79));
 
     return (
         <Container>
-            {/* Header avatar + chuông */}
+            {/* Header */}
             <ViewComponent row between alignItems="center">
                 <ViewComponent row alignItems="center" gap={10} flex={0}>
                     <Avatar name="Anh Hải" />
@@ -705,22 +786,41 @@ export default function NutritionGuide() {
                         showsVerticalScrollIndicator={false}
                         onEndReachedThreshold={0.5}
                         onEndReached={
-                            active === 'video'
-                                ? loadMore
+                            active === 'video' && nextToken ? loadMore
+                                : active === 'meal' && nextWorkoutToken ? loadMoreWorkout
+                                    : active === 'article' && hasMoreArticles ? loadMoreArticles
+                                        : undefined
+                        }
+                        refreshing={
+                            active === 'article' ? loadingArticles : active === 'meal' ? loadingWorkout : loading
+                        }
+                        onRefresh={
+                            active === 'article'
+                                ? () => reloadArticles(PAGE_SIZE)
                                 : active === 'meal'
-                                    ? loadMoreWorkout
-                                    : undefined
+                                    ? reloadWorkout
+                                    : reload
                         }
                         ListFooterComponent={
-                            (loading || loadingWorkout) && filtered.length > 0 ? (
-                                <View style={{ paddingVertical: 16, alignItems: 'center' }}>
-                                    <ActivityIndicator />
-                                </View>
-                            ) : null
+                            filtered.length > 0
+                                ? anyLoading
+                                    ? (
+                                        <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                                            <ActivityIndicator />
+                                        </View>
+                                    )
+                                    : noMore
+                                        ? (
+                                            <View style={{ paddingVertical: 20, alignItems: 'center', width: '100%', justifyContent: 'center' }}>
+                                                <TextComponent text="Đã hiển thị xong" variant="caption" tone="muted" />
+                                            </View>
+                                        )
+                                        : null
+                                : null
                         }
                         ListEmptyComponent={
                             <ViewComponent center style={{ flex: 1, paddingVertical: 18 }}>
-                                {loading || loadingWorkout ? (
+                                {loading || loadingWorkout || loadingArticles ? (
                                     <>
                                         <ActivityIndicator />
                                         <TextComponent text="Đang tải nội dung..." variant="body" tone="muted" />
@@ -764,7 +864,7 @@ function FloatingChat({
         new Animated.ValueXY({
             x: screenW - SIZE - MARGIN,
             y: Math.max(MARGIN, Math.min(screenH * 0.65, screenH - SIZE - MARGIN)),
-        })
+        }),
     ).current;
 
     const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
@@ -783,14 +883,14 @@ function FloatingChat({
                 const boundedY = clamp(cur.y, MARGIN, screenH - SIZE - MARGIN);
                 Animated.spring(pos, { toValue: { x: snapX, y: boundedY }, useNativeDriver: false, bounciness: 8 }).start();
             },
-        })
+        }),
     ).current;
 
     return (
         <Animated.View
             style={[s.chatBall, { width: SIZE, height: SIZE, borderRadius: SIZE / 2 }, pos.getLayout()]}
             pointerEvents="box-none"
-            {...panResponder.panHandlers}
+            {...(panResponder as any).panHandlers}
         >
             <Pressable style={s.chatInner} onPress={() => navigation.navigate('ChatAI')}>
                 <Ionicons name="chatbubble-ellipses" size={24} color={C.onPrimary} />
@@ -802,9 +902,7 @@ function FloatingChat({
 /* ================== Styles ================== */
 const s = StyleSheet.create({
     avatar: { width: 52, height: 52, borderRadius: 999 },
-
     searchInput: { flex: 1, color: C.text, paddingVertical: 8, fontFamily: 'System' },
-
     chipActiveShadow: {
         shadowColor: C.primary,
         shadowOpacity: 0.18,
@@ -812,9 +910,7 @@ const s = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         elevation: 2,
     },
-
     cardWrap: { width: '48%', marginBottom: 12 },
-
     thumbWrap: {
         width: '100%',
         aspectRatio: 1.2,
@@ -824,10 +920,8 @@ const s = StyleSheet.create({
         position: 'relative',
     },
     thumb: { width: '100%', height: '100%' },
-
     badge: { position: 'absolute', top: 8, right: 8 },
     playOverlay: { position: 'absolute', bottom: 8, right: 8, width: 32, height: 32 },
-
     cardBody: {
         flex: 1,
         padding: 12,
@@ -835,17 +929,6 @@ const s = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: C.border,
     },
-
-    ctaBtn: {
-        alignSelf: 'stretch',
-        paddingVertical: 10,
-        borderRadius: 12,
-        borderWidth: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginTop: 10,
-    },
-
     chatBall: {
         position: 'absolute',
         zIndex: 20,
