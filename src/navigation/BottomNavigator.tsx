@@ -9,7 +9,6 @@ import Track from '../screens/Track';
 import { colors } from '../constants/colors';
 import GuideNavigator from './GuideNavigator';
 
-
 export type MainTabParamList = {
   MealPlan: undefined;
   SuggestionNavigator: undefined;
@@ -64,7 +63,6 @@ export default function BottomTabsNavigator() {
         component={PlanNavigator}
         options={{ tabBarLabel: 'Kế hoạch' }}
       />
-
 
       <Tab.Screen
         name="SuggestionNavigator"

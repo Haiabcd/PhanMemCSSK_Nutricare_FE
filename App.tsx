@@ -11,6 +11,8 @@ import {
   getTokenSecure,
 } from './src/config/secureToken';
 import { refreshWithStoredToken } from './src/services/auth.service';
+import { HeaderProvider } from './src/context/HeaderProvider';
+import { navigationRef } from './src/navigation/NavigationService';
 
 // Ăn
 import {
@@ -100,9 +102,11 @@ function App() {
   if (!ready) return null;
 
   return (
-    <NavigationContainer>
-      {isAuthed ? <BottomNavigator /> : <AppNavigator />}
-    </NavigationContainer>
+    <HeaderProvider>
+      <NavigationContainer ref={navigationRef}>
+        {isAuthed ? <BottomNavigator /> : <AppNavigator />}
+      </NavigationContainer>
+    </HeaderProvider>
   );
 }
 

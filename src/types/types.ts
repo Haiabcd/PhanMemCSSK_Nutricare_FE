@@ -68,6 +68,7 @@ export interface InfoResponse {
   profileCreationResponse: ProfileDto;
   conditions: UserConditionResponse[];
   allergies: UserAllergyResponse[];
+  provider: string;
 }
 export interface UserAllergyResponse {
   id: string;

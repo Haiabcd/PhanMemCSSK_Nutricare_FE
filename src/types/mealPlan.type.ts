@@ -10,6 +10,7 @@ export interface MealPlanItemResponse {
    note:string;
    nutrition: NutritionResponse;
    used: boolean;
+   swapped: boolean;
 }
 
 

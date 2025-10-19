@@ -79,3 +79,9 @@ export const GENDER_OPTIONS = [
     { label: 'Nữ', value: 'FEMALE' },
     { label: 'Khác', value: 'OTHER' },
 ];
+
+
+export const toYMDLocal = (d: Date) =>
+  new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 10);

@@ -13,9 +13,9 @@ import { refreshWithStoredToken } from '../services/auth.service';
  * - iOS Simulator → localhost
  * - Thiết bị thật → IP LAN máy dev (vd: 192.168.1.15)
  */
-const LOCAL_IP = '192.168.110.253';
+// const LOCAL_IP = '192.168.110.253';
 // const LOCAL_IP = '192.168.110.187';  // Bo
-// const LOCAL_IP = '10.0.2.2'; 
+const LOCAL_IP = '10.0.2.2'; 
 const PORT = 8080;
 
 export const BASE_URL =
@@ -41,7 +41,7 @@ registerAuthHeaderSetter((auth?: string) => {
 });
 
 // Các endpoint không chạy refresh khi 401
-const AUTH_WHITELIST = ['/auths/onboarding', '/auths/refresh'];
+const AUTH_WHITELIST = ['/auths/onboarding', '/auths/refresh', '/auths/logout'];
 
 // Trạng thái refresh + hàng đợi khi refresh đang diễn ra
 let isRefreshing = false;

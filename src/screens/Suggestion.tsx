@@ -1,63 +1,40 @@
-// src/screens/Suggestion.tsx
-import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
+import React, {
+  useCallback,
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+} from 'react';
 import {
   Image,
   Pressable,
-  TextInput,
   FlatList,
   StyleSheet,
   useWindowDimensions,
   ScrollView,
   RefreshControl,
-  ActivityIndicator,
 } from 'react-native';
 import Container from '../components/Container';
 import TextComponent from '../components/TextComponent';
 import ViewComponent from '../components/ViewComponent';
-import Entypo from 'react-native-vector-icons/Entypo';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import McIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { colors as C } from '../constants/colors';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { SuggestionStackParamList } from '../navigation/SuggestionNavigator';
-
-import { getUpcomingFoods } from '../services/suggestion.service';
-import type { PageableResponse } from '../types/types';
 import type { FoodResponse } from '../types/food.type';
+import type { MealSlot } from '../types/types';
+import { suggestAllowedFoods } from '../services/planDay.service';
+import AppHeader from '../components/AppHeader';
 
-/* ================== Avatar fallback ================== */
-function Avatar({
-  name,
-  photoUri,
-}: {
-  name: string;
-  photoUri?: string | null;
-}) {
-  const initials = name
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-  if (photoUri) return <Image source={{ uri: photoUri }} style={s.avatar} />;
-  return (
-    <ViewComponent
-      center
-      radius={999}
-      border
-      backgroundColor={C.bg}
-      style={s.avatar}
-    >
-      <TextComponent
-        text={initials}
-        variant="subtitle"
-        weight="bold"
-        tone="primary"
-      />
-    </ViewComponent>
-  );
-}
+/* ============ helpers ============ */
+const isAbortError = (e: any) =>
+  e?.name === 'AbortError' ||
+  e?.name === 'CanceledError' ||
+  e?.message?.toString?.().includes('canceled') ||
+  e?.message?.toString?.().includes('aborted') ||
+  (typeof e?.code === 'string' && e.code === 'ERR_CANCELED');
 
 /* ================== Types & Data ================== */
 type Slot = 'Bữa sáng' | 'Bữa trưa' | 'Bữa chiều' | 'Bữa phụ';
@@ -70,19 +47,44 @@ type Recipe = {
   cal: number;
   protein: number;
   image: string;
-  slot: Slot; // nhãn UI đã map từ DB
+  slot: Slot;
 };
 
-const CATS: Category[] = ['Tất cả', 'Bữa sáng', 'Bữa trưa', 'Bữa chiều', 'Bữa phụ'];
+const CATS: Array<{ key: Category; icon: string }> = [
+  { key: 'Tất cả', icon: 'grid-outline' },
+  { key: 'Bữa sáng', icon: 'sunny-outline' },
+  { key: 'Bữa trưa', icon: 'fast-food-outline' },
+  { key: 'Bữa chiều', icon: 'moon-outline' },
+  { key: 'Bữa phụ', icon: 'pizza-outline' },
+];
+
+/** mapping STABLE (không tạo object mới mỗi render) */
+const CAT_TO_SLOT: Record<Category, MealSlot | undefined> = {
+  'Tất cả': undefined,
+  'Bữa sáng': 'BREAKFAST',
+  'Bữa trưa': 'LUNCH',
+  'Bữa chiều': 'DINNER',
+  'Bữa phụ': 'SNACK',
+};
 
 /* ================== Slot mapping ================== */
 const mapMealSlot = (slot?: string): Slot => {
   if (!slot) return 'Bữa trưa';
   const s = String(slot).toLowerCase();
-  if (s.includes('breakfast') || s.includes('sáng') || s.includes('sang')) return 'Bữa sáng';
-  if (s.includes('lunch') || s.includes('trưa') || s.includes('trua')) return 'Bữa trưa';
-  if (s.includes('dinner') || s.includes('tối') || s.includes('toi') || s.includes('chiều') || s.includes('chieu')) return 'Bữa chiều';
-  if (s.includes('snack') || s.includes('phụ') || s.includes('phu')) return 'Bữa phụ';
+  if (s.includes('breakfast') || s.includes('sáng') || s.includes('sang'))
+    return 'Bữa sáng';
+  if (s.includes('lunch') || s.includes('trưa') || s.includes('trua'))
+    return 'Bữa trưa';
+  if (
+    s.includes('dinner') ||
+    s.includes('tối') ||
+    s.includes('toi') ||
+    s.includes('chiều') ||
+    s.includes('chieu')
+  )
+    return 'Bữa chiều';
+  if (s.includes('snack') || s.includes('phụ') || s.includes('phu'))
+    return 'Bữa phụ';
   return 'Bữa trưa';
 };
 
@@ -104,24 +106,43 @@ const getRawMealSlot = (f: any): string | undefined => {
     if (txt.some(t => t.includes('snack'))) return 'snack';
     if (txt.some(t => t.includes('sáng') || t.includes('sang'))) return 'sáng';
     if (txt.some(t => t.includes('trưa') || t.includes('trua'))) return 'trưa';
-    if (txt.some(t => t.includes('chiều') || t.includes('chieu') || t.includes('tối') || t.includes('toi'))) return 'tối';
+    if (
+      txt.some(
+        t =>
+          t.includes('chiều') ||
+          t.includes('chieu') ||
+          t.includes('tối') ||
+          t.includes('toi'),
+      )
+    )
+      return 'tối';
     if (txt.some(t => t.includes('phụ') || t.includes('phu'))) return 'phụ';
     return undefined;
   };
 
-  return pickFromArrayLike(f?.tags) ?? pickFromArrayLike(f?.categories) ?? undefined;
+  return (
+    pickFromArrayLike(f?.tags) ?? pickFromArrayLike(f?.categories) ?? undefined
+  );
 };
 
 const toRecipe = (f: FoodResponse): Recipe => {
   const rawSlot = getRawMealSlot(f as any);
+
+  const kcal =
+    (f as any)?.nutrition?.kcal ??
+    (f as any)?.nutrition?.calories ??
+    (f as any)?.nutrition?.energyKcal ??
+    0;
+
+  const protein =
+    (f as any)?.nutrition?.proteinG ?? (f as any)?.nutrition?.protein ?? 0;
+
   return {
     id: f.id,
     title: f.name,
     desc: f.description ?? '',
-    // @ts-ignore tuỳ NutritionResponse
-    cal: f.nutrition?.calories ?? f.nutrition?.energyKcal ?? 0,
-    // @ts-ignore
-    protein: f.nutrition?.protein ?? 0,
+    cal: Math.round(Number(kcal) || 0),
+    protein: Number(protein) || 0,
     image:
       f.imageUrl ||
       'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=1200',
@@ -132,21 +153,31 @@ const toRecipe = (f: FoodResponse): Recipe => {
 /* ===== Slot badge helpers (UI) ===== */
 const getSlotIcon = (slot: Slot) => {
   switch (slot) {
-    case 'Bữa sáng': return 'sunny-outline';
-    case 'Bữa trưa': return 'fast-food-outline';
-    case 'Bữa chiều': return 'moon-outline';
-    case 'Bữa phụ': return 'pizza-outline';
-    default: return 'restaurant-outline';
+    case 'Bữa sáng':
+      return 'sunny-outline';
+    case 'Bữa trưa':
+      return 'fast-food-outline';
+    case 'Bữa chiều':
+      return 'moon-outline';
+    case 'Bữa phụ':
+      return 'pizza-outline';
+    default:
+      return 'restaurant-outline';
   }
 };
 
 const getSlotBadgeColors = (slot: Slot) => {
   switch (slot) {
-    case 'Bữa sáng': return { bg: 'rgba(255,173,51,0.85)', text: '#1F1F1F' };
-    case 'Bữa trưa': return { bg: 'rgba(76,175,80,0.85)', text: '#FFFFFF' };
-    case 'Bữa chiều': return { bg: 'rgba(96,125,139,0.85)', text: '#FFFFFF' };
-    case 'Bữa phụ': return { bg: 'rgba(33,150,243,0.85)', text: '#FFFFFF' };
-    default: return { bg: 'rgba(0,0,0,0.55)', text: '#FFFFFF' };
+    case 'Bữa sáng':
+      return { bg: 'rgba(255,173,51,0.85)', text: '#1F1F1F' };
+    case 'Bữa trưa':
+      return { bg: 'rgba(76,175,80,0.85)', text: '#FFFFFF' };
+    case 'Bữa chiều':
+      return { bg: 'rgba(96,125,139,0.85)', text: '#FFFFFF' };
+    case 'Bữa phụ':
+      return { bg: 'rgba(33,150,243,0.85)', text: '#FFFFFF' };
+    default:
+      return { bg: 'rgba(0,0,0,0.55)', text: '#FFFFFF' };
   }
 };
 
@@ -158,135 +189,155 @@ export default function Suggestion() {
   const { height: screenH } = useWindowDimensions();
   const CONTENT_MIN_HEIGHT = Math.max(420, Math.floor(screenH * 0.79));
 
-  const [query, setQuery] = useState('');
+  // ====== Search & Category ======
+  const [query, setQuery] = useState(''); // (giữ lại cho future: ô search)
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [cat, setCat] = useState<Category>('Tất cả');
 
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [pageMeta, setPageMeta] = useState<PageableResponse<FoodResponse> | null>(null);
-  const [page, setPage] = useState(0);
-  const PAGE_SIZE = 20;
+  // ====== Caches theo danh mục (5 useState) ======
+  const [dataAll, setDataAll] = useState<Recipe[]>([]);
+  const [dataBreakfast, setDataBreakfast] = useState<Recipe[]>([]);
+  const [dataLunch, setDataLunch] = useState<Recipe[]>([]);
+  const [dataDinner, setDataDinner] = useState<Recipe[]>([]);
+  const [dataSnack, setDataSnack] = useState<Recipe[]>([]);
 
+  // danh sách đang hiển thị (theo danh mục)
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+
+  // ====== Loading ======
   const [refreshing, setRefreshing] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
 
-  // chặn gọi lặp onEndReached
-  const canLoadMoreRef = useRef(true);
+  // Avoid setState after unmount
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   // debounce query
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(query.trim().toLowerCase()), 200);
+    const t = setTimeout(
+      () => setDebouncedQuery(query.trim().toLowerCase()),
+      200,
+    );
     return () => clearTimeout(t);
   }, [query]);
 
-  const fetchPage = useCallback(
-    async (targetPage: number, mode: 'replace' | 'append', signal?: AbortSignal) => {
-      // TODO: nếu BE hỗ trợ filter theo query/cat, truyền kèm ở đây (ví dụ: getUpcomingFoods(page,size,query,cat))
-      const data = await getUpcomingFoods(targetPage, PAGE_SIZE, signal);
-      setPageMeta(data);
-
-      const mapped = (data.content || []).map(toRecipe);
-      setRecipes(prev => (mode === 'replace' ? mapped : [...prev, ...mapped]));
-      setPage(targetPage);
+  // helper: trả về cache theo category
+  const getCacheByCat = useCallback(
+    (c: Category): Recipe[] => {
+      switch (c) {
+        case 'Bữa sáng':
+          return dataBreakfast;
+        case 'Bữa trưa':
+          return dataLunch;
+        case 'Bữa chiều':
+          return dataDinner;
+        case 'Bữa phụ':
+          return dataSnack;
+        default:
+          return dataAll;
+      }
     },
-    [PAGE_SIZE],
+    [dataAll, dataBreakfast, dataLunch, dataDinner, dataSnack],
   );
 
-  // lần đầu
-  useEffect(() => {
-    const controller = new AbortController();
-    (async () => {
-      try {
-        setInitialLoading(true);
-        await fetchPage(0, 'replace', controller.signal);
-      } catch (e) {
-        console.error('[UpcomingFoods] initial load error:', e);
-      } finally {
-        setInitialLoading(false);
-      }
-    })();
-    return () => controller.abort();
-  }, [fetchPage]);
-
-  // khi thay đổi filter (cat) hoặc từ khoá -> reset & load trang 0
-  useEffect(() => {
-    const controller = new AbortController();
-    (async () => {
-      try {
-        // reset pagestate
-        canLoadMoreRef.current = true;
-        setPage(0);
-        setLoadingMore(false);
-        setRefreshing(false);
-
-        setInitialLoading(true);
-        await fetchPage(0, 'replace', controller.signal);
-      } catch (e) {
-        console.error('[UpcomingFoods] refetch (filter/query) error:', e);
-      } finally {
-        setInitialLoading(false);
-      }
-    })();
-    return () => controller.abort();
-  }, [debouncedQuery, cat, fetchPage]);
-
-  const onRefresh = useCallback(async () => {
-    const controller = new AbortController();
-    try {
-      setRefreshing(true);
-      canLoadMoreRef.current = true;
-      await fetchPage(0, 'replace', controller.signal);
-    } catch (e) {
-      console.error('[UpcomingFoods] refresh error:', e);
-    } finally {
-      setRefreshing(false);
+  // helper: ghi cache theo category (stable)
+  const setCacheByCat = useCallback((c: Category, list: Recipe[]) => {
+    switch (c) {
+      case 'Bữa sáng':
+        setDataBreakfast(list);
+        break;
+      case 'Bữa trưa':
+        setDataLunch(list);
+        break;
+      case 'Bữa chiều':
+        setDataDinner(list);
+        break;
+      case 'Bữa phụ':
+        setDataSnack(list);
+        break;
+      default:
+        setDataAll(list);
+        break;
     }
-  }, [fetchPage]);
-
-  const hasNextPage = !!pageMeta && (pageMeta.last === false);
-
-  const onEndReached = useCallback(async () => {
-    // guard: cần có trang kế tiếp và không đang busy
-    if (!hasNextPage) return;
-    if (!canLoadMoreRef.current || loadingMore || refreshing || initialLoading) return;
-
-    try {
-      setLoadingMore(true);
-      canLoadMoreRef.current = false;
-      await fetchPage(page + 1, 'append');
-    } catch (e) {
-      console.error('[UpcomingFoods] load-more error:', e);
-    } finally {
-      setLoadingMore(false);
-      // nới 1 nhịp để tránh spam
-      setTimeout(() => {
-        canLoadMoreRef.current = true;
-      }, 250);
-    }
-  }, [fetchPage, hasNextPage, loadingMore, page, refreshing, initialLoading]);
-
-  const onMomentumScrollBegin = useCallback(() => {
-    // cho phép gọi onEndReached sau khi user thực sự kéo
-    canLoadMoreRef.current = true;
   }, []);
 
-  // Filter theo query & category (UI-side). Nếu BE hỗ trợ filter server-side, có thể bỏ local filter này.
+  /** Fetch cho 1 category (stable, không phụ thuộc object thay đổi mỗi render) */
+  const fetchForCategory = useCallback(
+    async (c: Category, signal?: AbortSignal) => {
+      const slot = CAT_TO_SLOT[c]; // undefined cho 'Tất cả'
+      try {
+        const res = await suggestAllowedFoods({ slot, limit: 20 }, signal);
+        const list = (res?.data ?? []).map(toRecipe);
+        setCacheByCat(c, list);
+        return list;
+      } catch (e) {
+        if (isAbortError(e)) return []; // bỏ qua request bị huỷ
+        console.error('[Suggestion] fetch by category error:', e);
+        throw e;
+      }
+    },
+    [setCacheByCat],
+  );
+
+  /** Chỉ dùng 1 effect theo `cat` để nạp dữ liệu */
+  useEffect(() => {
+    const ac = new AbortController();
+    (async () => {
+      try {
+        setInitialLoading(true);
+        const cached = getCacheByCat(cat);
+        if (cached.length > 0) {
+          setRecipes(cached);
+          return;
+        }
+        const list = await fetchForCategory(cat, ac.signal);
+        if (mountedRef.current) setRecipes(list);
+      } catch (e) {
+        if (!isAbortError(e)) {
+          console.error('[Suggestion] effect error:', e);
+          if (mountedRef.current) setRecipes([]);
+        }
+      } finally {
+        if (mountedRef.current) setInitialLoading(false);
+      }
+    })();
+    return () => ac.abort();
+  }, [cat, getCacheByCat, fetchForCategory]);
+
+  // Kéo để refresh: chỉ refresh danh mục hiện tại
+  const onRefresh = useCallback(() => {
+    const ac = new AbortController();
+    (async () => {
+      try {
+        setRefreshing(true);
+        const list = await fetchForCategory(cat, ac.signal);
+        if (mountedRef.current) {
+          setRecipes(list);
+        }
+      } catch (e) {
+        if (!isAbortError(e)) console.error('[Suggestion] refresh error:', e);
+      } finally {
+        if (mountedRef.current) setRefreshing(false);
+      }
+    })();
+  }, [cat, fetchForCategory]);
+
+  // ====== Local Filter theo query ======
   const filtered = useMemo(() => {
-    return recipes.filter(r => {
-      const matchCat = cat === 'Tất cả' || r.slot === cat;
-      const matchQ =
-        debouncedQuery.length === 0 ||
-        r.title.toLowerCase().includes(debouncedQuery) ||
-        r.desc.toLowerCase().includes(debouncedQuery);
-      return matchCat && matchQ;
-    });
-  }, [debouncedQuery, cat, recipes]);
-
-  const clearFilters = useCallback(() => {
-    setQuery('');
-    setCat('Tất cả');
-  }, []);
+    const base = recipes;
+    if (!debouncedQuery) return base;
+    const q = debouncedQuery;
+    return base.filter(
+      r =>
+        r.title.toLowerCase().includes(q) ||
+        (r.desc || '').toLowerCase().includes(q),
+    );
+  }, [recipes, debouncedQuery]);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const toggleSelect = useCallback((id: string) => {
@@ -307,16 +358,24 @@ export default function Suggestion() {
           <ViewComponent variant="card" radius={16} flex={1}>
             {/* Ảnh + tick + badge slot */}
             <ViewComponent style={s.thumbWrap}>
-              <Image source={{ uri: item.image }} style={s.thumb} resizeMode="cover" />
+              <Image
+                source={{ uri: item.image }}
+                style={s.thumb}
+                resizeMode="cover"
+              />
 
-              {/* Badge slot trái trên: đọc từ DB (đã map) */}
+              {/* Badge slot trái trên */}
               <ViewComponent
                 row
                 alignItems="center"
                 gap={6}
                 style={[s.slotBadge, { backgroundColor: bg }]}
               >
-                <Ionicons name={getSlotIcon(item.slot)} size={14} color={text} />
+                <Ionicons
+                  name={getSlotIcon(item.slot)}
+                  size={14}
+                  color={text}
+                />
                 <TextComponent
                   text={item.slot}
                   variant="caption"
@@ -327,7 +386,11 @@ export default function Suggestion() {
               </ViewComponent>
 
               {/* Tick góc phải */}
-              <Pressable onPress={() => toggleSelect(item.id)} style={s.tickWrap} hitSlop={8}>
+              <Pressable
+                onPress={() => toggleSelect(item.id)}
+                style={s.tickWrap}
+                hitSlop={8}
+              >
                 <ViewComponent
                   center
                   radius={999}
@@ -347,6 +410,18 @@ export default function Suggestion() {
                   />
                 </ViewComponent>
               </Pressable>
+
+              {/* === Kcal badge dính ảnh (góc dưới-trái) === */}
+              <ViewComponent row alignItems="center" gap={6} style={s.calBadge}>
+                <McIcon name="fire" size={14} color={C.white} />
+                <TextComponent
+                  text={`${item.cal} kcal`}
+                  variant="caption"
+                  weight="bold"
+                  style={s.calText}
+                  numberOfLines={1}
+                />
+              </ViewComponent>
             </ViewComponent>
 
             {/* Thân card */}
@@ -364,52 +439,13 @@ export default function Suggestion() {
                   text={item?.desc || 'Không có mô tả'}
                   variant="body"
                   numberOfLines={3}
-                  style={{ lineHeight: 18, height: 54, textAlignVertical: 'top', marginBottom: 8 }}
+                  style={{
+                    lineHeight: 18,
+                    height: 54,
+                    textAlignVertical: 'top',
+                    marginBottom: 8,
+                  }}
                 />
-
-                {/* Dòng meta lấp khoảng trống */}
-                <ViewComponent row alignItems="center" gap={6} style={{ marginTop: 2, marginBottom: 6 }}>
-                  <Ionicons name="time-outline" size={14} color={C.slate500} />
-                  <TextComponent
-                    text={`Phù hợp: ${item.slot}`}
-                    variant="caption"
-                    tone="muted"
-                    numberOfLines={1}
-                  />
-                </ViewComponent>
-
-                {/* Stats kcal + protein */}
-                <ViewComponent row gap={8} wrap mb={8}>
-                  <ViewComponent
-                    row
-                    alignItems="center"
-                    gap={4}
-                    backgroundColor={C.accentSurface}
-                    border
-                    borderColor={C.accentBorder}
-                    radius={999}
-                    px={8}
-                    py={4}
-                  >
-                    <McIcon name="fire" size={14} color={C.red} />
-                    <TextComponent text={`${item.cal} kcal`} variant="caption" weight="bold" />
-                  </ViewComponent>
-
-                  <ViewComponent
-                    row
-                    alignItems="center"
-                    gap={4}
-                    backgroundColor={C.primarySurface}
-                    border
-                    borderColor={C.primaryBorder}
-                    radius={999}
-                    px={8}
-                    py={4}
-                  >
-                    <McIcon name="food-drumstick" size={14} color={C.success} />
-                    <TextComponent text={`${item.protein}g protein`} variant="caption" weight="bold" />
-                  </ViewComponent>
-                </ViewComponent>
               </ViewComponent>
 
               <Pressable
@@ -442,82 +478,53 @@ export default function Suggestion() {
 
   return (
     <Container>
-      {/* Header */}
-      <ViewComponent row between alignItems="center">
-        <ViewComponent row alignItems="center" gap={10} flex={0}>
-          <Avatar name="Anh Hải" />
-          <ViewComponent flex={0}>
-            <TextComponent text="Xin chào," variant="caption" tone="muted" />
-            <TextComponent text="Anh Hải" variant="subtitle" weight="bold" />
-          </ViewComponent>
-        </ViewComponent>
-        <Pressable>
-          <ViewComponent center radius={12} backgroundColor={C.bg} border style={{ width: 42, height: 42 }}>
-            <Entypo name="bell" size={20} color={C.primary} />
-          </ViewComponent>
-        </Pressable>
-      </ViewComponent>
+      {/* Header dùng chung */}
+      <AppHeader loading={initialLoading} />
 
-      {/* Search + Filters + List */}
+      {/* Filters + List */}
       <ViewComponent style={{ flex: 1, minHeight: CONTENT_MIN_HEIGHT }}>
-        {/* Search */}
-        <ViewComponent
-          row
-          alignItems="center"
-          gap={10}
-          backgroundColor={C.white}
-          radius={999}
-          border
-          borderColor={C.border}
-          px={14}
-          style={{ height: 50, marginTop: 10 }}
-        >
-          <Ionicons name="search" size={18} color={C.slate500} />
-          <TextInput
-            placeholder="Tìm kiếm món ăn..."
-            placeholderTextColor={C.slate500}
-            value={query}
-            onChangeText={setQuery}
-            returnKeyType="search"
-            style={s.searchInput}
-          />
-          {query ? (
-            <Pressable onPress={clearFilters} hitSlop={8}>
-              <Ionicons name="close-circle" size={18} color={C.slate500} />
-            </Pressable>
-          ) : (
-            <Ionicons name="mic-outline" size={18} color={C.slate500} />
-          )}
-        </ViewComponent>
-
-        {/* Filters */}
+        {/* Filters (chip + icon) */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={{ marginTop: 10, height: 44, maxHeight: 44 }}
-          contentContainerStyle={{ alignItems: 'center', justifyContent: 'space-between', flex: 1 }}
+          style={{ marginTop: 12, height: 46, maxHeight: 46 }}
+          contentContainerStyle={s.chipsRow}
         >
-          {CATS.map(c => {
-            const active = cat === c;
+          {CATS.map(({ key, icon }) => {
+            const active = cat === key;
             return (
-              <Pressable key={`cat-${c}`} onPress={() => setCat(c)} style={{ marginRight: 8 }}>
+              <Pressable
+                key={`cat-${key}`}
+                onPress={() => setCat(key)}
+                style={{ marginRight: 10 }}
+              >
                 <ViewComponent
-                  center
+                  row
+                  alignItems="center"
+                  gap={8}
                   radius={999}
                   border
-                  px={20}
+                  px={14}
                   py={8}
                   backgroundColor={active ? C.primary : C.white}
                   borderColor={active ? C.primary : C.border}
-                  style={active ? s.chipActiveShadow : undefined}
+                  style={[
+                    s.chip,
+                    active ? s.chipActiveShadow : s.chipInactiveShadow,
+                  ]}
                 >
+                  <Ionicons
+                    name={icon}
+                    size={14}
+                    color={active ? C.onPrimary : C.slate700}
+                  />
                   <TextComponent
-                    text={c}
+                    text={key}
                     variant="caption"
                     weight="bold"
                     tone={active ? 'inverse' : 'default'}
                     numberOfLines={1}
-                    style={{ padding: 3 }}
+                    style={{ paddingTop: 2 }}
                   />
                 </ViewComponent>
               </Pressable>
@@ -543,20 +550,10 @@ export default function Suggestion() {
                 colors={[C.primary]}
               />
             }
-            onEndReached={onEndReached}
-            onEndReachedThreshold={0.2}
-            onMomentumScrollBegin={onMomentumScrollBegin}
             ListFooterComponent={
-              loadingMore ? (
-                <ViewComponent center style={{ padding: 12 }}>
-                  <ActivityIndicator size="small" color={C.primary} />
-                  <TextComponent text="Đang tải thêm..." variant="caption" tone="muted" />
-                </ViewComponent>
-              ) : pageMeta?.last ? (
-                <ViewComponent center style={{ padding: 12 }}>
-                  <TextComponent text="Đã hiển thị tất cả " variant="caption" tone="muted" />
-                </ViewComponent>
-              ) : null
+              <ViewComponent center style={{ padding: 12 }}>
+                <TextComponent text=" " variant="caption" tone="muted" />
+              </ViewComponent>
             }
             ListEmptyComponent={() =>
               initialLoading ? null : (
@@ -580,12 +577,13 @@ export default function Suggestion() {
 
 /* ================== Styles ================== */
 const s = StyleSheet.create({
-  avatar: { width: 52, height: 52 },
-  searchInput: {
-    flex: 1,
-    color: C.text,
-    paddingVertical: 10,
-    fontFamily: 'System',
+  chipsRow: {
+    alignItems: 'center',
+    paddingHorizontal: 2,
+  },
+  chip: {
+    minWidth: 96,
+    justifyContent: 'center',
   },
   chipActiveShadow: {
     shadowColor: C.primary,
@@ -594,11 +592,16 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
+  chipInactiveShadow: {
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
 
-  // Card grid
   cardWrap: { width: '48%', marginBottom: 12 },
 
-  // Media
   thumbWrap: {
     width: '100%',
     aspectRatio: 1.2,
@@ -614,7 +617,6 @@ const s = StyleSheet.create({
     borderTopRightRadius: 16,
   },
 
-  // Slot badge ở góc trái trên ảnh
   slotBadge: {
     position: 'absolute',
     top: 8,
@@ -626,11 +628,24 @@ const s = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.45)',
   },
 
-  // Tick
   tickWrap: { position: 'absolute', top: 8, right: 8 },
   tickCircle: { width: 28, height: 28 },
 
-  // Card body & text block
+  calBadge: {
+    position: 'absolute',
+    left: 8,
+    bottom: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  calText: {
+    color: '#FFFFFF',
+  },
+
   cardBody: { padding: 12, minHeight: 150, justifyContent: 'space-between' },
   bodyTop: { flexShrink: 1 },
 

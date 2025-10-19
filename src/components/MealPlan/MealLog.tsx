@@ -36,9 +36,9 @@ export interface MealLogProps {
   activeDate?: Date;
   onPickDate?: (d: Date) => void;
   onChangeMeal?: (item: MealPlanItemResponse) => void;
-  onViewDetail?: (foodId: string) => void; // CHANGED: truyền foodId
+  onViewDetail?: (foodId: string) => void;
   onLogEat?: (mealPlanItemId: string) => Promise<void> | void;
-  onAfterSwap?: () => void; // refetch sau swap hoặc unlog
+  onAfterSwap?: () => void;
 }
 
 /* ========= helpers ========= */
@@ -115,7 +115,6 @@ function toTime(x: any, def = 9_223_372_036_854_775_807n): bigint {
   }
 }
 
-/** So sánh ổn định: displayOrder/orderIndex/position -> createdAt -> tên -> id */
 function mealItemComparator(
   a: MealItem,
   b: MealItem,
@@ -140,7 +139,7 @@ function mealItemComparator(
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
-/* ========= id -> original map (tối ưu O(1)) ========= */
+/* ========= id -> original map ========= */
 const useIdMap = (items?: MealPlanItemResponse[]) =>
   useMemo(() => {
     const m = new Map<string, MealPlanItemResponse>();
@@ -148,7 +147,7 @@ const useIdMap = (items?: MealPlanItemResponse[]) =>
     return m;
   }, [items]);
 
-/* ========= map items -> sections (có sort ổn định) ========= */
+/* ========= map items -> sections ========= */
 function mapItemsToSectionsStable(
   items: MealPlanItemResponse[] | undefined,
   idMap: Map<string, MealPlanItemResponse>,
@@ -168,7 +167,7 @@ function mapItemsToSectionsStable(
     );
     const title = it.food?.name ?? 'Món';
     const img = it.food?.imageUrl || '';
-    const foodId = it.food?.id || ''; // NEW
+    const foodId = it.food?.id || '';
 
     const portion = (it as any).portion ?? 1;
     const serving = it.food?.servingName || 'phần ăn';
@@ -200,10 +199,10 @@ function mapItemsToSectionsStable(
       slot === 'BREAKFAST'
         ? 'coffee'
         : slot === 'LUNCH'
-          ? 'silverware-fork-knife'
-          : slot === 'DINNER'
-            ? 'weather-night'
-            : 'leaf';
+        ? 'silverware-fork-knife'
+        : slot === 'DINNER'
+        ? 'weather-night'
+        : 'leaf';
 
     sections.push({
       id: slot,
@@ -259,19 +258,21 @@ function MealItemCard({
   onToggle,
   onChange,
   onDetail,
-  changeDisabled,
   changing,
+  disabledToggle, // ✨ NEW
 }: {
   it: MealItem;
   checked?: boolean;
   onToggle?: () => void;
   onChange?: () => void;
   onDetail?: () => void;
-  changeDisabled?: boolean;
   changing?: boolean;
+  disabledToggle?: boolean; // ✨ NEW
 }) {
   const [imgError, setImgError] = useState(false);
-  const showDisabled = !!changeDisabled || !!changing;
+  const showDisabled = !!changing;
+
+  const tickDisabled = disabledToggle || checked; // ✨ không cho tick nếu future day hoặc đã tick
 
   return (
     <ViewComponent style={st.mealCard}>
@@ -293,11 +294,14 @@ function MealItemCard({
           />
         )}
 
+        {/* Tick chỉ cho phép bật */}
         <Pressable
-          onPress={onToggle}
-          style={st.tickWrap}
+          onPress={tickDisabled ? undefined : onToggle}
+          disabled={tickDisabled}
+          style={[st.tickWrap, tickDisabled && { opacity: 0.5 }]} // ✨ mờ đi khi khoá
           hitSlop={6}
           accessibilityRole="button"
+          accessibilityState={{ disabled: tickDisabled }}
         >
           <ViewComponent
             style={[st.tickCircle, checked ? st.tickOn : st.tickOff]}
@@ -337,11 +341,10 @@ function MealItemCard({
           </ViewComponent>
         ) : null}
 
-        {/* ====== Actions: Đổi món / Xem chi tiết ====== */}
+        {/* ====== Actions ====== */}
         <ViewComponent row gap={10} flex={0}>
-          {/* Nút Đổi món: disabled nếu đã ăn hoặc đang đổi */}
           <Pressable
-            style={[st.btn, showDisabled ? st.btnDisabled : st.btnPrimary]}
+            style={[st.btn, st.btnPrimary]}
             onPress={showDisabled ? undefined : onChange}
             disabled={showDisabled}
             accessibilityRole="button"
@@ -349,20 +352,12 @@ function MealItemCard({
           >
             <ViewComponent row gap={6} center flex={0}>
               <MaterialCommunityIcons
-                name={
-                  changeDisabled
-                    ? 'lock'
-                    : changing
-                      ? 'progress-clock'
-                      : 'swap-horizontal-bold'
-                }
+                name={changing ? 'progress-clock' : 'swap-horizontal-bold'}
                 size={16}
                 color={showDisabled ? C.slate500 : C.white}
               />
               <TextComponent
-                text={
-                  changeDisabled ? 'Đã ăn' : changing ? 'Đang đổi…' : 'Đổi món'
-                }
+                text={changing ? 'Đang đổi…' : 'Đổi món'}
                 color={showDisabled ? C.slate500 : C.white}
                 size={12}
                 weight="bold"
@@ -459,81 +454,71 @@ export default function MealLog({
   items,
   activeDate = new Date(),
   onPickDate,
-  onChangeMeal,
   onViewDetail,
   onLogEat,
   onAfterSwap,
 }: MealLogProps) {
-  const idMap = useIdMap(items);
+  // ✨ Chặn tick với ngày tương lai
+  const isFutureDay = useMemo(() => {
+    const start = new Date(activeDate);
+    const today = new Date();
+    start.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    return start.getTime() > today.getTime(); // lớn hơn hôm nay -> tương lai
+  }, [activeDate]);
+
+  // 1) Lọc
+  const visibleItems = useMemo(
+    () => (items ?? []).filter(it => it?.used !== true && it?.swapped !== true),
+    [items],
+  );
+
+  // 2) Sections
+  const idMap = useIdMap(visibleItems);
   const sections = useMemo<Section[]>(
-    () => mapItemsToSectionsStable(items, idMap),
-    [items, idMap],
+    () => mapItemsToSectionsStable(visibleItems, idMap),
+    [visibleItems, idMap],
   );
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [swappingIds, setSwappingIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!items || items.length === 0) {
-      setSelected(new Set());
-      return;
-    }
-    const next = new Set(items.filter(it => it.used === true).map(it => it.id));
-    setSelected(next);
-  }, [items]);
+    setSelected(new Set());
+  }, [visibleItems]);
 
-  // Tick: ON -> log; OFF -> xoá log (nếu trước đó used === true)
+  // Tick: chỉ bật; thêm chặn khi là ngày tương lai
   const toggle = useCallback(
-    async (id: string, sectionId?: SectionId) => {
-      const willCheck = !selected.has(id); // trạng thái sau khi bấm
-      const original = idMap.get(id);
-      const wasUsed = original?.used === true;
+    async (id: string) => {
+      if (isFutureDay) {
+        // Có thể thay bằng Toast ở ngoài nếu muốn
+        console.log('Không thể ghi ăn cho ngày tương lai.');
+        return;
+      }
+      if (selected.has(id)) return;
 
-      // cập nhật UI ngay (optimistic)
       setSelected(prev => {
         const next = new Set(prev);
-        if (willCheck) next.add(id);
-        else next.delete(id);
+        next.add(id);
         return next;
       });
 
       try {
-        if (willCheck) {
-          // OFF -> ON (đánh dấu đã ăn)
-          if (!wasUsed && onLogEat) {
-            await onLogEat(id); // API log ăn của bạn
-          }
-
-          // 👉 Huỷ nhắc "sau 30'" nếu là bữa chính
-          const mealKey = sectionId ? SECTION_TO_MEALKEY[sectionId] : undefined;
-          if (mealKey) {
-            // dùng ngày đang xem (activeDate), fallback now
-            await onMealLogged(mealKey, activeDate ?? new Date());
-          }
-
-        } else {
-          // ON -> OFF: chỉ xoá log nếu trước đó used === true
-          if (wasUsed) {
-            await deletePlanLogById(id);
-            onAfterSwap?.(); // refetch
-          }
+        if (onLogEat) {
+          await onLogEat(id);
         }
       } catch (e) {
-        // rollback nếu lỗi
         setSelected(prev => {
-          const rb = new Set(prev);
-          if (willCheck) rb.delete(id);
-          else rb.add(id);
-          return rb;
+          const rollback = new Set(prev);
+          rollback.delete(id);
+          return rollback;
         });
         console.log('Toggle log thất bại:', e);
       }
     },
-    [selected, onLogEat, idMap, onAfterSwap, activeDate],
+    [selected, onLogEat, isFutureDay],
   );
 
-
-  // Handler bấm "Đổi món": gọi API smartSwapMealItem nếu nút khả dụng
   const handleChange = useCallback(
     async (orig?: MealPlanItemResponse) => {
       if (!orig) return;
@@ -566,7 +551,6 @@ export default function MealLog({
         </>
       )}
 
-      {/* range === 'day' */}
       {!sections || sections.length === 0 ? (
         <ViewComponent mt={14} p={14} variant="card" center>
           <TextComponent
@@ -580,7 +564,6 @@ export default function MealLog({
             <SectionHeader name={sec.name} kcal={kcalTotalOf([sec])} />
             {sec.items.map(it => {
               const original = idMap.get(it.id);
-              const changeDisabled = original?.used === true;
               const changing = swappingIds.has(it.id);
 
               return (
@@ -590,9 +573,9 @@ export default function MealLog({
                   checked={selected.has(it.id)}
                   onToggle={() => toggle(it.id, sec.id as SectionId)}
                   onChange={() => original && handleChange(original)}
-                  onDetail={() => it.foodId && onViewDetail?.(it.foodId)} // truyền foodId
-                  changeDisabled={changeDisabled}
+                  onDetail={() => it.foodId && onViewDetail?.(it.foodId)}
                   changing={changing}
+                  disabledToggle={isFutureDay} // ✨ khoá tick khi ngày tương lai
                 />
               );
             })}
@@ -690,11 +673,5 @@ const st = StyleSheet.create({
     backgroundColor: ACCENT_SURFACE,
     borderWidth: 1,
     borderColor: ACCENT_BORDER,
-  },
-  // Disabled cho nút Đổi món — phối màu dễ nhìn hơn
-  btnDisabled: {
-    backgroundColor: C.primarySurface,
-    borderWidth: 1,
-    borderColor: C.primaryBorder,
   },
 });
