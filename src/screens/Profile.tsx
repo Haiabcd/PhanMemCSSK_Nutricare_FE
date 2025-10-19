@@ -71,6 +71,8 @@ const normalizeTargetDeltaForApi = (goal: string, delta: number) => {
   return Math.abs(delta || 0);
 };
 
+type PickerType = 'condition' | 'allergy';
+
 export default function ProfileScreen() {
   const navigation = useNavigation<any>();
   const { width } = useWindowDimensions();
@@ -452,6 +454,8 @@ export default function ProfileScreen() {
                 label="Thời gian đạt mục tiêu"
                 value={`${data.targetDurationWeeks} tuần`}
               />
+              <InfoItem icon="scale-bathroom" label="Mức thay đổi cân nặng" value={`${data.targetWeightDeltaKg} kg`} />
+              <InfoItem icon="calendar-clock" label="Thời gian đạt mục tiêu" value={`${data.targetDurationWeeks} tuần`} />
             </>
           ) : null}
         </ViewComponent>
@@ -459,19 +463,10 @@ export default function ProfileScreen() {
         {/* Form edit */}
         {showEdit && editData ? (
           <ViewComponent style={{ marginTop: 10 }}>
-            <TextComponent
-              text="Chỉnh Sửa Thông Tin"
-              variant="subtitle"
-              weight="bold"
-              style={{ marginBottom: 12 }}
-            />
+            <TextComponent text="Chỉnh Sửa Thông Tin" variant="subtitle" weight="bold" style={{ marginBottom: 12 }} />
 
             <ViewComponent row gap={12} mb={12}>
-              <FormField
-                icon="card-account-details-outline"
-                label="Tên"
-                style={styles.half}
-              >
+              <FormField icon="card-account-details-outline" label="Tên" style={styles.half}>
                 <TextInput
                   value={editData.name}
                   onChangeText={t => setEditData({ ...editData, name: t })}
@@ -500,28 +495,15 @@ export default function ProfileScreen() {
             </ViewComponent>
 
             <ViewComponent row gap={12} mb={12}>
-              <FormField
-                icon="gender-male-female"
-                label="Giới tính"
-                style={styles.half}
-              >
+              <FormField icon="gender-male-female" label="Giới tính" style={styles.half}>
                 <Dropdown
                   value={editData.gender}
                   options={GENDER_OPTIONS}
-                  onChange={v =>
-                    setEditData({
-                      ...editData,
-                      gender: v as typeof editData.gender,
-                    })
-                  }
+                  onChange={v => setEditData({ ...editData, gender: v as typeof editData.gender })}
                 />
               </FormField>
 
-              <FormField
-                icon="human-male-height"
-                label="Chiều cao (cm)"
-                style={styles.half}
-              >
+              <FormField icon="human-male-height" label="Chiều cao (cm)" style={styles.half}>
                 <TextInput
                   value={editData.heightCm ? `${editData.heightCm}` : ''}
                   keyboardType="number-pad"
@@ -539,11 +521,7 @@ export default function ProfileScreen() {
             </ViewComponent>
 
             <ViewComponent row gap={12} mb={12}>
-              <FormField
-                icon="weight-kilogram"
-                label="Cân nặng (kg)"
-                style={styles.half}
-              >
+              <FormField icon="weight-kilogram" label="Cân nặng (kg)" style={styles.half}>
                 <TextInput
                   value={editData.weightKg ? `${editData.weightKg}` : ''}
                   keyboardType="number-pad"
@@ -559,11 +537,7 @@ export default function ProfileScreen() {
                 />
               </FormField>
 
-              <FormField
-                icon="bullseye-arrow"
-                label="Mục tiêu"
-                style={styles.half}
-              >
+              <FormField icon="bullseye-arrow" label="Mục tiêu" style={styles.half}>
                 <Dropdown
                   value={editData.goal}
                   options={GOAL_OPTIONS}
@@ -572,9 +546,7 @@ export default function ProfileScreen() {
                     setEditData(prev => ({
                       ...prev!,
                       goal: nextGoal,
-                      ...(nextGoal === 'MAINTAIN'
-                        ? { targetWeightDeltaKg: 0, targetDurationWeeks: 0 }
-                        : {}),
+                      ...(nextGoal === 'MAINTAIN' ? { targetWeightDeltaKg: 0, targetDurationWeeks: 0 } : {}),
                     }));
                   }}
                 />
@@ -582,54 +554,29 @@ export default function ProfileScreen() {
             </ViewComponent>
 
             <ViewComponent row gap={12} mb={12}>
-              <FormField
-                icon="run-fast"
-                label="Mức độ vận động"
-                style={styles.half}
-              >
+              <FormField icon="run-fast" label="Mức độ vận động" style={styles.half}>
                 <Dropdown
                   value={editData.activityLevel}
                   options={ACTIVITY_OPTIONS}
-                  onChange={v =>
-                    setEditData({
-                      ...editData,
-                      activityLevel: v as typeof editData.activityLevel,
-                    })
-                  }
+                  onChange={v => setEditData({ ...editData, activityLevel: v as typeof editData.activityLevel })}
                 />
               </FormField>
               <ViewComponent style={styles.halfPlaceholder} />
             </ViewComponent>
 
             <ViewComponent row gap={12} mb={12}>
-              <FormField
-                icon="hospital-box-outline"
-                label="Bệnh nền"
-                style={styles.half}
-              >
+              <FormField icon="hospital-box-outline" label="Bệnh nền" style={styles.half}>
                 <Pressable onPress={() => openPicker('condition')}>
                   <ViewComponent
                     style={[
                       styles.input,
-                      {
-                        height: undefined,
-                        minHeight: 46,
-                        paddingVertical: 10,
-                        justifyContent: 'center',
-                      },
+                      { height: undefined, minHeight: 46, paddingVertical: 10, justifyContent: 'center' },
                     ]}
                   >
                     <TextComponent
-                      text={
-                        getConditionNames(editInfo?.conditions ?? []) ||
-                        'VD: Tăng huyết áp, Tiểu đường'
-                      }
+                      text={getConditionNames(editInfo?.conditions ?? []) || 'VD: Tăng huyết áp, Tiểu đường'}
                       weight="bold"
-                      tone={
-                        getConditionNames(editInfo?.conditions ?? [])
-                          ? 'default'
-                          : 'muted'
-                      }
+                      tone={getConditionNames(editInfo?.conditions ?? []) ? 'default' : 'muted'}
                       numberOfLines={3}
                       ellipsizeMode="tail"
                       style={{ flexWrap: 'wrap', minHeight: 65 }}
@@ -643,25 +590,13 @@ export default function ProfileScreen() {
                   <ViewComponent
                     style={[
                       styles.input,
-                      {
-                        height: undefined,
-                        minHeight: 46,
-                        paddingVertical: 10,
-                        justifyContent: 'center',
-                      },
+                      { height: undefined, minHeight: 46, paddingVertical: 10, justifyContent: 'center' },
                     ]}
                   >
                     <TextComponent
-                      text={
-                        getAllergyNames(editInfo?.allergies ?? []) ||
-                        'VD: Hải sản, Sữa bò'
-                      }
+                      text={getAllergyNames(editInfo?.allergies ?? []) || 'VD: Hải sản, Sữa bò'}
                       weight="bold"
-                      tone={
-                        getAllergyNames(editInfo?.allergies ?? [])
-                          ? 'default'
-                          : 'muted'
-                      }
+                      tone={getAllergyNames(editInfo?.allergies ?? []) ? 'default' : 'muted'}
                       numberOfLines={3}
                       ellipsizeMode="tail"
                       style={{ flexWrap: 'wrap', minHeight: 65 }}
@@ -706,11 +641,7 @@ export default function ProfileScreen() {
                   style={isSmall ? styles.full : styles.half}
                 >
                   <TextInput
-                    value={
-                      editData.targetDurationWeeks
-                        ? `${editData.targetDurationWeeks}`
-                        : ''
-                    }
+                    value={editData.targetDurationWeeks ? `${editData.targetDurationWeeks}` : ''}
                     onChangeText={t =>
                       setEditData(prev => ({
                         ...prev!,
@@ -733,10 +664,7 @@ export default function ProfileScreen() {
                   weight="bold"
                 />
               </Pressable>
-              <Pressable
-                style={styles.cancelBtn}
-                onPress={() => setShowEdit(false)}
-              >
+              <Pressable style={styles.cancelBtn} onPress={() => setShowEdit(false)}>
                 <TextComponent text="Hủy" weight="bold" />
               </Pressable>
             </ViewComponent>
@@ -755,25 +683,10 @@ export default function ProfileScreen() {
 
         {/* Cài đặt */}
         <ViewComponent variant="card" style={styles.settingsCard}>
-          <TextComponent
-            text="Cài đặt chung"
-            variant="subtitle"
-            weight="bold"
-            style={{ marginBottom: 12 }}
-          />
+          <TextComponent text="Cài đặt chung" variant="subtitle" weight="bold" style={{ marginBottom: 12 }} />
 
-          <ViewComponent
-            row
-            alignItems="center"
-            justifyContent="space-between"
-            py={10}
-          >
-            <ViewComponent
-              row
-              alignItems="center"
-              gap={10}
-              style={{ flexShrink: 1 }}
-            >
+          <ViewComponent row alignItems="center" justifyContent="space-between" py={10}>
+            <ViewComponent row alignItems="center" gap={10} style={{ flexShrink: 1 }}>
               <ViewComponent center style={styles.settingIcon}>
                 <McIcon name="bell-outline" size={16} color={C.success} />
               </ViewComponent>
@@ -877,11 +790,7 @@ export default function ProfileScreen() {
           onClose={() => setPickerOpen(false)}
           options={conditions}
           value={editInfo?.conditions ?? []}
-          onSave={selected =>
-            setEditInfo(prev =>
-              prev ? { ...prev, conditions: selected } : prev,
-            )
-          }
+          onSave={selected => setEditInfo(prev => (prev ? { ...prev, conditions: selected } : prev))}
         />
       ) : (
         <MultiSelectModal<UserAllergyResponse>
@@ -890,11 +799,7 @@ export default function ProfileScreen() {
           onClose={() => setPickerOpen(false)}
           options={allergies}
           value={editInfo?.allergies ?? []}
-          onSave={selected =>
-            setEditInfo(prev =>
-              prev ? { ...prev, allergies: selected } : prev,
-            )
-          }
+          onSave={selected => setEditInfo(prev => (prev ? { ...prev, allergies: selected } : prev))}
         />
       )}
 
