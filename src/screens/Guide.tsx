@@ -28,7 +28,8 @@ import type { GuideStackParamList } from '../navigation/GuideNavigator';
 
 // API & types
 import { getMyInfo } from '../services/user.service';
-import { findNewsfeedRecommendations, type RecommendationItemDto } from '../services/recommendation.service';
+import { findNewsfeedRecommendations } from '../services/recommendation.service';
+import type { RecommendationItemDto } from '../types/recommendation.type';
 
 import type {
     InfoResponse,
@@ -736,7 +737,7 @@ export default function NutritionGuide() {
                             <Ionicons name="close-circle" size={18} color={C.slate500} />
                         </Pressable>
                     ) : (
-                        <Ionicons name="mic-outline" size={18} color={C.slate500} />
+                        null
                     )}
                 </ViewComponent>
 
