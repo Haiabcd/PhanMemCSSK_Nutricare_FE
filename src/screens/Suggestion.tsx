@@ -479,10 +479,7 @@ export default function Suggestion() {
   return (
     <Container>
       {/* Header dùng chung */}
-      <AppHeader
-        loading={initialLoading}
-        // onPressBell={() => navigation.navigate('')}
-      />
+      <AppHeader loading={initialLoading} />
 
       {/* Filters + List */}
       <ViewComponent style={{ flex: 1, minHeight: CONTENT_MIN_HEIGHT }}>

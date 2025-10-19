@@ -45,7 +45,33 @@ import {
 } from '../services/food.service';
 import AppHeader from '../components/AppHeader';
 
+import Dropdown from '../components/Track/Dropdown';
+import {
+  launchImageLibrary,
+  launchCamera,
+  type ImageLibraryOptions,
+  type CameraOptions,
+} from 'react-native-image-picker';
+
 type TabKey = 'scan' | 'manual' | 'history';
+
+type MealType = 'Sáng' | 'Trưa' | 'Tối' | 'Phụ';
+const UNITS = [
+  'phần',
+  'gram',
+  'kg',
+  'chén',
+  'ly',
+  'miếng',
+  'bát',
+  'đĩa',
+] as const;
+type UnitType = (typeof UNITS)[number];
+
+const UNIT_OPTIONS = UNITS.map(u => ({ label: u, value: u }));
+const MEALTYPE_OPTIONS = (['Sáng', 'Trưa', 'Tối', 'Phụ'] as MealType[]).map(
+  m => ({ label: m === 'Tối' ? 'Chiều tối' : m, value: m }),
+);
 
 const fmtVNFull = (d: Date) => {
   const dow = [
@@ -85,6 +111,39 @@ const fmtNum = (n: number, digits = 1) =>
   (Math.round(n * 10 ** digits) / 10 ** digits).toString();
 const isBlank = (s?: string) => !s || s.trim().length === 0; // <- guard chung
 
+/* ===== Tiny UI helpers for new Scan tab ===== */
+const Chip = ({ children }: { children: React.ReactNode }) => (
+  <View style={styles.scanChipBox}>
+    <Text style={styles.scanChipText}>{children}</Text>
+  </View>
+);
+const SummaryBar = ({
+  qty,
+  unit,
+  mealType,
+}: {
+  qty?: string;
+  unit?: string;
+  mealType?: string;
+}) => (
+  <View style={styles.summaryBar}>
+    {qty && unit ? (
+      <Chip>
+        {qty} {unit}
+      </Chip>
+    ) : null}
+    {mealType ? (
+      <Chip>{mealType === 'Tối' ? 'Chiều tối' : mealType}</Chip>
+    ) : null}
+  </View>
+);
+const Row = ({ label, value }: { label: string; value: string }) => (
+  <View style={styles.nutRow}>
+    <Text style={styles.nutLabel}>{label}:</Text>
+    <Text style={styles.nutValue}>{value}</Text>
+  </View>
+);
+
 export default function Track() {
   const navigation =
     useNavigation<NativeStackNavigationProp<PlanStackParamList>>();
@@ -107,29 +166,19 @@ export default function Track() {
     );
   };
 
-  // ====== Scan AI state ======
-  const [scanImageUri, setScanImageUri] = useState<string | undefined>(
+  // ====== Scan AI state (REWRITTEN) ======
+  const [selectedImageUri, setSelectedImageUri] = useState<string | undefined>(
     undefined,
   );
   const [isScanning, setIsScanning] = useState(false);
   const [showScanResult, setShowScanResult] = useState(false);
 
-  // số lượng & đơn vị cho kết quả scan
   const [qtyScan, setQtyScan] = useState<string>('1');
-  const [unitScan, setUnitScan] = useState<string>('phần');
-  // loại bữa (dùng MealSlot để khớp BE)
-  const [mealTypeScan, setMealTypeScan] = useState<MealSlot>('BREAKFAST');
-  // tên bữa ăn từ AI (demo)
-  const [scanMealName, setScanMealName] = useState<string>('Bữa ăn từ Scan AI');
+  const [unitScan, setUnitScan] = useState<UnitType>('phần');
+  const [mealTypeScan, setMealTypeScan] = useState<MealType>('Sáng');
 
-  // chọn ảnh demo (không cần lib ngoài)
-  const onChooseImageDemo = useCallback(() => {
-    setScanImageUri(
-      'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=300&q=80',
-    );
-  }, []);
+  const [scanChoiceOpen, setScanChoiceOpen] = useState(false);
 
-  // Bắt đầu "quét" demo
   const beginFakeScan = useCallback(() => {
     setOpenKey(null);
     setShowScanResult(false);
@@ -137,13 +186,54 @@ export default function Track() {
     setTimeout(() => {
       setIsScanning(false);
       setShowScanResult(true);
-      if (!scanImageUri) {
-        setScanImageUri(
-          'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=300&q=80',
+      if (!selectedImageUri) {
+        setSelectedImageUri(
+          'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=300&q=80',
         );
       }
     }, 1500);
-  }, [scanImageUri]);
+  }, [selectedImageUri]);
+
+  const handleScanFromCamera = async () => {
+    setScanChoiceOpen(false);
+    const options: CameraOptions = {
+      mediaType: 'photo',
+      cameraType: 'back',
+      saveToPhotos: false,
+      quality: 0.9,
+    };
+    try {
+      const res = await launchCamera(options);
+      if (res?.didCancel) return;
+      const uri = res.assets?.[0]?.uri;
+      if (uri) {
+        setSelectedImageUri(uri);
+        beginFakeScan();
+      }
+    } catch (e) {
+      /* noop */
+    }
+  };
+
+  const handleScanFromLibrary = async () => {
+    setScanChoiceOpen(false);
+    const options: ImageLibraryOptions = {
+      mediaType: 'photo',
+      selectionLimit: 1,
+      quality: 0.9,
+    };
+    try {
+      const res = await launchImageLibrary(options);
+      if (res?.didCancel) return;
+      const uri = res.assets?.[0]?.uri;
+      if (uri) {
+        setSelectedImageUri(uri);
+        beginFakeScan();
+      }
+    } catch (e) {
+      /* noop */
+    }
+  };
 
   // ===== Manual =====
   const mealNameInputRef = useRef<TextInput>(null);
@@ -657,7 +747,7 @@ export default function Track() {
                 />
               </View>
 
-              {/* ========== SCAN ========== */}
+              {/* ========== SCAN (REPLACED) ========== */}
               {tab === 'scan' && (
                 <View style={styles.card}>
                   <Text style={styles.sectionTitle}>NHẬP BỮA ĂN BẰNG AI</Text>
@@ -667,33 +757,24 @@ export default function Track() {
 
                   <Image
                     source={{
-                      uri: scanImageUri
-                        ? scanImageUri
-                        : 'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=300&q=80',
+                      uri: selectedImageUri
+                        ? selectedImageUri
+                        : 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/98fb941f-eb1e-49d6-9c4c-7235d38840a5.png',
                     }}
                     style={styles.scanImage}
                   />
 
-                  <View style={{ flexDirection: 'row', gap: 10 }}>
-                    <Pressable
-                      style={[styles.actionBtn, { flex: 1 }]}
-                      onPress={onChooseImageDemo}
-                      disabled={isScanning}
-                    >
-                      <Text style={styles.actionText}>Chọn ảnh (demo)</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[styles.actionBtn, { flex: 1 }]}
-                      onPress={beginFakeScan}
-                      disabled={isScanning}
-                    >
-                      {isScanning ? (
-                        <ActivityIndicator />
-                      ) : (
-                        <Text style={styles.actionText}>Quét Scan</Text>
-                      )}
-                    </Pressable>
-                  </View>
+                  <Pressable
+                    style={[styles.actionBtn]}
+                    onPress={() => setScanChoiceOpen(true)}
+                    disabled={isScanning}
+                  >
+                    {isScanning ? (
+                      <ActivityIndicator />
+                    ) : (
+                      <Text style={styles.actionText}>Quét Scan</Text>
+                    )}
+                  </Pressable>
 
                   {isScanning && (
                     <View style={styles.scanningBox}>
@@ -704,11 +785,13 @@ export default function Track() {
                   )}
 
                   {showScanResult && !isScanning && (
-                    <View style={[styles.nutTable, { marginTop: 12 }]}>
+                    <View
+                      style={[styles.nutTable, { marginTop: 12, padding: 14 }]}
+                    >
                       <Text
                         style={{
                           fontWeight: '900',
-                          fontSize: 16,
+                          fontSize: 18,
                           color: '#0f172a',
                           textAlign: 'center',
                           marginBottom: 8,
@@ -717,24 +800,24 @@ export default function Track() {
                         KẾT QUẢ TỪ AI
                       </Text>
 
-                      {/* tên bữa ăn */}
-                      <TextInput
-                        placeholder="Tên bữa ăn"
-                        style={styles.input}
-                        placeholderTextColor={PLACEHOLDER_COLOR}
-                        selectionColor={C.primary}
-                        value={scanMealName}
-                        onChangeText={setScanMealName}
+                      <SummaryBar
+                        qty={qtyScan}
+                        unit={unitScan}
+                        mealType={mealTypeScan}
                       />
 
-                      {/* macro demo */}
-                      <NutRow label="Calo" value="514 kcal" />
-                      <NutRow label="Protein" value="27 g" />
-                      <NutRow label="Carbs" value="35 g" />
-                      <NutRow label="Fat" value="21 g" />
+                      <Row label="Tên" value="Bữa ăn từ Scan AI" />
+                      <Row label="Calo" value="514 kcal" />
+
+                      {/* (toggle more) */}
+                      <View style={{ marginTop: 4 }}>
+                        <Row label="Protein" value="27 g" />
+                        <Row label="Carbs" value="35 g" />
+                        <Row label="Fat" value="21 g" />
+                      </View>
 
                       {/* Số lượng & đơn vị */}
-                      <Text style={[styles.blockLabel, { marginTop: 10 }]}>
+                      <Text style={[styles.blockLabel, { marginTop: 12 }]}>
                         Số lượng
                       </Text>
                       <View style={styles.inlineRow}>
@@ -751,59 +834,30 @@ export default function Track() {
                           value={qtyScan}
                           onChangeText={setQtyScan}
                         />
-                        <TextInput
-                          placeholder="phần"
-                          style={[styles.input, { minWidth: 120 }]}
-                          placeholderTextColor={PLACEHOLDER_COLOR}
-                          selectionColor={C.primary}
-                          value={unitScan}
-                          onChangeText={setUnitScan}
-                        />
+                        <View style={{ minWidth: 156 }}>
+                          <Dropdown
+                            value={unitScan}
+                            options={UNIT_OPTIONS}
+                            onChange={v => setUnitScan(v as UnitType)}
+                            menuWidth={140}
+                            menuMaxHeight={140}
+                            menuOffsetY={6}
+                          />
+                        </View>
                       </View>
 
                       {/* Loại bữa */}
-                      <Text style={[styles.blockLabel, { marginTop: 10 }]}>
+                      <Text style={[styles.blockLabel, { marginTop: 12 }]}>
                         Loại bữa
                       </Text>
-                      <View
-                        style={{
-                          flexDirection: 'row',
-                          flexWrap: 'wrap',
-                          gap: 8,
-                        }}
-                      >
-                        {(
-                          [
-                            { k: 'BREAKFAST', label: 'Sáng' },
-                            { k: 'LUNCH', label: 'Trưa' },
-                            { k: 'DINNER', label: 'Chiều' },
-                            { k: 'SNACK', label: 'Phụ' },
-                          ] as { k: MealSlot; label: string }[]
-                        ).map(btn => {
-                          const active = mealTypeScan === btn.k;
-                          return (
-                            <Pressable
-                              key={btn.k}
-                              onPress={() => setMealTypeScan(btn.k)}
-                              style={[
-                                styles.scanChip,
-                                active && {
-                                  backgroundColor: C.primary,
-                                  borderColor: C.primary,
-                                },
-                              ]}
-                            >
-                              <Text
-                                style={[
-                                  styles.scanChipText,
-                                  active && { color: '#fff' },
-                                ]}
-                              >
-                                {btn.label}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
+                      <View style={{ minWidth: 156 }}>
+                        <Dropdown
+                          value={mealTypeScan}
+                          options={MEALTYPE_OPTIONS}
+                          onChange={v => setMealTypeScan(v as MealType)}
+                          menuMaxHeight={140}
+                          menuOffsetY={6}
+                        />
                       </View>
 
                       <Pressable
@@ -1141,31 +1195,31 @@ export default function Track() {
                     >
                       Tổng cho món (chưa nhân khẩu phần đã ăn)
                     </Text>
-                    <NutRow
+                    <Row
                       label="Calo"
                       value={`${fmtNum(totalNutrition.kcal, 0)} kcal`}
                     />
-                    <NutRow
+                    <Row
                       label="Protein"
                       value={`${fmtNum(totalNutrition.proteinG)} g`}
                     />
-                    <NutRow
+                    <Row
                       label="Carbs"
                       value={`${fmtNum(totalNutrition.carbG)} g`}
                     />
-                    <NutRow
+                    <Row
                       label="Fat"
                       value={`${fmtNum(totalNutrition.fatG)} g`}
                     />
-                    <NutRow
+                    <Row
                       label="Chất xơ"
                       value={`${fmtNum(totalNutrition.fiberG)} g`}
                     />
-                    <NutRow
+                    <Row
                       label="Natri"
                       value={`${fmtNum(totalNutrition.sodiumMg, 0)} mg`}
                     />
-                    <NutRow
+                    <Row
                       label="Đường"
                       value={`${fmtNum(totalNutrition.sugarMg, 0)} mg`}
                     />
@@ -1182,31 +1236,31 @@ export default function Track() {
                     >
                       Tổng dinh dưỡng bạn đã ăn (x{fmtNum(consumedNum, 2)})
                     </Text>
-                    <NutRow
+                    <Row
                       label="Calo"
                       value={`${fmtNum(eatenNutrition.kcal, 0)} kcal`}
                     />
-                    <NutRow
+                    <Row
                       label="Protein"
                       value={`${fmtNum(eatenNutrition.proteinG)} g`}
                     />
-                    <NutRow
+                    <Row
                       label="Carbs"
                       value={`${fmtNum(eatenNutrition.carbG)} g`}
                     />
-                    <NutRow
+                    <Row
                       label="Fat"
                       value={`${fmtNum(eatenNutrition.fatG)} g`}
                     />
-                    <NutRow
+                    <Row
                       label="Chất xơ"
                       value={`${fmtNum(eatenNutrition.fiberG)} g`}
                     />
-                    <NutRow
+                    <Row
                       label="Natri"
                       value={`${fmtNum(eatenNutrition.sodiumMg, 0)} mg`}
                     />
-                    <NutRow
+                    <Row
                       label="Đường"
                       value={`${fmtNum(eatenNutrition.sugarMg, 0)} mg`}
                     />
@@ -1373,6 +1427,42 @@ export default function Track() {
           }}
         />
 
+        {/* ===== Modal chọn nguồn ảnh cho Scan ===== */}
+        <Modal
+          visible={scanChoiceOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setScanChoiceOpen(false)}
+          statusBarTranslucent
+        >
+          <Pressable
+            style={styles.modalBackdrop}
+            onPress={() => setScanChoiceOpen(false)}
+          >
+            <Pressable style={styles.modalCard}>
+              <Text style={styles.sheetTitle}>Chọn nguồn ảnh</Text>
+              <Pressable
+                style={styles.modalAction}
+                onPress={handleScanFromCamera}
+              >
+                <Text style={styles.modalActionText}>Chụp ảnh (Camera)</Text>
+              </Pressable>
+              <Pressable
+                style={styles.modalAction}
+                onPress={handleScanFromLibrary}
+              >
+                <Text style={styles.modalActionText}>Chọn từ thư viện</Text>
+              </Pressable>
+              <Pressable
+                style={styles.modalCancel}
+                onPress={() => setScanChoiceOpen(false)}
+              >
+                <Text style={styles.modalCancelText}>Hủy</Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
         {/* ===== Modal chọn nguyên liệu ===== */}
         <Modal
           visible={openIngSheet}
@@ -1510,13 +1600,6 @@ const Tab = ({
       {label}
     </Text>
   </Pressable>
-);
-
-const NutRow = ({ label, value }: { label: string; value: string }) => (
-  <View style={styles.nutRow}>
-    <Text style={styles.nutLabel}>{label}:</Text>
-    <Text style={styles.nutValue}>{value}</Text>
-  </View>
 );
 
 /* ====== styles header ====== */
@@ -1762,15 +1845,23 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   scanningBox: { marginTop: 12, alignItems: 'center' },
-  scanChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+  scanChipBox: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 999,
     backgroundColor: '#f8fafc',
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
   scanChipText: { color: '#0f172a', fontWeight: '700', fontSize: 12 },
+  summaryBar: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'center',
+    marginTop: 6,
+    marginBottom: 8,
+  },
 
   // caret cho combobox
   dropdownCaret: {
@@ -1780,4 +1871,44 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: '#64748b',
   },
+
+  // Modal for scan source
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  modalAction: {
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8fafc',
+    marginTop: 8,
+  },
+  modalActionText: { fontWeight: '800', color: '#0f172a' },
+  modalCancel: {
+    height: 46,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ef4444',
+    marginTop: 12,
+  },
+  modalCancelText: { fontWeight: '800', color: '#fff' },
 });

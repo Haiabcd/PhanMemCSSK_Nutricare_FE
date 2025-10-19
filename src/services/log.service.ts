@@ -3,6 +3,7 @@ import { api } from '../config/api';
 import type { ApiResponse , NutritionResponse} from '../types/types';
 import axios from 'axios';
 import type { LogResponse,PlanLogManualRequest } from '../types/log.type';
+import type { FoodAnalyzeResponse } from '../types/ai.type';
 import type { MealSlot } from '../types/types';
 
 // Lưu log cho một mục trong meal plan
@@ -71,4 +72,22 @@ export async function saveManualLog(
 ): Promise<ApiResponse<void>> {
   const res = await api.post<ApiResponse<void>>('/logs/save/manual', payload, { signal });
   return res.data;
+}
+
+export async function saveAILog(
+  imageUrl: string,
+  signal?: AbortSignal
+): Promise<FoodAnalyzeResponse> {
+  const form = new FormData();
+  form.append('image', imageUrl); 
+
+  const res = await api.post<ApiResponse<FoodAnalyzeResponse>>(
+    '/meallog-ai/analyze-url',
+    form,
+    {
+      signal,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }
+  );
+  return res.data.data!;
 }

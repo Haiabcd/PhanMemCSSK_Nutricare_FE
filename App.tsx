@@ -12,6 +12,7 @@ import {
 } from './src/config/secureToken';
 import { refreshWithStoredToken } from './src/services/auth.service';
 import { HeaderProvider } from './src/context/HeaderProvider';
+import { navigationRef } from './src/navigation/NavigationService';
 
 function App() {
   const [ready, setReady] = useState(false);
@@ -64,7 +65,7 @@ function App() {
 
   return (
     <HeaderProvider>
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef}>
         {isAuthed ? <BottomNavigator /> : <AppNavigator />}
       </NavigationContainer>
     </HeaderProvider>
