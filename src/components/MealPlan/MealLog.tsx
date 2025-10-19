@@ -8,6 +8,8 @@ import { colors as C } from '../../constants/colors';
 import { MealPlanItemResponse } from '../../types/mealPlan.type';
 import { smartSwapMealItem } from '../../services/planDay.service';
 import { deletePlanLogById } from '../../services/log.service'; // NEW
+import { onMealLogged } from '../../notifications/notifeeClient'; // chỉnh lại đường dẫn nếu khác
+
 
 /* ========= types ========= */
 export type Range = 'day' | 'week';
@@ -80,6 +82,16 @@ const MEAL_VN: Record<(typeof MEAL_ORDER)[number], string> = {
   LUNCH: 'Bữa trưa',
   SNACK: 'Đồ ăn vặt ',
   DINNER: 'Bữa chiều',
+};
+
+type MealKey = 'breakfast' | 'lunch' | 'dinner';
+type SectionId = 'BREAKFAST' | 'LUNCH' | 'SNACK' | 'DINNER';
+
+const SECTION_TO_MEALKEY: Record<SectionId, MealKey | undefined> = {
+  BREAKFAST: 'breakfast',
+  LUNCH: 'lunch',
+  DINNER: 'dinner',
+  SNACK: undefined, // snack không đặt reminder → bỏ qua
 };
 
 /* ========= stable comparator utils ========= */
@@ -341,8 +353,8 @@ function MealItemCard({
                   changeDisabled
                     ? 'lock'
                     : changing
-                    ? 'progress-clock'
-                    : 'swap-horizontal-bold'
+                      ? 'progress-clock'
+                      : 'swap-horizontal-bold'
                 }
                 size={16}
                 color={showDisabled ? C.slate500 : C.white}
@@ -472,7 +484,7 @@ export default function MealLog({
 
   // Tick: ON -> log; OFF -> xoá log (nếu trước đó used === true)
   const toggle = useCallback(
-    async (id: string) => {
+    async (id: string, sectionId?: SectionId) => {
       const willCheck = !selected.has(id); // trạng thái sau khi bấm
       const original = idMap.get(id);
       const wasUsed = original?.used === true;
@@ -487,36 +499,39 @@ export default function MealLog({
 
       try {
         if (willCheck) {
-          // OFF -> ON
+          // OFF -> ON (đánh dấu đã ăn)
           if (!wasUsed && onLogEat) {
-            await onLogEat(id);
+            await onLogEat(id); // API log ăn của bạn
           }
-          // nếu wasUsed === true mà vẫn ON lại thì không gọi gì (đã có log sẵn)
+
+          // 👉 Huỷ nhắc "sau 30'" nếu là bữa chính
+          const mealKey = sectionId ? SECTION_TO_MEALKEY[sectionId] : undefined;
+          if (mealKey) {
+            // dùng ngày đang xem (activeDate), fallback now
+            await onMealLogged(mealKey, activeDate ?? new Date());
+          }
+
         } else {
           // ON -> OFF: chỉ xoá log nếu trước đó used === true
           if (wasUsed) {
             await deletePlanLogById(id);
-            onAfterSwap?.(); // dùng chung để parent refetch
+            onAfterSwap?.(); // refetch
           }
         }
       } catch (e) {
         // rollback nếu lỗi
         setSelected(prev => {
-          const rollback = new Set(prev);
-          if (willCheck) {
-            // đã add -> remove lại
-            rollback.delete(id);
-          } else {
-            // đã remove -> add lại
-            rollback.add(id);
-          }
-          return rollback;
+          const rb = new Set(prev);
+          if (willCheck) rb.delete(id);
+          else rb.add(id);
+          return rb;
         });
         console.log('Toggle log thất bại:', e);
       }
     },
-    [selected, onLogEat, idMap, onAfterSwap],
+    [selected, onLogEat, idMap, onAfterSwap, activeDate],
   );
+
 
   // Handler bấm "Đổi món": gọi API smartSwapMealItem nếu nút khả dụng
   const handleChange = useCallback(
@@ -573,7 +588,7 @@ export default function MealLog({
                   key={it.id}
                   it={it}
                   checked={selected.has(it.id)}
-                  onToggle={() => toggle(it.id)}
+                  onToggle={() => toggle(it.id, sec.id as SectionId)}
                   onChange={() => original && handleChange(original)}
                   onDetail={() => it.foodId && onViewDetail?.(it.foodId)} // truyền foodId
                   changeDisabled={changeDisabled}
@@ -623,7 +638,7 @@ const st = StyleSheet.create({
 
   mealThumbWrap: {
     width: '100%',
-    height: 260,
+    height: 400,
     position: 'relative',
     backgroundColor: C.slate100,
   },
