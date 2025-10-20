@@ -51,18 +51,30 @@ export default function WizardFrame(props: WizardFrameProps) {
   const goBack = () => {
     if (stepIndex === 0) {
       navigation.navigate('Welcome' as never);
-    } else {
-      navigation.navigate(STEP_ROUTES[stepIndex - 1] as never);
+      return;
     }
+    // Lùi 1 bước bình thường
+    let prevIndex = stepIndex - 1;
+    let prevRoute = STEP_ROUTES[prevIndex];
+    if (prevRoute === 'StepTargetPlan' && form.target === 'maintain') {
+      prevIndex = Math.max(0, prevIndex - 1);
+      prevRoute = STEP_ROUTES[prevIndex];
+    }
+    navigation.navigate(prevRoute as never);
   };
 
   const goNext = () => {
-    if (!canProceed()) {
-      return;
+    if (!canProceed()) return;
+    let nextIndex = stepIndex + 1;
+    if (STEP_ROUTES[stepIndex] === 'StepTarget' && form.target === 'maintain') {
+      const planIdx = STEP_ROUTES.indexOf('StepTargetPlan');
+      if (planIdx !== -1) {
+        nextIndex = planIdx + 1; // bỏ qua StepTargetPlan
+      }
     }
 
-    if (stepIndex < STEP_ROUTES.length - 1) {
-      navigation.navigate(STEP_ROUTES[stepIndex + 1] as never);
+    if (nextIndex < STEP_ROUTES.length) {
+      navigation.navigate(STEP_ROUTES[nextIndex] as never);
     }
   };
 
@@ -71,7 +83,7 @@ export default function WizardFrame(props: WizardFrameProps) {
 
     switch (currentStep) {
       case 'StepName':
-        return form.name && form.name.trim().length > 0;
+        return !!form.name && form.name.trim().length > 0;
       case 'StepTargetPlan':
         return !!form.targetPlanValid;
       default:
