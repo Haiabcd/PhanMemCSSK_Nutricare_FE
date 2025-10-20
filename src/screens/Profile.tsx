@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   TextInput,
   Pressable,
@@ -48,17 +48,31 @@ import AppHeader from '../components/AppHeader';
 import {
   startGoogleOAuth,
   logout as logoutApi,
-} from '../services/auth.service'; // 👈 thêm import logout
+} from '../services/auth.service';
 import { getAllConditions } from '../services/condition.service';
 import { getAllAllergies } from '../services/allergy.service';
 import { getMyInfo, updateProfile } from '../services/user.service';
 import { getOrCreateDeviceId } from '../config/deviceId';
 import { useHeader } from '../context/HeaderProvider';
-import { getTokenSecure, removeTokenSecure } from '../config/secureToken'; // 👈 cần để lấy refreshToken & fallback xoá local
+import { getTokenSecure, removeTokenSecure } from '../config/secureToken';
 
 type PickerType = 'condition' | 'allergy';
 
-// ===== Helpers =====
+/* ====================== Constants & helpers ====================== */
+const SAFE = {
+  LOSE: { MIN: 0.5, MAX: 1.0 }, // kg/tuần
+  GAIN: { MIN: 0.25, MAX: 0.5 }, // kg/tuần
+};
+
+const HEIGHT_RANGE = { MIN: 80, MAX: 250 }; // cm
+const WEIGHT_RANGE = { MIN: 20, MAX: 500 }; // kg
+const MIN_AGE = 13;
+
+const pos = (n: any) => {
+  const v = Number(n);
+  return Number.isFinite(v) && v > 0 ? v : 0;
+};
+
 const formatTargetDeltaForDisplay = (goal: string, delta: number) => {
   if (goal === 'LOSE') return Math.abs(delta);
   if (goal === 'MAINTAIN') return 0;
@@ -71,6 +85,79 @@ const normalizeTargetDeltaForApi = (goal: string, delta: number) => {
   return Math.abs(delta || 0);
 };
 
+type PlanCheck =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: 'invalid' | 'too_fast' | 'too_slow';
+      message: string;
+      subMessage?: string;
+      suggestWeeks?: number;
+    };
+
+function validatePlan(
+  goal: 'LOSE' | 'GAIN',
+  deltaAbsKg: number,
+  weeks: number,
+  touched: boolean,
+): PlanCheck {
+  if (!touched) return { ok: true }; // chưa tương tác -> im lặng
+
+  // Nếu chỉ điền 1 ô -> báo thiếu
+  if (!deltaAbsKg || !weeks) {
+    return {
+      ok: false,
+      reason: 'invalid',
+      message:
+        'Vui lòng nhập đủ “Mức thay đổi cân nặng (kg)” và “Thời gian đạt mục tiêu (tuần)”.',
+    };
+  }
+
+  const rate = deltaAbsKg / weeks;
+  const R = goal === 'LOSE' ? SAFE.LOSE : SAFE.GAIN;
+
+  if (rate > R.MAX) {
+    const suggest = Math.ceil(deltaAbsKg / R.MAX);
+    return {
+      ok: false,
+      reason: 'too_fast',
+      suggestWeeks: suggest,
+      message:
+        goal === 'LOSE'
+          ? `Tốc độ giảm ${rate.toFixed(2)} kg/tuần vượt mức an toàn (${
+              R.MAX
+            } kg/tuần).`
+          : `Tốc độ tăng ${rate.toFixed(2)} kg/tuần vượt mức an toàn (${
+              R.MAX
+            } kg/tuần).`,
+      subMessage:
+        goal === 'LOSE'
+          ? 'Khuyến nghị giảm 0.5–1.0 kg/tuần để bền vững.'
+          : 'Khuyến nghị tăng 0.25–0.5 kg/tuần để chủ yếu tăng khối nạc.',
+    };
+  }
+
+  if (rate < R.MIN) {
+    return {
+      ok: false,
+      reason: 'too_slow',
+      message:
+        goal === 'LOSE'
+          ? `Tốc độ giảm ${rate.toFixed(2)} kg/tuần thấp hơn khuyến nghị (${
+              R.MIN
+            }–${R.MAX} kg/tuần).`
+          : `Tốc độ tăng ${rate.toFixed(2)} kg/tuần thấp hơn khuyến nghị (${
+              R.MIN
+            }–${R.MAX} kg/tuần).`,
+      subMessage:
+        'Bạn có thể tiếp tục (an toàn) hoặc điều chỉnh để nhanh hơn nếu muốn.',
+    };
+  }
+
+  return { ok: true };
+}
+
+/* ====================== Screen ====================== */
 export default function ProfileScreen() {
   const navigation = useNavigation<any>();
   const { width } = useWindowDimensions();
@@ -98,17 +185,17 @@ export default function ProfileScreen() {
   const [allergies, setAllergies] = useState<Allergy[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // OAuth
   const [loginChoiceOpen, setLoginChoiceOpen] = useState(false);
   const [oauthStarting, setOauthStarting] = useState(false);
 
-  // ✅ hook để làm mới/clear header sau khi update / logout
   const { refresh: refreshHeader, reset: resetHeader } = useHeader();
-
-  // ====== thêm trạng thái để hiện overlay khi đang logout ======
   const [loggingOut, setLoggingOut] = useState(false);
 
-  // Gộp tất cả API
+  // validate theo thời gian thực cho cặp mục tiêu
+  const [planTouched, setPlanTouched] = useState(false);
+  const [planCheck, setPlanCheck] = useState<PlanCheck>({ ok: true });
+
+  // ===== Fetch
   const fetchData = useCallback(async (signal?: AbortSignal) => {
     try {
       setLoading(true);
@@ -141,11 +228,12 @@ export default function ProfileScreen() {
   }, []);
 
   useEffect(() => {
-    const controller = new AbortController();
-    fetchData(controller.signal);
-    return () => controller.abort();
+    const ac = new AbortController();
+    fetchData(ac.signal);
+    return () => ac.abort();
   }, [fetchData]);
 
+  // ===== Helpers UI
   const showToast = (
     opts: {
       title: string;
@@ -171,76 +259,20 @@ export default function ProfileScreen() {
         conditions: [...(myInfo.conditions ?? [])],
         allergies: [...(myInfo.allergies ?? [])],
       });
+    setPlanTouched(false);
+    setPlanCheck({ ok: true });
     setShowEdit(true);
   };
 
-  // ====== Đăng xuất: gọi API logout với refreshToken trong Keychain ======
-  const onLogout = () => {
-    Alert.alert(
-      'Đăng xuất',
-      'Bạn có chắc chắn muốn đăng xuất?',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Đăng xuất',
-          style: 'destructive',
-          onPress: async () => {
-            setLoggingOut(true);
-            try {
-              const cur = await getTokenSecure();
-              const refreshToken = cur?.refreshToken;
-
-              if (refreshToken) {
-                // Gọi BE để thu hồi refresh token family
-                await logoutApi({ refreshToken });
-              } else {
-                // Không có refresh token => xoá local cho sạch (phòng trường hợp lỗi trước đó)
-                await removeTokenSecure();
-              }
-
-              // Clear header context dùng chung
-              resetHeader?.();
-
-              showToast(
-                {
-                  title: 'Đăng xuất thành công',
-                  subtitle: 'Hẹn gặp lại bạn sớm nhé!',
-                },
-                () =>
-                  navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] }),
-              );
-            } catch (e) {
-              // Dù BE lỗi, vẫn xoá token local để đảm bảo người dùng đã đăng xuất ở client
-              await removeTokenSecure();
-              resetHeader?.();
-              Alert.alert('Thông báo', 'Đã đăng xuất ở phía thiết bị.');
-              navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
-            } finally {
-              setLoggingOut(false);
-            }
-          },
-        },
-      ],
-      { cancelable: true },
-    );
-  };
-
-  const openPicker = (type: PickerType) => {
-    setPickerType(type);
-    setPickerOpen(true);
-  };
-
-  // ====== Hiển thị nút theo provider ======
+  // ===== OAuth / Logout
   const provider = myInfo?.provider ?? 'NONE';
   const isGuest = provider === 'NONE';
   const isLoggedIn =
     provider === 'SUPABASE_GOOGLE' || provider === 'SUPABASE_FACEBOOK';
 
-  // Login
   const onLoginWith = useCallback(
     async (providerPick: 'google' | 'facebook') => {
       setLoginChoiceOpen(false);
-
       if (providerPick === 'google') {
         try {
           setOauthStarting(true);
@@ -253,7 +285,6 @@ export default function ProfileScreen() {
           }
           await Linking.openURL(url);
         } catch (e) {
-          console.log('startGoogleOAuth error:', e);
           Alert.alert(
             'Lỗi',
             'Không thể bắt đầu đăng nhập Google. Vui lòng thử lại.',
@@ -263,18 +294,208 @@ export default function ProfileScreen() {
         }
         return;
       }
-
       navigation.navigate('Login', { provider: 'facebook' });
     },
     [navigation],
   );
 
-  // ====== Lưu thay đổi: gọi API update + refresh header ======
-  const handleSave = useCallback(async () => {
-    if (!editData || !editInfo) {
-      console.log('Thiếu dữ liệu editData/editInfo để build UpdateRequest');
+  const onLogout = () => {
+    Alert.alert('Đăng xuất', 'Bạn có chắc chắn muốn đăng xuất?', [
+      { text: 'Hủy', style: 'cancel' },
+      {
+        text: 'Đăng xuất',
+        style: 'destructive',
+        onPress: async () => {
+          setLoggingOut(true);
+          try {
+            const cur = await getTokenSecure();
+            const refreshToken = cur?.refreshToken;
+            if (refreshToken) {
+              await logoutApi({ refreshToken });
+            } else {
+              await removeTokenSecure();
+            }
+            resetHeader?.();
+            showToast(
+              {
+                title: 'Đăng xuất thành công',
+                subtitle: 'Hẹn gặp lại bạn sớm nhé!',
+              },
+              () =>
+                navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] }),
+            );
+          } catch {
+            await removeTokenSecure();
+            resetHeader?.();
+            Alert.alert('Thông báo', 'Đã đăng xuất ở phía thiết bị.');
+            navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
+          } finally {
+            setLoggingOut(false);
+          }
+        },
+      },
+    ]);
+  };
+
+  /* ================== Dirty check ================== */
+  const isDirty = useMemo(() => {
+    if (!data || !editData || !myInfo || !editInfo) return false;
+
+    const fields: (keyof ProfileDto)[] = [
+      'name',
+      'birthYear',
+      'gender',
+      'heightCm',
+      'weightKg',
+      'goal',
+      'activityLevel',
+      'targetWeightDeltaKg',
+      'targetDurationWeeks',
+    ];
+
+    for (const k of fields) {
+      // so sánh đặc biệt cho delta: editData đang lưu số dương khi nhập
+      if (k === 'targetWeightDeltaKg') {
+        const dispOrig = formatTargetDeltaForDisplay(
+          data.goal,
+          data.targetWeightDeltaKg || 0,
+        );
+        const dispEdit = formatTargetDeltaForDisplay(
+          editData.goal,
+          editData.targetWeightDeltaKg || 0,
+        );
+        if (Number(dispOrig) !== Number(dispEdit)) return true;
+        continue;
+      }
+      if ((data as any)[k] !== (editData as any)[k]) return true;
+    }
+
+    const origCondIds = (myInfo.conditions ?? [])
+      .map(c => c.id ?? c.id ?? c)
+      .sort();
+    const editCondIds = (editInfo.conditions ?? [])
+      .map(c => c.id ?? c.id ?? c)
+      .sort();
+    if (JSON.stringify(origCondIds) !== JSON.stringify(editCondIds))
+      return true;
+
+    const origAlgIds = (myInfo.allergies ?? [])
+      .map(a => a.id ?? a.id ?? a)
+      .sort();
+    const editAlgIds = (editInfo.allergies ?? [])
+      .map(a => a.id ?? a.id ?? a)
+      .sort();
+    if (JSON.stringify(origAlgIds) !== JSON.stringify(editAlgIds)) return true;
+
+    return false;
+  }, [data, editData, myInfo, editInfo]);
+
+  /* ================== Validate tổng hợp ================== */
+  const { blockingErrors, warnings } = useMemo(() => {
+    const errs: string[] = [];
+    const warns: string[] = [];
+
+    if (!editData) return { blockingErrors: errs, warnings: warns };
+
+    // Name
+    if (isDirty) {
+      const nameTrim = (editData.name ?? '').trim();
+      if (!nameTrim) errs.push('Tên không được để trống.');
+    }
+
+    // Age
+    if (isDirty && editData) {
+      // Ép birthYear về number
+      const birthYearNum =
+        typeof editData.birthYear === 'number'
+          ? editData.birthYear
+          : parseInt((editData.birthYear as unknown as string) || '0', 10);
+
+      // Nếu birthYear không hợp lệ => age = NaN
+      const age = Number.isFinite(birthYearNum) ? calcAge(birthYearNum) : NaN;
+
+      if (!Number.isFinite(age) || (age as number) < MIN_AGE) {
+        errs.push(`Tuổi phải từ ${MIN_AGE} trở lên.`);
+      }
+    }
+
+    // Height
+    if (isDirty) {
+      const h = Number(editData.heightCm);
+      if (!Number.isFinite(h) || h < HEIGHT_RANGE.MIN || h > HEIGHT_RANGE.MAX) {
+        errs.push(
+          `Chiều cao phải trong khoảng ${HEIGHT_RANGE.MIN}–${HEIGHT_RANGE.MAX} cm.`,
+        );
+      }
+    }
+
+    // Weight
+    if (isDirty) {
+      const w = Number(editData.weightKg);
+      if (!Number.isFinite(w) || w < WEIGHT_RANGE.MIN || w > WEIGHT_RANGE.MAX) {
+        errs.push(
+          `Cân nặng phải trong khoảng ${WEIGHT_RANGE.MIN}–${WEIGHT_RANGE.MAX} kg.`,
+        );
+      }
+    }
+
+    // Goal LOSE/GAIN -> validate biến động/tuần
+    if (editData.goal !== 'MAINTAIN') {
+      const deltaAbs = Math.abs(Number(editData.targetWeightDeltaKg ?? 0));
+      const weeks = Math.abs(Number(editData.targetDurationWeeks ?? 0));
+
+      const v = validatePlan(
+        editData.goal as 'LOSE' | 'GAIN',
+        deltaAbs,
+        weeks,
+        planTouched,
+      );
+
+      if (!v.ok) {
+        if (v.reason === 'too_fast' || v.reason === 'invalid') {
+          errs.push(v.message + (v.subMessage ? ` ${v.subMessage}` : ''));
+        } else if (v.reason === 'too_slow') {
+          warns.push(v.message + (v.subMessage ? ` ${v.subMessage}` : ''));
+        }
+      }
+    }
+
+    return { blockingErrors: errs, warnings: warns };
+  }, [editData, planTouched, isDirty]);
+
+  // hiển thị hint WHO khi hợp lệ và có kế hoạch giảm cân
+  const showWhoHint =
+    !!editData && editData.goal === 'LOSE' && blockingErrors.length === 0;
+
+  // Disable Lưu khi: chưa dirty OR có lỗi chặn
+  const saveDisabled = !isDirty || blockingErrors.length > 0;
+
+  /* ================== Realtime plan validate effect ================== */
+  useEffect(() => {
+    if (!editData || editData.goal === 'MAINTAIN') {
+      setPlanCheck({ ok: true });
       return;
     }
+    const deltaAbs = Math.abs(Number(editData.targetWeightDeltaKg ?? 0));
+    const weeks = Math.abs(Number(editData.targetDurationWeeks ?? 0));
+    const v = validatePlan(
+      editData.goal as 'LOSE' | 'GAIN',
+      deltaAbs,
+      weeks,
+      planTouched,
+    );
+
+    setPlanCheck(v);
+  }, [
+    editData?.goal,
+    editData?.targetWeightDeltaKg,
+    editData?.targetDurationWeeks,
+    planTouched,
+  ]);
+
+  /* ================== Save handlers ================== */
+  const handleSaveCore = useCallback(async () => {
+    if (!editData || !editInfo) return;
 
     const conditionIds: string[] = (editInfo.conditions ?? []).map(
       (x: any) => x?.id ?? x?.conditionId ?? x,
@@ -283,7 +504,6 @@ export default function ProfileScreen() {
       (x: any) => x?.id ?? x?.allergyId ?? x,
     );
 
-    // Chuẩn hóa delta theo goal cho API
     const normalizedDelta = normalizeTargetDeltaForApi(
       editData.goal,
       Number(editData.targetWeightDeltaKg || 0),
@@ -294,7 +514,7 @@ export default function ProfileScreen() {
         id: editData.id,
         heightCm: editData.heightCm,
         weightKg: editData.weightKg,
-        targetWeightDeltaKg: normalizedDelta, // 👈 nếu LOSE luôn là số âm
+        targetWeightDeltaKg: normalizedDelta,
         targetDurationWeeks: editData.targetDurationWeeks,
         gender: editData.gender,
         birthYear: editData.birthYear,
@@ -312,7 +532,6 @@ export default function ProfileScreen() {
     try {
       await updateProfile(payload, ac.signal);
 
-      // ✅ Optimistic update local UI
       setData(prev =>
         prev
           ? { ...prev, ...payload.profile }
@@ -332,7 +551,6 @@ export default function ProfileScreen() {
           : prev,
       );
 
-      // ✅ Refresh lại header dùng chung (avatar/tên)
       await refreshHeader();
 
       showToast(
@@ -350,6 +568,21 @@ export default function ProfileScreen() {
     }
   }, [editData, editInfo, refreshHeader]);
 
+  const handleSave = useCallback(async () => {
+    if (saveDisabled) return; // an toàn
+    // nếu quá chậm (warning) vẫn cho lưu
+    if (!planCheck.ok && planCheck.reason === 'too_fast') {
+      Alert.alert(
+        'Điều chỉnh mục tiêu',
+        planCheck.message +
+          (planCheck.subMessage ? `\n${planCheck.subMessage}` : ''),
+      );
+      return;
+    }
+    await handleSaveCore();
+  }, [saveDisabled, planCheck, handleSaveCore]);
+
+  /* ================== UI ================== */
   return (
     <Container>
       {loading && <ActivityIndicator size="large" color="#22C55E" />}
@@ -372,8 +605,10 @@ export default function ProfileScreen() {
         kind={toast?.kind ?? 'success'}
       />
 
-      {/* Header dùng chung */}
-      <AppHeader loading={loading} />
+      <AppHeader
+        loading={loading}
+        onBellPress={() => navigation.navigate('Notification')}
+      />
 
       <ScrollView
         style={styles.screen}
@@ -598,18 +833,22 @@ export default function ProfileScreen() {
               <ViewComponent style={styles.halfPlaceholder} />
             </ViewComponent>
 
-            <ViewComponent row gap={12} mb={12}>
+            <ViewComponent row gap={12} mb={8}>
               <FormField
                 icon="hospital-box-outline"
                 label="Bệnh nền"
                 style={styles.half}
               >
-                <Pressable onPress={() => openPicker('condition')}>
+                <Pressable
+                  onPress={() => {
+                    setPickerType('condition');
+                    setPickerOpen(true);
+                  }}
+                >
                   <ViewComponent
                     style={[
                       styles.input,
                       {
-                        height: undefined,
                         minHeight: 46,
                         paddingVertical: 10,
                         justifyContent: 'center',
@@ -636,12 +875,16 @@ export default function ProfileScreen() {
               </FormField>
 
               <FormField icon="allergy" label="Dị ứng" style={styles.half}>
-                <Pressable onPress={() => openPicker('allergy')}>
+                <Pressable
+                  onPress={() => {
+                    setPickerType('allergy');
+                    setPickerOpen(true);
+                  }}
+                >
                   <ViewComponent
                     style={[
                       styles.input,
                       {
-                        height: undefined,
                         minHeight: 46,
                         paddingVertical: 10,
                         justifyContent: 'center',
@@ -669,61 +912,115 @@ export default function ProfileScreen() {
             </ViewComponent>
 
             {editData.goal !== 'MAINTAIN' && (
-              <ViewComponent row gap={12} mb={12}>
-                <FormField
-                  icon="scale-bathroom"
-                  label="Mức thay đổi cân nặng (kg)"
-                  style={isSmall ? styles.full : styles.half}
-                >
-                  <TextInput
-                    value={
-                      editData.targetWeightDeltaKg !== undefined &&
-                      editData.targetWeightDeltaKg !== null
-                        ? `${formatTargetDeltaForDisplay(
-                            editData.goal as any,
-                            Number(editData.targetWeightDeltaKg),
-                          )}`
-                        : ''
-                    }
-                    onChangeText={t =>
-                      setEditData(prev => ({
-                        ...prev!,
-                        // lưu dương; khi gửi sẽ chuẩn hóa dấu theo goal
-                        targetWeightDeltaKg: Math.abs(parseFloat(t || '0')),
-                      }))
-                    }
-                    placeholder="Nhập mức thay đổi cân nặng"
-                    style={styles.input}
-                    placeholderTextColor={C.slate500}
+              <>
+                <ViewComponent row gap={12} mb={8}>
+                  <FormField
+                    icon="scale-bathroom"
+                    label="Mức thay đổi cân nặng (kg)"
+                    style={isSmall ? styles.full : styles.half}
+                  >
+                    <TextInput
+                      value={
+                        editData.targetWeightDeltaKg !== undefined &&
+                        editData.targetWeightDeltaKg !== null
+                          ? `${formatTargetDeltaForDisplay(
+                              editData.goal as any,
+                              Number(editData.targetWeightDeltaKg),
+                            )}`
+                          : ''
+                      }
+                      onChangeText={t => {
+                        setPlanTouched(true);
+                        setEditData(prev => ({
+                          ...prev!,
+                          targetWeightDeltaKg: Math.abs(parseFloat(t || '0')),
+                        }));
+                      }}
+                      style={styles.input}
+                      placeholderTextColor={C.slate500}
+                    />
+                  </FormField>
+
+                  <FormField
+                    icon="calendar-clock"
+                    label="Thời gian đạt mục tiêu (tuần)"
+                    style={isSmall ? styles.full : styles.half}
+                  >
+                    <TextInput
+                      value={
+                        editData.targetDurationWeeks
+                          ? `${editData.targetDurationWeeks}`
+                          : ''
+                      }
+                      onChangeText={t => {
+                        setPlanTouched(true);
+                        setEditData(prev => ({
+                          ...prev!,
+                          targetDurationWeeks: Math.abs(parseFloat(t || '0')),
+                        }));
+                      }}
+                      style={styles.input}
+                      placeholderTextColor={C.slate500}
+                    />
+                  </FormField>
+                </ViewComponent>
+
+                {/* Thông báo lỗi/cảnh báo tổng hợp */}
+                {(blockingErrors.length > 0 || warnings.length > 0) && (
+                  <ViewComponent
+                    style={{
+                      marginTop: 2,
+                      marginBottom: 10,
+                      padding: 10,
+                      borderRadius: 12,
+                      backgroundColor:
+                        blockingErrors.length > 0 ? '#FEE2E2' : '#FEF3C7',
+                      borderWidth: 1,
+                      borderColor:
+                        blockingErrors.length > 0 ? '#FCA5A5' : '#FCD34D',
+                    }}
+                  >
+                    {blockingErrors.map((m, i) => (
+                      <TextComponent
+                        key={`e-${i}`}
+                        variant="caption"
+                        weight="bold"
+                        style={{ marginBottom: 4 }}
+                        text={`⚠️ ${m}`}
+                      />
+                    ))}
+                    {warnings.map((m, i) => (
+                      <TextComponent
+                        key={`w-${i}`}
+                        variant="caption"
+                        tone="muted"
+                        text={`ℹ️ ${m}`}
+                      />
+                    ))}
+                  </ViewComponent>
+                )}
+
+                {/* Hint WHO/FAO khi hợp lệ */}
+                {showWhoHint && (
+                  <TextComponent
+                    variant="caption"
+                    tone="muted"
+                    style={{ marginTop: -2, marginBottom: 8 }}
+                    text="Lưu ý: WHO/FAO khuyến nghị không cắt quá 1000 kcal/ngày và không xuống dưới ~1200 kcal/ngày (nữ), ~1500 kcal/ngày (nam)."
                   />
-                </FormField>
-                <FormField
-                  icon="calendar-clock"
-                  label="Thời gian đạt mục tiêu (tuần)"
-                  style={isSmall ? styles.full : styles.half}
-                >
-                  <TextInput
-                    value={
-                      editData.targetDurationWeeks
-                        ? `${editData.targetDurationWeeks}`
-                        : ''
-                    }
-                    onChangeText={t =>
-                      setEditData(prev => ({
-                        ...prev!,
-                        targetDurationWeeks: parseFloat(t || '0'),
-                      }))
-                    }
-                    placeholder="Nhập thời gian đạt mục tiêu"
-                    style={styles.input}
-                    placeholderTextColor={C.slate500}
-                  />
-                </FormField>
-              </ViewComponent>
+                )}
+              </>
             )}
 
             <ViewComponent row gap={10} mt={6}>
-              <Pressable style={styles.saveBtn} onPress={handleSave}>
+              <Pressable
+                style={[
+                  styles.saveBtn,
+                  (saveDisabled || !isDirty) && { opacity: 0.5 },
+                ]}
+                onPress={handleSave}
+                disabled={saveDisabled}
+              >
                 <TextComponent
                   text="Lưu Thay Đổi"
                   tone="inverse"
@@ -795,46 +1092,40 @@ export default function ProfileScreen() {
             />
           </ViewComponent>
 
-          {/* Chỉ hiện khi CHƯA đăng nhập (provider = NONE) */}
-          {isGuest && (
-            <>
-              <Pressable
-                style={[styles.settingRowPress]}
-                onPress={() => setLoginChoiceOpen(true)}
+          {isGuest ? (
+            <Pressable
+              style={[styles.settingRowPress]}
+              onPress={() => setLoginChoiceOpen(true)}
+            >
+              <ViewComponent
+                row
+                alignItems="center"
+                gap={10}
+                style={{ flexShrink: 1 }}
               >
                 <ViewComponent
-                  row
-                  alignItems="center"
-                  gap={10}
-                  style={{ flexShrink: 1 }}
+                  center
+                  style={[styles.settingIcon, { backgroundColor: '#dcfce7' }]}
                 >
-                  <ViewComponent
-                    center
-                    style={[styles.settingIcon, { backgroundColor: '#dcfce7' }]}
-                  >
-                    <McIcon name="login" size={16} color={C.success} />
-                  </ViewComponent>
-                  <ViewComponent>
-                    <TextComponent
-                      text="Đăng nhập ngay"
-                      weight="semibold"
-                      color={C.success}
-                      style={{ marginBottom: 5 }}
-                    />
-                    <TextComponent
-                      text="Đăng nhập để đồng bộ và lưu trữ dữ liệu khi đổi thiết bị"
-                      variant="caption"
-                      tone="muted"
-                    />
-                  </ViewComponent>
+                  <McIcon name="login" size={16} color={C.success} />
                 </ViewComponent>
-                <McIcon name="chevron-right" size={18} color={C.slate500} />
-              </Pressable>
-            </>
-          )}
-
-          {/* Chỉ hiện khi ĐÃ đăng nhập (Google/Facebook) */}
-          {isLoggedIn && (
+                <ViewComponent>
+                  <TextComponent
+                    text="Đăng nhập ngay"
+                    weight="semibold"
+                    color={C.success}
+                    style={{ marginBottom: 5 }}
+                  />
+                  <TextComponent
+                    text="Đăng nhập để đồng bộ và lưu trữ dữ liệu khi đổi thiết bị"
+                    variant="caption"
+                    tone="muted"
+                  />
+                </ViewComponent>
+              </ViewComponent>
+              <McIcon name="chevron-right" size={18} color={C.slate500} />
+            </Pressable>
+          ) : (
             <Pressable style={[styles.settingRowPress]} onPress={onLogout}>
               <ViewComponent
                 row

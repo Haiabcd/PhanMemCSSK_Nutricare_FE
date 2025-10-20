@@ -12,7 +12,6 @@ import {
 } from './src/config/secureToken';
 import { refreshWithStoredToken } from './src/services/auth.service';
 import { HeaderProvider } from './src/context/HeaderProvider';
-import { navigationRef } from './src/navigation/NavigationService';
 
 // Ăn
 import {
@@ -28,7 +27,6 @@ import {
   registerHydrationBackground,
   bootstrapHydrationSchedule,
 } from './src/notifications/hydrationAuto';
-
 
 // 🟢 Bắt buộc: đăng ký background handler ngoài component
 registerBackgroundHandler();
@@ -89,7 +87,7 @@ function App() {
   useEffect(() => {
     if (!ready || !isAuthed) return;
 
-    const unsubFG = registerHydrationForeground();  // Đã uống
+    const unsubFG = registerHydrationForeground(); // Đã uống
     const unsubBG = registerHydrationBackground();
 
     bootstrapHydrationSchedule(7).catch(console.log); // tự động lên lịch 7 ngày cho "uống nước"
@@ -103,7 +101,7 @@ function App() {
 
   return (
     <HeaderProvider>
-      <NavigationContainer ref={navigationRef}>
+      <NavigationContainer>
         {isAuthed ? <BottomNavigator /> : <AppNavigator />}
       </NavigationContainer>
     </HeaderProvider>

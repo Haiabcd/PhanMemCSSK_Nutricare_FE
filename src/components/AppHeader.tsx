@@ -5,11 +5,12 @@ import ViewComponent from './ViewComponent';
 import TextComponent from './TextComponent';
 import { colors as C } from '../constants/colors';
 import { useHeader } from '../context/HeaderProvider';
-import { openNotification } from '../navigation/NavigationService';
 
 type AppHeaderProps = {
   loading?: boolean;
   greetingText?: string;
+  /** Hàm được gọi khi bấm icon chuông */
+  onBellPress?: () => void;
 };
 
 const Avatar = React.memo(function Avatar({
@@ -53,12 +54,15 @@ const Avatar = React.memo(function Avatar({
 export default function AppHeader({
   loading,
   greetingText = 'Xin chào,',
+  onBellPress = () => {},
 }: AppHeaderProps) {
   const { header, loading: headerLoading } = useHeader();
   const displayName = useMemo(
     () => header?.name?.trim() || 'bạn',
     [header?.name],
   );
+
+  const disabled = headerLoading || loading;
 
   return (
     <ViewComponent row between alignItems="center">
@@ -71,14 +75,15 @@ export default function AppHeader({
       </ViewComponent>
 
       <Pressable
-        style={s.iconContainer}
-        onPress={() => {
-          openNotification();
-        }}
+        style={({ pressed }) => [
+          s.iconContainer,
+          (pressed || disabled) && { opacity: 0.5 },
+        ]}
+        onPress={onBellPress}
         accessibilityRole="button"
         accessibilityLabel="Mở thông báo"
         hitSlop={8}
-        disabled={headerLoading}
+        disabled={disabled}
       >
         <Entypo name="bell" size={20} color={C.primary} />
       </Pressable>

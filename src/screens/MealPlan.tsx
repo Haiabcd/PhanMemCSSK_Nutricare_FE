@@ -3,7 +3,6 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import Container from '../components/Container';
@@ -158,7 +157,7 @@ const MealPlan = () => {
       {/* Header */}
       <AppHeader
         loading={loading}
-        onPressBell={() => navigation.navigate('Notification')}
+        onBellPress={() => navigation.navigate('Notification')}
       />
 
       <ViewComponent style={s.line} />

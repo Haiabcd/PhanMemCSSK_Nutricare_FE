@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import PlanNavigator from './PlanNavigator';
 import SuggestionNavigator from './SuggestionNavigator';
-import Profile from '../screens/Profile';
+import ProfileNavigator from './ProfileNavigator';
 import Track from '../screens/Track';
 import { colors } from '../constants/colors';
 import GuideNavigator from './GuideNavigator';
@@ -14,7 +14,7 @@ export type MainTabParamList = {
   SuggestionNavigator: undefined;
   Track: undefined;
   GuideNavigator: undefined;
-  Profile: undefined;
+  ProfileNavigator: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -45,7 +45,7 @@ export default function BottomTabsNavigator() {
             case 'GuideNavigator':
               iconName = 'menu-book';
               break;
-            case 'Profile':
+            case 'ProfileNavigator':
               iconName = 'person';
               break;
             case 'Track':
@@ -109,8 +109,8 @@ export default function BottomTabsNavigator() {
         options={{ tabBarLabel: 'Cẩm nang' }}
       />
       <Tab.Screen
-        name="Profile"
-        component={Profile}
+        name="ProfileNavigator"
+        component={ProfileNavigator}
         options={{ tabBarLabel: 'Hồ sơ' }}
       />
     </Tab.Navigator>

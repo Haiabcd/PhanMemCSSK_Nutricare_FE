@@ -259,7 +259,7 @@ function MealItemCard({
   const [imgError, setImgError] = useState(false);
   const showDisabled = !!changing;
 
-  const tickDisabled = disabledToggle || checked; // ✨ không cho tick nếu future day hoặc đã tick
+  const tickDisabled = disabledToggle || checked;
 
   return (
     <ViewComponent style={st.mealCard}>
@@ -285,7 +285,7 @@ function MealItemCard({
         <Pressable
           onPress={tickDisabled ? undefined : onToggle}
           disabled={tickDisabled}
-          style={[st.tickWrap, tickDisabled && { opacity: 0.5 }]} // ✨ mờ đi khi khoá
+          style={[st.tickWrap, tickDisabled && { opacity: 0.5 }]}
           hitSlop={6}
           accessibilityRole="button"
           accessibilityState={{ disabled: tickDisabled }}

@@ -449,7 +449,9 @@ export default function Suggestion() {
               </ViewComponent>
 
               <Pressable
-                onPress={() => navigation.navigate('MealLogDetail')}
+                onPress={() =>
+                  navigation.navigate('MealLogDetail', { id: item.id })
+                }
                 style={({ pressed }) => [
                   s.ctaBtn,
                   {
@@ -460,7 +462,7 @@ export default function Suggestion() {
                 ]}
               >
                 <TextComponent
-                  text="XEM CÔNG THỨC"
+                  text="XEM CHI TIẾT"
                   variant="caption"
                   weight="bold"
                   tone="default"
@@ -479,7 +481,10 @@ export default function Suggestion() {
   return (
     <Container>
       {/* Header dùng chung */}
-      <AppHeader loading={initialLoading} />
+      <AppHeader
+        loading={initialLoading}
+        onBellPress={() => navigation.navigate('Notification')}
+      />
 
       {/* Filters + List */}
       <ViewComponent style={{ flex: 1, minHeight: CONTENT_MIN_HEIGHT }}>
