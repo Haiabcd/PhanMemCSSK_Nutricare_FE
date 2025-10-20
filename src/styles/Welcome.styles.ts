@@ -37,6 +37,21 @@ export const s = StyleSheet.create({
       color: C.blue,
     },
 
-  
+    subtitleWrap: {
+      alignSelf: 'center',
+      backgroundColor: 'rgba(255,255,255,0.92)', 
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 12,
+      marginTop: 8,
+      shadowColor: '#000',
+      shadowOpacity: 0.12,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 3, 
+    },
+    subtitleText: {
+      color: C.slate900, 
+    },
   });
   
