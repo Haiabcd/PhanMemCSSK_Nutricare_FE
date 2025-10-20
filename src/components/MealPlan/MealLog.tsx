@@ -7,9 +7,6 @@ import ViewComponent from '../ViewComponent';
 import { colors as C } from '../../constants/colors';
 import { MealPlanItemResponse } from '../../types/mealPlan.type';
 import { smartSwapMealItem } from '../../services/planDay.service';
-import { deletePlanLogById } from '../../services/log.service'; // NEW
-import { onMealLogged } from '../../notifications/notifeeClient'; // chỉnh lại đường dẫn nếu khác
-
 
 /* ========= types ========= */
 export type Range = 'day' | 'week';
@@ -82,16 +79,6 @@ const MEAL_VN: Record<(typeof MEAL_ORDER)[number], string> = {
   LUNCH: 'Bữa trưa',
   SNACK: 'Đồ ăn vặt ',
   DINNER: 'Bữa chiều',
-};
-
-type MealKey = 'breakfast' | 'lunch' | 'dinner';
-type SectionId = 'BREAKFAST' | 'LUNCH' | 'SNACK' | 'DINNER';
-
-const SECTION_TO_MEALKEY: Record<SectionId, MealKey | undefined> = {
-  BREAKFAST: 'breakfast',
-  LUNCH: 'lunch',
-  DINNER: 'dinner',
-  SNACK: undefined, // snack không đặt reminder → bỏ qua
 };
 
 /* ========= stable comparator utils ========= */
@@ -571,7 +558,7 @@ export default function MealLog({
                   key={it.id}
                   it={it}
                   checked={selected.has(it.id)}
-                  onToggle={() => toggle(it.id, sec.id as SectionId)}
+                  onToggle={() => toggle(it.id)}
                   onChange={() => original && handleChange(original)}
                   onDetail={() => it.foodId && onViewDetail?.(it.foodId)}
                   changing={changing}
@@ -621,7 +608,7 @@ const st = StyleSheet.create({
 
   mealThumbWrap: {
     width: '100%',
-    height: 400,
+    height: 260,
     position: 'relative',
     backgroundColor: C.slate100,
   },

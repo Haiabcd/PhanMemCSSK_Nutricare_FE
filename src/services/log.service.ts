@@ -2,7 +2,7 @@
 import { api } from '../config/api';
 import type { ApiResponse , NutritionResponse} from '../types/types';
 import axios from 'axios';
-import type { LogResponse,PlanLogManualRequest } from '../types/log.type';
+import type { LogResponse,PlanLogManualRequest, PlanLogUpdateRequest } from '../types/log.type';
 import type { FoodAnalyzeResponse } from '../types/ai.type';
 import type { MealSlot } from '../types/types';
 
@@ -75,19 +75,41 @@ export async function saveManualLog(
 }
 
 export async function saveAILog(
-  imageUrl: string,
+  asset: { uri: string; type?: string; fileName?: string },
   signal?: AbortSignal
 ): Promise<FoodAnalyzeResponse> {
   const form = new FormData();
-  form.append('image', imageUrl); 
 
+  form.append(
+    'image',
+    {
+      uri: asset.uri,                   
+      type: asset.type || 'image/jpeg', 
+      name: asset.fileName || 'photo.jpg', 
+    } as any
+  );
   const res = await api.post<ApiResponse<FoodAnalyzeResponse>>(
     '/meallog-ai/analyze-url',
     form,
-    {
-      signal,
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }
+    { 
+      signal, 
+      headers: {Authorization: undefined,},
+    },
   );
   return res.data.data!;
+}
+
+export async function updatePlanLog(
+  planLogId: string,
+  payload: PlanLogUpdateRequest,
+  signal?: AbortSignal
+): Promise<ApiResponse<void>> {
+  const body = payload;
+
+  const res = await api.put<ApiResponse<void>>(
+    `/logs/${planLogId}`, 
+    body,
+    { signal }
+  );
+  return res.data;
 }

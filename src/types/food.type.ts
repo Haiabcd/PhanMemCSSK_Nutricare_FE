@@ -28,4 +28,3 @@ export interface IngredientResponse{
     unit: string;
     tags: string[];
 }
-

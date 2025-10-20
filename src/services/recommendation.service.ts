@@ -1,5 +1,3 @@
-// src/services/recommendation.service.ts
-import axios from 'axios';
 import { api } from '../config/api';
 import type { RecommendationItemDto } from '../types/recommendation.type';
 

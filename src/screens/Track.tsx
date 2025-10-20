@@ -35,10 +35,13 @@ import {
   getLogs,
   deletePlanLogById,
   saveManualLog,
+  saveAILog,
+  updatePlanLog,
 } from '../services/log.service';
 import type { MealSlot } from '../types/types';
-import type { LogResponse } from '../types/log.type';
+import type { LogResponse, PlanLogUpdateRequest } from '../types/log.type';
 import type { FoodResponse, IngredientResponse } from '../types/food.type';
+import type { FoodAnalyzeResponse } from '../types/ai.type';
 import {
   autocompleteFoods,
   autocompleteIngredients,
@@ -172,6 +175,11 @@ export default function Track() {
   );
   const [isScanning, setIsScanning] = useState(false);
   const [showScanResult, setShowScanResult] = useState(false);
+  const [scanResult, setScanResult] = useState<FoodAnalyzeResponse | null>(
+    null,
+  );
+  const [scanError, setScanError] = useState<string | null>(null);
+  const scanControllerRef = useRef<AbortController | null>(null);
 
   const [qtyScan, setQtyScan] = useState<string>('1');
   const [unitScan, setUnitScan] = useState<UnitType>('phần');
@@ -179,20 +187,34 @@ export default function Track() {
 
   const [scanChoiceOpen, setScanChoiceOpen] = useState(false);
 
-  const beginFakeScan = useCallback(() => {
-    setOpenKey(null);
-    setShowScanResult(false);
-    setIsScanning(true);
-    setTimeout(() => {
-      setIsScanning(false);
-      setShowScanResult(true);
-      if (!selectedImageUri) {
-        setSelectedImageUri(
-          'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=300&q=80',
-        );
+  const beginScan = useCallback(
+    async (asset: { uri: string; type?: string; fileName?: string }) => {
+      scanControllerRef.current?.abort?.();
+      const ac = new AbortController();
+      scanControllerRef.current = ac;
+
+      setIsScanning(true);
+      setShowScanResult(false);
+      setScanError(null);
+      setScanResult(null);
+
+      try {
+        const data = await saveAILog(asset, ac.signal); // 👈 truyền asset
+        setScanResult(data ?? null);
+        setShowScanResult(true);
+      } catch (e: any) {
+        if (e?.name !== 'AbortError') {
+          setScanError(
+            e?.message || 'Không thể phân tích hình ảnh. Vui lòng thử lại.',
+          );
+          setShowScanResult(false);
+        }
+      } finally {
+        setIsScanning(false);
       }
-    }, 1500);
-  }, [selectedImageUri]);
+    },
+    [],
+  );
 
   const handleScanFromCamera = async () => {
     setScanChoiceOpen(false);
@@ -205,14 +227,16 @@ export default function Track() {
     try {
       const res = await launchCamera(options);
       if (res?.didCancel) return;
-      const uri = res.assets?.[0]?.uri;
-      if (uri) {
-        setSelectedImageUri(uri);
-        beginFakeScan();
+      const asset = res.assets?.[0];
+      if (asset?.uri) {
+        setSelectedImageUri(asset.uri);
+        await beginScan({
+          uri: asset.uri,
+          type: asset.type,
+          fileName: asset.fileName,
+        });
       }
-    } catch (e) {
-      /* noop */
-    }
+    } catch {}
   };
 
   const handleScanFromLibrary = async () => {
@@ -225,20 +249,29 @@ export default function Track() {
     try {
       const res = await launchImageLibrary(options);
       if (res?.didCancel) return;
-      const uri = res.assets?.[0]?.uri;
-      if (uri) {
-        setSelectedImageUri(uri);
-        beginFakeScan();
+      const asset = res.assets?.[0];
+      if (asset?.uri) {
+        setSelectedImageUri(asset.uri);
+        await beginScan({
+          uri: asset.uri,
+          type: asset.type,
+          fileName: asset.fileName,
+        });
       }
-    } catch (e) {
-      /* noop */
-    }
+    } catch {}
   };
+
+  useEffect(() => {
+    return () => {
+      scanControllerRef.current?.abort?.();
+    };
+  }, []);
 
   // ===== Manual =====
   const mealNameInputRef = useRef<TextInput>(null);
   const [selectedFoodId, setSelectedFoodId] = useState<string | null>(null);
   const [mealName, setMealName] = useState<string>('');
+  const [editingLogId, setEditingLogId] = useState<string | null>(null);
 
   // nutrition (base per 1 serving, from selected food)
   const [baseKcal, setBaseKcal] = useState<number>(0);
@@ -259,8 +292,8 @@ export default function Track() {
   // NEW: meal type for Manual + dropdown open state
   const [mealTypeManual, setMealTypeManual] = useState<MealSlot>('BREAKFAST');
   const [openMealDropdown, setOpenMealDropdown] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-
+  const [submittingAdd, setSubmittingAdd] = useState(false);
+  const [submittingUpdate, setSubmittingUpdate] = useState(false);
   // Autocomplete Food
   const [autoLoading, setAutoLoading] = useState<boolean>(false);
   const [acLoadingMore, setAcLoadingMore] = useState<boolean>(false);
@@ -459,6 +492,123 @@ export default function Track() {
     [date, loadHistory],
   );
 
+  const toUIIngredient = (x: any): IngredientResponse & { qty: string } => {
+    const src = x?.ingredient ?? x ?? {};
+    return {
+      id: String(src.id ?? x.id ?? ''),
+      name: String(src.name ?? ''),
+      unit: src.unit ?? 'G',
+      per100: src.per100 ?? {
+        kcal: 0,
+        proteinG: 0,
+        carbG: 0,
+        fatG: 0,
+        fiberG: 0,
+        sodiumMg: 0,
+        sugarMg: 0,
+      },
+      imageUrl: src.imageUrl ?? undefined,
+
+      aliases: Array.isArray(src.aliases) ? src.aliases : [],
+      servingName: src.servingName ?? '',
+      servingSizeGram: Number(src.servingSizeGram) || 0,
+      tags: Array.isArray(src.tags) ? src.tags : [],
+      qty: String(x.quantity ?? 100),
+    };
+  };
+  // Điền dữ liệu Manual từ 1 log (HISTORY -> MANUAL)
+  const fillManualFromLog = useCallback(
+    (m: LogResponse) => {
+      // Đổi tab & dọn trạng thái phụ
+      setEditingLogId(m.id ?? null);
+      setTab('manual');
+      setOpenKey(null);
+      setOpenDateSheet(false);
+      cancelAutocomplete();
+      mealNameInputRef.current?.blur();
+
+      // Loại bữa
+      const slot = (m?.mealSlot as MealSlot) || 'SNACK';
+      setMealTypeManual(slot);
+
+      // Số khẩu phần đã ăn (phần nhân)
+      const portion = Number(m?.portion);
+      setConsumedServings(
+        Number.isFinite(portion) && portion > 0 ? String(portion) : '1',
+      );
+
+      // Nếu là món trong DB (có m.food) -> khóa macro, base = per serving của DB
+      if (m?.food) {
+        setMacrosLocked(true);
+        setSelectedFoodId(String(m.food.id));
+        setMealName(m.food.name || '');
+
+        // per serving (đúng theo cách bạn tính hiện tại)
+        const n = m.food.nutrition as any;
+        setBaseKcal(safeNum(n?.kcal));
+        setBaseP(safeNum(n?.proteinG));
+        setBaseC(safeNum(n?.carbG));
+        setBaseF(safeNum(n?.fatG));
+        setBaseFiber(safeNum(n?.fiberG));
+        setBaseSodium(safeNum(n?.sodiumMg));
+        setBaseSugar(safeNum(n?.sugarMg));
+
+        // Số lượng “cơ sở” của món (không nhân): dùng defaultServing nếu có, else 1
+        setQtyManual(
+          m.food.defaultServing != null ? String(m.food.defaultServing) : '1',
+        );
+        setUnitManual(m.food.servingName || 'phần');
+
+        // Log có thể không có nguyên liệu kèm
+        const ingList = (m.ingredients || []).map(toUIIngredient);
+        setIngredients(ingList);
+      } else {
+        // Món tự nhập (không có food)
+        setMacrosLocked(false);
+        setSelectedFoodId(null);
+        setMealName(m?.nameFood || '');
+
+        // Base = 0, người dùng chỉ định nghĩa qua ingredient
+        setBaseKcal(0);
+        setBaseP(0);
+        setBaseC(0);
+        setBaseF(0);
+        setBaseFiber(0);
+        setBaseSodium(0);
+        setBaseSugar(0);
+
+        // Với món tự nhập, qtyManual & unitManual không quan trọng -> reset về mặc định
+        setQtyManual('1');
+        setUnitManual('phần');
+
+        // Map nguyên liệu từ log -> state Ingredient của bạn
+        const ingList = (m.ingredients || []).map(toUIIngredient);
+        setIngredients(ingList);
+      }
+    },
+    [
+      cancelAutocomplete,
+      setTab,
+      setOpenKey,
+      setOpenDateSheet,
+      setMealTypeManual,
+      setConsumedServings,
+      setMacrosLocked,
+      setSelectedFoodId,
+      setMealName,
+      setBaseKcal,
+      setBaseP,
+      setBaseC,
+      setBaseF,
+      setBaseFiber,
+      setBaseSodium,
+      setBaseSugar,
+      setQtyManual,
+      setUnitManual,
+      setIngredients,
+    ],
+  );
+
   const onRefresh = useCallback(async () => {
     const ac = new AbortController();
     setRefreshing(true);
@@ -626,7 +776,7 @@ export default function Track() {
 
   const handleAddMeal = useCallback(async () => {
     try {
-      setSubmitting(true);
+      setSubmittingAdd(true);
       const payload = {
         date: toYMDLocal(date), // YYYY-MM-DD
         mealSlot: mealTypeManual,
@@ -653,6 +803,7 @@ export default function Track() {
 
       Alert.alert('Thành công', 'Tạo log thủ công thành công');
 
+      setEditingLogId(null);
       setSelectedFoodId(null);
       setMealName('');
       setMacrosLocked(false);
@@ -677,7 +828,7 @@ export default function Track() {
     } catch (err: any) {
       Alert.alert('Lỗi', err?.message || 'Không thể lưu bữa ăn');
     } finally {
-      setSubmitting(false);
+      setSubmittingAdd(false);
     }
   }, [
     date,
@@ -693,6 +844,80 @@ export default function Track() {
     cancelAutocomplete,
   ]);
 
+  const handleUpdateMeal = useCallback(async () => {
+    if (!editingLogId) return;
+    try {
+      setSubmittingUpdate(true);
+
+      // payload KHÔNG có 'date' theo PlanLogUpdateRequest
+      const payload: PlanLogUpdateRequest = {
+        mealSlot: mealTypeManual,
+        foodId: macrosLocked ? selectedFoodId : null,
+        nameFood: mealName?.trim() || (macrosLocked ? '' : 'Món tự nhập'),
+        consumedServings: Number(consumedServings) || 1,
+        totalNutrition: {
+          kcal: Math.round(eatenNutrition.kcal),
+          proteinG: Number(fmtNum(eatenNutrition.proteinG)),
+          carbG: Number(fmtNum(eatenNutrition.carbG)),
+          fatG: Number(fmtNum(eatenNutrition.fatG)),
+          fiberG: Number(fmtNum(eatenNutrition.fiberG)),
+          sodiumMg: Math.round(eatenNutrition.sodiumMg),
+          sugarMg: Math.round(eatenNutrition.sugarMg),
+        },
+        ingredients: ingredients.map(it => ({
+          id: String(it.id),
+          qty: Number(it.qty) || 0,
+        })),
+      };
+
+      const ac = new AbortController();
+      console.log('Updating log', payload);
+      await updatePlanLog(editingLogId, payload, ac.signal);
+
+      Alert.alert('Thành công', 'Cập nhật bữa ăn thành công');
+
+      // reset trạng thái như khi thêm xong
+      setEditingLogId(null);
+      setSelectedFoodId(null);
+      setMealName('');
+      setMacrosLocked(false);
+      setBaseKcal(0);
+      setBaseP(0);
+      setBaseC(0);
+      setBaseF(0);
+      setBaseFiber(0);
+      setBaseSodium(0);
+      setBaseSugar(0);
+      setQtyManual('1');
+      setUnitManual('phần');
+      setMealTypeManual('BREAKFAST');
+      setIngredients([]);
+      setConsumedServings('1');
+      setOpenMealDropdown(false);
+      cancelAutocomplete();
+      setOpenKey(null);
+
+      // reload lịch sử (nếu đang ở tab lịch sử) hoặc theo ngày đang chọn
+      await loadHistory(date);
+    } catch (e: any) {
+      Alert.alert('Lỗi', e?.message || 'Không thể cập nhật bữa ăn');
+    } finally {
+      setSubmittingUpdate(false);
+    }
+  }, [
+    editingLogId,
+    mealTypeManual,
+    macrosLocked,
+    selectedFoodId,
+    mealName,
+    consumedServings,
+    eatenNutrition,
+    ingredients,
+    loadHistory,
+    date,
+    cancelAutocomplete,
+  ]);
+
   /* ===== UI ===== */
   return (
     <KeyboardAvoidingView
@@ -702,12 +927,7 @@ export default function Track() {
     >
       <Container>
         {/* Header */}
-        <AppHeader
-          onPressBell={() => {
-            setOpenKey(null);
-            navigation.navigate('Notification');
-          }}
-        />
+        <AppHeader />
         <View style={[s.line, styles.fullBleed]} />
 
         {/* Date line */}
@@ -778,13 +998,22 @@ export default function Track() {
 
                   {isScanning && (
                     <View style={styles.scanningBox}>
+                      <ActivityIndicator />
                       <Text style={{ marginTop: 6, color: '#6b7280' }}>
                         Đang phân tích hình ảnh...
                       </Text>
                     </View>
                   )}
 
-                  {showScanResult && !isScanning && (
+                  {scanError && !isScanning && (
+                    <View style={{ marginTop: 10 }}>
+                      <Text style={{ color: '#b91c1c', textAlign: 'center' }}>
+                        {scanError}
+                      </Text>
+                    </View>
+                  )}
+
+                  {showScanResult && !isScanning && scanResult && (
                     <View
                       style={[styles.nutTable, { marginTop: 12, padding: 14 }]}
                     >
@@ -806,15 +1035,73 @@ export default function Track() {
                         mealType={mealTypeScan}
                       />
 
-                      <Row label="Tên" value="Bữa ăn từ Scan AI" />
-                      <Row label="Calo" value="514 kcal" />
+                      <Row label="Tên" value={scanResult.name || '—'} />
+                      {typeof scanResult.servingGram === 'number' && (
+                        <Row
+                          label="Khối lượng"
+                          value={`${fmtNum(scanResult.servingGram, 0)} g`}
+                        />
+                      )}
+                      <Row
+                        label="Calo"
+                        value={`${fmtNum(
+                          scanResult.nutrition?.kcal ?? 0,
+                          0,
+                        )} kcal`}
+                      />
 
-                      {/* (toggle more) */}
                       <View style={{ marginTop: 4 }}>
-                        <Row label="Protein" value="27 g" />
-                        <Row label="Carbs" value="35 g" />
-                        <Row label="Fat" value="21 g" />
+                        <Row
+                          label="Protein"
+                          value={`${fmtNum(
+                            scanResult.nutrition?.proteinG ?? 0,
+                          )} g`}
+                        />
+                        <Row
+                          label="Carbs"
+                          value={`${fmtNum(
+                            scanResult.nutrition?.carbG ?? 0,
+                          )} g`}
+                        />
+                        <Row
+                          label="Fat"
+                          value={`${fmtNum(scanResult.nutrition?.fatG ?? 0)} g`}
+                        />
+                        <Row
+                          label="Chất xơ"
+                          value={`${fmtNum(
+                            scanResult.nutrition?.fiberG ?? 0,
+                          )} g`}
+                        />
+                        <Row
+                          label="Natri"
+                          value={`${fmtNum(
+                            scanResult.nutrition?.sodiumMg ?? 0,
+                            0,
+                          )} mg`}
+                        />
+                        <Row
+                          label="Đường"
+                          value={`${fmtNum(
+                            scanResult.nutrition?.sugarMg ?? 0,
+                            0,
+                          )} mg`}
+                        />
                       </View>
+
+                      {/* Ingredients (chips) */}
+                      {!!scanResult.ingredients?.length && (
+                        <>
+                          <Text style={[styles.blockLabel, { marginTop: 12 }]}>
+                            Nguyên liệu
+                          </Text>
+                          <View style={[styles.summaryBar, { marginTop: 4 }]}>
+                            {scanResult.ingredients.map((item, idx) => (
+                              <Chip key={`${item}-${idx}`}>{item}</Chip>
+                            ))}
+                          </View>
+                        </>
+                      )}
 
                       {/* Số lượng & đơn vị */}
                       <Text style={[styles.blockLabel, { marginTop: 12 }]}>
@@ -859,6 +1146,19 @@ export default function Track() {
                           menuOffsetY={6}
                         />
                       </View>
+
+                      {/* (tuỳ ý) mức tự tin */}
+                      {typeof scanResult.confidence === 'number' && (
+                        <Text
+                          style={{
+                            marginTop: 10,
+                            color: '#64748b',
+                            textAlign: 'center',
+                          }}
+                        >
+                          Mức tự tin: {fmtNum(scanResult.confidence * 100, 0)}%
+                        </Text>
+                      )}
 
                       <Pressable
                         style={[styles.actionBtn, { marginTop: 14 }]}
@@ -1267,20 +1567,42 @@ export default function Track() {
                   </View>
 
                   {/* Nút hành động */}
-                  <Pressable
-                    style={[
-                      styles.actionBtn,
-                      { marginTop: 14, opacity: submitting ? 0.7 : 1 },
-                    ]}
-                    onPress={handleAddMeal}
-                    disabled={submitting}
-                  >
-                    {submitting ? (
-                      <ActivityIndicator />
-                    ) : (
-                      <Text style={styles.actionText}>Thêm bữa ăn</Text>
-                    )}
-                  </Pressable>
+                  {!editingLogId ? (
+                    <Pressable
+                      style={[
+                        styles.actionBtn,
+                        { marginTop: 14, opacity: submittingAdd ? 0.7 : 1 },
+                      ]}
+                      onPress={handleAddMeal}
+                      disabled={submittingAdd}
+                    >
+                      {submittingAdd ? (
+                        <ActivityIndicator />
+                      ) : (
+                        <Text style={styles.actionText}>Thêm bữa ăn</Text>
+                      )}
+                    </Pressable>
+                  ) : (
+                    <Pressable
+                      style={[
+                        styles.actionBtn,
+                        {
+                          marginTop: 14,
+                          opacity: submittingUpdate ? 0.7 : 1,
+                          backgroundColor: '#60a5fa',
+                          borderColor: '#3b82f6',
+                        },
+                      ]}
+                      onPress={handleUpdateMeal}
+                      disabled={submittingUpdate}
+                    >
+                      {submittingUpdate ? (
+                        <ActivityIndicator />
+                      ) : (
+                        <Text style={styles.actionText}>Cập nhật</Text>
+                      )}
+                    </Pressable>
+                  )}
                 </View>
               )}
 
@@ -1362,7 +1684,7 @@ export default function Track() {
                                 <View style={styles.rowBtns}>
                                   <Pressable
                                     style={[styles.badge, styles.badgeEditSoft]}
-                                    onPress={() => setOpenKey(null)}
+                                    onPress={() => fillManualFromLog(m)}
                                   >
                                     <Text style={styles.badgeTextEdit}>
                                       Sửa

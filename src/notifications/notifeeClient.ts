@@ -31,13 +31,13 @@ export async function ensureNotificationReady() {
     const settings = await notifee.getNotificationSettings();
 
     if (settings.authorizationStatus === AuthorizationStatus.AUTHORIZED) {
-        console.log('[PERM] OK: Notifications authorized');
+        // console.log('[PERM] OK: Notifications authorized');
         return;
     }
 
     const perm = await notifee.requestPermission();
     if (perm.authorizationStatus === AuthorizationStatus.AUTHORIZED) {
-        console.log('[PERM] Granted after request');
+        // console.log('[PERM] Granted after request');
         return;
     }
 
@@ -122,7 +122,7 @@ export async function schedulePreOnly(meal: MealKey, forDate: Date) {
     // nổ 30 phút trước giờ start
     let fireTime = new Date(start.getTime() - 30 * 60 * 1000);
 
-    console.log('[SCHED] PRE', meal, 'for', forDate.toDateString(), '-> fires at', fireTime.toLocaleString());
+    // console.log('[SCHED] PRE', meal, 'for', forDate.toDateString(), '-> fires at', fireTime.toLocaleString());
 
     // nếu đã trễ → đẩy sang ngày sau
     if (fireTime.getTime() <= Date.now()) {
@@ -164,7 +164,7 @@ export async function schedulePostOnly(meal: MealKey, forDate: Date) {
     // nổ 30 phút sau giờ end
     let fireTime = new Date(end.getTime() + 5 * 60 * 1000);
 
-    console.log('[SCHED] POST', meal, 'for', forDate.toDateString(), '-> fires at', fireTime.toLocaleString());
+    // console.log('[SCHED] POST', meal, 'for', forDate.toDateString(), '-> fires at', fireTime.toLocaleString());
 
     // nếu đã trễ → đẩy sang ngày sau
     if (fireTime.getTime() <= Date.now()) {

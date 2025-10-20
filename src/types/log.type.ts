@@ -1,4 +1,4 @@
-import type { FoodResponse  } from './food.type';
+import type { FoodResponse  , IngredientResponse} from './food.type';
 import type { NutritionResponse,MealSlot } from './types';
 
 export interface LogResponse {
@@ -8,6 +8,13 @@ export interface LogResponse {
     nameFood: string;
     portion: number;
     actualNutrition: NutritionResponse;
+    ingredients: PlanLogIngredientResponse[];
+}
+
+export interface PlanLogIngredientResponse {
+  id : string;
+  quantity : number;
+  ingredient: IngredientResponse;
 }
 
 export interface PlanLogManualRequest {
@@ -30,3 +37,23 @@ export interface PlanLogManualRequest {
       qty: number;
     }>;
 };
+
+export interface PlanLogUpdateRequest {
+  mealSlot: MealSlot;
+  foodId?: string | null;
+  nameFood: string;
+  consumedServings: number;
+  totalNutrition: {
+    kcal: number;
+    proteinG: number;
+    carbG: number;
+    fatG: number;
+    fiberG: number;
+    sodiumMg: number;
+    sugarMg: number;
+  };
+  ingredients: Array<{
+    id: string;
+    qty: number;
+  }>;
+}
