@@ -9,7 +9,6 @@ import { useHeader } from '../context/HeaderProvider';
 type AppHeaderProps = {
   loading?: boolean;
   greetingText?: string;
-  /** Hàm được gọi khi bấm icon chuông */
   onBellPress?: () => void;
 };
 
@@ -54,7 +53,7 @@ const Avatar = React.memo(function Avatar({
 export default function AppHeader({
   loading,
   greetingText = 'Xin chào,',
-  onBellPress = () => {},
+  onBellPress = () => { },
 }: AppHeaderProps) {
   const { header, loading: headerLoading } = useHeader();
   const displayName = useMemo(

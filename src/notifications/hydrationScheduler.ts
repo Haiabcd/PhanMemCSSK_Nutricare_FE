@@ -34,7 +34,7 @@ export const HYDRATION_PLANS: Record<GoalKey, Plan> = {
             { time: '13:15', title: 'Giữa buổi chiều', ml: 250, note: 'Giảm thèm ăn' },
             { time: '18:15', title: 'Trước ăn tối 15’', ml: 200, note: 'No nhẹ' },
             { time: '20:30', title: 'Sau ăn tối 1h', ml: 150, note: 'Thanh lọc nhẹ' },
-            { time: '21:45', title: 'Trước ngủ 30’', ml: 100, note: 'Tránh khô miệng' },
+            { time: '21:15', title: 'Trước ngủ 30’', ml: 100, note: 'Tránh khô miệng' },
         ],
     },
     GAIN: {

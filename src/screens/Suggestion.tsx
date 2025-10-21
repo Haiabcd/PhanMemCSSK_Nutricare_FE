@@ -11,7 +11,6 @@ import {
   FlatList,
   StyleSheet,
   useWindowDimensions,
-  ScrollView,
   RefreshControl,
 } from 'react-native';
 import Container from '../components/Container';
@@ -48,6 +47,7 @@ type Recipe = {
   protein: number;
   image: string;
   slot: Slot;
+  slots: Slot[];
 };
 
 const CATS: Array<{ key: Category; icon: string }> = [
@@ -125,6 +125,36 @@ const getRawMealSlot = (f: any): string | undefined => {
   );
 };
 
+const uniq = <T,>(arr: T[]) => Array.from(new Set(arr));
+
+/** Lấy tất cả meal slots (đã map sang tiếng Việt) */
+const getAllMealSlots = (f: any): Slot[] => {
+  const rawList: string[] = [];
+
+  if (Array.isArray(f?.mealSlots)) rawList.push(...f.mealSlots);
+  if (Array.isArray(f?.meals)) rawList.push(...f.meals);
+  if (typeof f?.mealSlot === 'string' && f.mealSlot) rawList.push(f.mealSlot);
+  if (typeof f?.slot === 'string' && f.slot) rawList.push(f.slot);
+
+  // fallback: thử tags/categories nếu có từ khóa
+  const fromArrayLike = (arr?: any[]) => {
+    if (!Array.isArray(arr)) return;
+    const txt = arr
+      .map(x => (typeof x === 'string' ? x : x?.name))
+      .filter(Boolean) as string[];
+    rawList.push(...txt);
+  };
+  fromArrayLike(f?.tags);
+  fromArrayLike(f?.categories);
+
+  const mapped = rawList
+    .map(s => mapMealSlot(s))
+    .filter(Boolean) as Slot[];
+
+  // nếu rỗng, fallback dùng getRawMealSlot() cũ
+  return mapped.length ? uniq(mapped) : [mapMealSlot(getRawMealSlot(f))];
+};
+
 const toRecipe = (f: FoodResponse): Recipe => {
   const rawSlot = getRawMealSlot(f as any);
 
@@ -137,6 +167,8 @@ const toRecipe = (f: FoodResponse): Recipe => {
   const protein =
     (f as any)?.nutrition?.proteinG ?? (f as any)?.nutrition?.protein ?? 0;
 
+  const allSlots = getAllMealSlots(f as any);
+
   return {
     id: f.id,
     title: f.name,
@@ -147,8 +179,10 @@ const toRecipe = (f: FoodResponse): Recipe => {
       f.imageUrl ||
       'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=1200',
     slot: mapMealSlot(rawSlot),
+    slots: allSlots,
   };
 };
+
 
 /* ===== Slot badge helpers (UI) ===== */
 const getSlotIcon = (slot: Slot) => {
@@ -200,6 +234,9 @@ export default function Suggestion() {
   const [dataLunch, setDataLunch] = useState<Recipe[]>([]);
   const [dataDinner, setDataDinner] = useState<Recipe[]>([]);
   const [dataSnack, setDataSnack] = useState<Recipe[]>([]);
+  const [chipsLayoutW, setChipsLayoutW] = useState(0);
+  const [chipsContentW, setChipsContentW] = useState(0);
+  const canScroll = chipsContentW > chipsLayoutW + 1; // > 1px cho chắc
 
   // danh sách đang hiển thị (theo danh mục)
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -273,6 +310,7 @@ export default function Suggestion() {
       try {
         const res = await suggestAllowedFoods({ slot, limit: 20 }, signal);
         const list = (res?.data ?? []).map(toRecipe);
+        console.log("Danh sách món", res.data);
         setCacheByCat(c, list);
         return list;
       } catch (e) {
@@ -369,20 +407,43 @@ export default function Suggestion() {
                 row
                 alignItems="center"
                 gap={6}
-                style={[s.slotBadge, { backgroundColor: bg }]}
+                style={s.slotBadgesRow}
               >
-                <Ionicons
-                  name={getSlotIcon(item.slot)}
-                  size={14}
-                  color={text}
-                />
-                <TextComponent
-                  text={item.slot}
-                  variant="caption"
-                  weight="bold"
-                  numberOfLines={1}
-                  style={{ color: text }}
-                />
+                {item.slots.map((slt) => {
+                  const { bg, text } = getSlotBadgeColors(slt);
+
+                  // (tuỳ chọn) làm nổi bật slot đang lọc
+                  const selectedSlot = CAT_TO_SLOT[cat]; // BREAKFAST/LUNCH/...
+                  const isSelected =
+                    selectedSlot &&
+                    ((slt === 'Bữa sáng' && selectedSlot === 'BREAKFAST') ||
+                      (slt === 'Bữa trưa' && selectedSlot === 'LUNCH') ||
+                      (slt === 'Bữa chiều' && selectedSlot === 'DINNER') ||
+                      (slt === 'Bữa phụ' && selectedSlot === 'SNACK'));
+
+                  return (
+                    <ViewComponent
+                      key={`slot-${item.id}-${slt}`}
+                      row
+                      alignItems="center"
+                      gap={6}
+                      style={[
+                        s.slotBadge,
+                        { backgroundColor: bg, borderColor: 'rgba(255,255,255,0.45)' },
+                        isSelected && { borderWidth: 1.5 }, // viền dày hơn cho slot đang lọc
+                      ]}
+                    >
+                      <Ionicons name={getSlotIcon(slt)} size={14} color={text} />
+                      <TextComponent
+                        text={slt}
+                        variant="caption"
+                        weight="bold"
+                        numberOfLines={1}
+                        style={{ color: text }}
+                      />
+                    </ViewComponent>
+                  );
+                })}
               </ViewComponent>
 
               {/* Tick góc phải */}
@@ -489,20 +550,27 @@ export default function Suggestion() {
       {/* Filters + List */}
       <ViewComponent style={{ flex: 1, minHeight: CONTENT_MIN_HEIGHT }}>
         {/* Filters (chip + icon) */}
-        <ScrollView
+        <FlatList
           horizontal
+          data={CATS}
+          keyExtractor={(item) => `cat-${item.key}`}
           showsHorizontalScrollIndicator={false}
           style={{ marginTop: 12, height: 46, maxHeight: 46 }}
-          contentContainerStyle={s.chipsRow}
-        >
-          {CATS.map(({ key, icon }) => {
-            const active = cat === key;
+          onLayout={(e) => setChipsLayoutW(e.nativeEvent.layout.width)}
+          onContentSizeChange={(w /* contentWidth */) => setChipsContentW(w)}
+          contentContainerStyle={[
+            s.chipsRow,
+            {
+              paddingHorizontal: 16,
+              flexGrow: 1,
+              justifyContent: canScroll ? 'flex-start' : 'center',
+            },
+          ]}
+          ItemSeparatorComponent={() => <ViewComponent style={{ width: 10 }} />}
+          renderItem={({ item }) => {
+            const active = cat === item.key;
             return (
-              <Pressable
-                key={`cat-${key}`}
-                onPress={() => setCat(key)}
-                style={{ marginRight: 10 }}
-              >
+              <Pressable onPress={() => setCat(item.key)}>
                 <ViewComponent
                   row
                   alignItems="center"
@@ -519,12 +587,12 @@ export default function Suggestion() {
                   ]}
                 >
                   <Ionicons
-                    name={icon}
+                    name={item.icon}
                     size={14}
                     color={active ? C.onPrimary : C.slate700}
                   />
                   <TextComponent
-                    text={key}
+                    text={item.key}
                     variant="caption"
                     weight="bold"
                     tone={active ? 'inverse' : 'default'}
@@ -534,8 +602,9 @@ export default function Suggestion() {
                 </ViewComponent>
               </Pressable>
             );
-          })}
-        </ScrollView>
+          }}
+        />
+
 
         {/* List */}
         <ViewComponent style={{ flex: 1, minHeight: 0 }}>
@@ -555,11 +624,29 @@ export default function Suggestion() {
                 colors={[C.primary]}
               />
             }
+
+            /* ⬇️ Thay thế phần này */
             ListFooterComponent={
-              <ViewComponent center style={{ padding: 12 }}>
-                <TextComponent text=" " variant="caption" tone="muted" />
-              </ViewComponent>
+              !initialLoading && !refreshing && filtered.length > 0 ? (
+                <ViewComponent center style={{ paddingVertical: 16 }}>
+                  <ViewComponent
+                    style={{
+                      height: 1,
+                      backgroundColor: C.border,
+                      width: '40%',
+                      marginBottom: 8,
+                    }}
+                  />
+                  <TextComponent
+                    text="Bạn đã xem hết gợi ý"
+                    variant="caption"
+                    tone="muted"
+                  />
+                </ViewComponent>
+              ) : null
             }
+            /* ⬆️ */
+
             ListEmptyComponent={() =>
               initialLoading ? null : (
                 <ViewComponent center style={{ flex: 1, padding: 24 }}>
@@ -575,6 +662,7 @@ export default function Suggestion() {
             }
           />
         </ViewComponent>
+
       </ViewComponent>
     </Container>
   );
@@ -584,7 +672,7 @@ export default function Suggestion() {
 const s = StyleSheet.create({
   chipsRow: {
     alignItems: 'center',
-    paddingHorizontal: 2,
+    gap: 20,
   },
   chip: {
     minWidth: 96,
@@ -621,16 +709,20 @@ const s = StyleSheet.create({
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
   },
-
-  slotBadge: {
+  slotBadgesRow: {
     position: 'absolute',
     top: 8,
     left: 8,
+    flexDirection: 'row',
+    flexWrap: 'wrap',   // nếu nhiều badge sẽ xuống hàng gọn
+    gap: 6,
+    maxWidth: '85%',    // tránh tràn ảnh
+  },
+  slotBadge: {
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.45)',
   },
 
   tickWrap: { position: 'absolute', top: 8, right: 8 },

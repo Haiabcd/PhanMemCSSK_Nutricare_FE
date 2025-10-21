@@ -22,11 +22,10 @@ import {
   RefreshControl,
   Alert,
   Keyboard,
+  KeyboardEvent
 } from 'react-native';
 import Container from '../components/Container';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { PlanStackParamList } from '../navigation/PlanNavigator';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors as C } from '../constants/colors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateButton from '../components/Date/DateButton';
@@ -47,14 +46,38 @@ import {
   autocompleteIngredients,
 } from '../services/food.service';
 import AppHeader from '../components/AppHeader';
-
-import Dropdown from '../components/Track/Dropdown';
 import {
   launchImageLibrary,
   launchCamera,
   type ImageLibraryOptions,
   type CameraOptions,
 } from 'react-native-image-picker';
+
+function useKeyboardHeight() {
+  const [height, setHeight] = React.useState(0);
+
+  React.useEffect(() => {
+    const onShow = (e: KeyboardEvent) => {
+      setHeight(e.endCoordinates?.height ?? 0);
+    };
+    const onHide = () => setHeight(0);
+
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const subShow = Keyboard.addListener(showEvt, onShow);
+    const subHide = Keyboard.addListener(hideEvt, onHide);
+
+    return () => {
+      subShow.remove();
+      subHide.remove();
+    };
+  }, []);
+
+  return height;
+}
+
+
 
 type TabKey = 'scan' | 'manual' | 'history';
 
@@ -71,10 +94,6 @@ const UNITS = [
 ] as const;
 type UnitType = (typeof UNITS)[number];
 
-const UNIT_OPTIONS = UNITS.map(u => ({ label: u, value: u }));
-const MEALTYPE_OPTIONS = (['Sáng', 'Trưa', 'Tối', 'Phụ'] as MealType[]).map(
-  m => ({ label: m === 'Tối' ? 'Chiều tối' : m, value: m }),
-);
 
 const fmtVNFull = (d: Date) => {
   const dow = [
@@ -147,13 +166,68 @@ const Row = ({ label, value }: { label: string; value: string }) => (
   </View>
 );
 
+
+
+const fmt = (n?: number, d = 1) =>
+  typeof n === 'number'
+    ? (Math.round(n * 10 ** d) / 10 ** d).toString()
+    : '0';
+
+function ScanAIResult(props: FoodAnalyzeResponse) {
+  const { name, servingGram, nutrition, ingredients, confidence } = props;
+
+  return (
+    <View style={[styles.nutTable, { marginTop: 12, padding: 14 }]}>
+      <Text style={{ fontWeight: '900', fontSize: 18, color: '#0f172a', textAlign: 'center', marginBottom: 8 }}>
+        KẾT QUẢ TỪ AI
+      </Text>
+
+      <Row label="Tên" value={name || '—'} />
+
+      {typeof servingGram === 'number' && (
+        <Row label="Khối lượng" value={`${fmt(servingGram, 0)} g`} />
+      )}
+
+      <Row label="Calo" value={`${fmt(nutrition?.kcal, 0)} kcal`} />
+
+      <View style={{ marginTop: 4 }}>
+        <Row label="Protein" value={`${fmt(nutrition?.proteinG)} g`} />
+        <Row label="Carbs" value={`${fmt(nutrition?.carbG)} g`} />
+        <Row label="Fat" value={`${fmt(nutrition?.fatG)} g`} />
+        <Row label="Chất xơ" value={`${fmt(nutrition?.fiberG)} g`} />
+        <Row label="Natri" value={`${fmt(nutrition?.sodiumMg, 0)} mg`} />
+        <Row label="Đường" value={`${fmt(nutrition?.sugarMg, 0)} mg`} />
+      </View>
+
+      {!!ingredients?.length && (
+        <>
+          <Text style={[styles.blockLabel, { marginTop: 12 }]}>Nguyên liệu</Text>
+          <View style={[styles.summaryBar, { marginTop: 4 }]}>
+            {ingredients.map((ing, idx) => (
+              <View key={`${ing}-${idx}`} style={styles.scanChipBox}>
+                <Text style={styles.scanChipText}>{ing}</Text>
+              </View>
+            ))}
+          </View>
+        </>
+      )}
+
+      {typeof confidence === 'number' && (
+        <Text style={{ marginTop: 10, color: '#64748b', textAlign: 'center' }}>
+          Mức tự tin: {Math.round(confidence * 100)}%
+        </Text>
+      )}
+    </View>
+  );
+}
+
 export default function Track() {
-  const navigation =
-    useNavigation<NativeStackNavigationProp<PlanStackParamList>>();
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<any>>(null);
 
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const keyboardH = useKeyboardHeight();
+
 
   // ==== Date pickers ====
   const [date, setDate] = useState(new Date());
@@ -199,8 +273,9 @@ export default function Track() {
       setScanResult(null);
 
       try {
-        const data = await saveAILog(asset, ac.signal); // 👈 truyền asset
+        const data = await saveAILog(asset);
         setScanResult(data ?? null);
+        console.log('Scan AI result:', data);
         setShowScanResult(true);
       } catch (e: any) {
         if (e?.name !== 'AbortError') {
@@ -236,7 +311,7 @@ export default function Track() {
           fileName: asset.fileName,
         });
       }
-    } catch {}
+    } catch { }
   };
 
   const handleScanFromLibrary = async () => {
@@ -258,7 +333,7 @@ export default function Track() {
           fileName: asset.fileName,
         });
       }
-    } catch {}
+    } catch { }
   };
 
   useEffect(() => {
@@ -455,8 +530,6 @@ export default function Track() {
               .catch(() => []),
           ),
         );
-
-        console.log('Loaded logs for', results);
 
         setLogs(results.flat());
       } catch (e: any) {
@@ -1014,159 +1087,7 @@ export default function Track() {
                   )}
 
                   {showScanResult && !isScanning && scanResult && (
-                    <View
-                      style={[styles.nutTable, { marginTop: 12, padding: 14 }]}
-                    >
-                      <Text
-                        style={{
-                          fontWeight: '900',
-                          fontSize: 18,
-                          color: '#0f172a',
-                          textAlign: 'center',
-                          marginBottom: 8,
-                        }}
-                      >
-                        KẾT QUẢ TỪ AI
-                      </Text>
-
-                      <SummaryBar
-                        qty={qtyScan}
-                        unit={unitScan}
-                        mealType={mealTypeScan}
-                      />
-
-                      <Row label="Tên" value={scanResult.name || '—'} />
-                      {typeof scanResult.servingGram === 'number' && (
-                        <Row
-                          label="Khối lượng"
-                          value={`${fmtNum(scanResult.servingGram, 0)} g`}
-                        />
-                      )}
-                      <Row
-                        label="Calo"
-                        value={`${fmtNum(
-                          scanResult.nutrition?.kcal ?? 0,
-                          0,
-                        )} kcal`}
-                      />
-
-                      <View style={{ marginTop: 4 }}>
-                        <Row
-                          label="Protein"
-                          value={`${fmtNum(
-                            scanResult.nutrition?.proteinG ?? 0,
-                          )} g`}
-                        />
-                        <Row
-                          label="Carbs"
-                          value={`${fmtNum(
-                            scanResult.nutrition?.carbG ?? 0,
-                          )} g`}
-                        />
-                        <Row
-                          label="Fat"
-                          value={`${fmtNum(scanResult.nutrition?.fatG ?? 0)} g`}
-                        />
-                        <Row
-                          label="Chất xơ"
-                          value={`${fmtNum(
-                            scanResult.nutrition?.fiberG ?? 0,
-                          )} g`}
-                        />
-                        <Row
-                          label="Natri"
-                          value={`${fmtNum(
-                            scanResult.nutrition?.sodiumMg ?? 0,
-                            0,
-                          )} mg`}
-                        />
-                        <Row
-                          label="Đường"
-                          value={`${fmtNum(
-                            scanResult.nutrition?.sugarMg ?? 0,
-                            0,
-                          )} mg`}
-                        />
-                      </View>
-
-                      {/* Ingredients (chips) */}
-                      {!!scanResult.ingredients?.length && (
-                        <>
-                          <Text style={[styles.blockLabel, { marginTop: 12 }]}>
-                            Nguyên liệu
-                          </Text>
-                          <View style={[styles.summaryBar, { marginTop: 4 }]}>
-                            {scanResult.ingredients.map((item, idx) => (
-                              <Chip key={`${item}-${idx}`}>{item}</Chip>
-                            ))}
-                          </View>
-                        </>
-                      )}
-
-                      {/* Số lượng & đơn vị */}
-                      <Text style={[styles.blockLabel, { marginTop: 12 }]}>
-                        Số lượng
-                      </Text>
-                      <View style={styles.inlineRow}>
-                        <TextInput
-                          placeholder="1"
-                          keyboardType="numeric"
-                          style={[
-                            styles.input,
-                            styles.flex1,
-                            { marginRight: 8 },
-                          ]}
-                          placeholderTextColor={PLACEHOLDER_COLOR}
-                          selectionColor={C.primary}
-                          value={qtyScan}
-                          onChangeText={setQtyScan}
-                        />
-                        <View style={{ minWidth: 156 }}>
-                          <Dropdown
-                            value={unitScan}
-                            options={UNIT_OPTIONS}
-                            onChange={v => setUnitScan(v as UnitType)}
-                            menuWidth={140}
-                            menuMaxHeight={140}
-                            menuOffsetY={6}
-                          />
-                        </View>
-                      </View>
-
-                      {/* Loại bữa */}
-                      <Text style={[styles.blockLabel, { marginTop: 12 }]}>
-                        Loại bữa
-                      </Text>
-                      <View style={{ minWidth: 156 }}>
-                        <Dropdown
-                          value={mealTypeScan}
-                          options={MEALTYPE_OPTIONS}
-                          onChange={v => setMealTypeScan(v as MealType)}
-                          menuMaxHeight={140}
-                          menuOffsetY={6}
-                        />
-                      </View>
-
-                      {/* (tuỳ ý) mức tự tin */}
-                      {typeof scanResult.confidence === 'number' && (
-                        <Text
-                          style={{
-                            marginTop: 10,
-                            color: '#64748b',
-                            textAlign: 'center',
-                          }}
-                        >
-                          Mức tự tin: {fmtNum(scanResult.confidence * 100, 0)}%
-                        </Text>
-                      )}
-
-                      <Pressable
-                        style={[styles.actionBtn, { marginTop: 14 }]}
-                        onPress={() => setOpenKey(null)}
-                      >
-                        <Text style={styles.actionText}>Lưu bữa ăn</Text>
-                      </Pressable>
-                    </View>
+                    <ScanAIResult {...scanResult} />
                   )}
                 </View>
               )}
@@ -1206,70 +1127,70 @@ export default function Track() {
 
                     {(autoLoading ||
                       (!isBlank(mealName) && autoItems.length > 0)) && (
-                      <View
-                        style={[
-                          styles.dropdownPanel,
-                          {
-                            top: 52,
-                            height: AC_ITEM_HEIGHT * AC_VISIBLE_ROWS + 2,
-                            paddingVertical: 6,
-                            overflow: 'hidden',
-                          },
-                        ]}
-                      >
-                        {autoLoading && autoItems.length === 0 ? (
-                          <View
-                            style={{ paddingVertical: 8, alignItems: 'center' }}
-                          >
-                            <ActivityIndicator />
-                          </View>
-                        ) : (
-                          <FlatList
-                            keyboardShouldPersistTaps="always"
-                            style={{ flexGrow: 0 }}
-                            data={autoItems}
-                            keyExtractor={(it: FoodResponse) => String(it.id)}
-                            renderItem={({ item }: { item: FoodResponse }) => (
-                              <Pressable
-                                onPress={() => onSelectFood(item)}
-                                style={styles.acItem}
-                              >
-                                <Image
-                                  source={{ uri: getThumb(item) }}
-                                  style={styles.acThumb}
-                                />
-                                <Text numberOfLines={1} style={styles.acName}>
-                                  {item.name}
-                                </Text>
-                              </Pressable>
-                            )}
-                            ItemSeparatorComponent={() => (
-                              <View style={styles.acSep} />
-                            )}
-                            onEndReachedThreshold={0.3}
-                            onEndReached={loadMoreAuto}
-                            ListFooterComponent={
-                              acHasMore ? (
-                                <View
-                                  style={{
-                                    paddingVertical: 8,
-                                    alignItems: 'center',
-                                  }}
+                        <View
+                          style={[
+                            styles.dropdownPanel,
+                            {
+                              top: 52,
+                              height: AC_ITEM_HEIGHT * AC_VISIBLE_ROWS + 2,
+                              paddingVertical: 6,
+                              overflow: 'hidden',
+                            },
+                          ]}
+                        >
+                          {autoLoading && autoItems.length === 0 ? (
+                            <View
+                              style={{ paddingVertical: 8, alignItems: 'center' }}
+                            >
+                              <ActivityIndicator />
+                            </View>
+                          ) : (
+                            <FlatList
+                              keyboardShouldPersistTaps="always"
+                              style={{ flexGrow: 0 }}
+                              data={autoItems}
+                              keyExtractor={(it: FoodResponse) => String(it.id)}
+                              renderItem={({ item }: { item: FoodResponse }) => (
+                                <Pressable
+                                  onPress={() => onSelectFood(item)}
+                                  style={styles.acItem}
                                 >
-                                  {acLoadingMore ? (
-                                    <ActivityIndicator />
-                                  ) : (
-                                    <Text style={{ color: '#64748b' }}>
-                                      Kéo để tải thêm…
-                                    </Text>
-                                  )}
-                                </View>
-                              ) : null
-                            }
-                          />
-                        )}
-                      </View>
-                    )}
+                                  <Image
+                                    source={{ uri: getThumb(item) }}
+                                    style={styles.acThumb}
+                                  />
+                                  <Text numberOfLines={1} style={styles.acName}>
+                                    {item.name}
+                                  </Text>
+                                </Pressable>
+                              )}
+                              ItemSeparatorComponent={() => (
+                                <View style={styles.acSep} />
+                              )}
+                              onEndReachedThreshold={0.3}
+                              onEndReached={loadMoreAuto}
+                              ListFooterComponent={
+                                acHasMore ? (
+                                  <View
+                                    style={{
+                                      paddingVertical: 8,
+                                      alignItems: 'center',
+                                    }}
+                                  >
+                                    {acLoadingMore ? (
+                                      <ActivityIndicator />
+                                    ) : (
+                                      <Text style={{ color: '#64748b' }}>
+                                        Kéo để tải thêm…
+                                      </Text>
+                                    )}
+                                  </View>
+                                ) : null
+                              }
+                            />
+                          )}
+                        </View>
+                      )}
                   </View>
 
                   {/* ===== NEW: Combobox chọn bữa (Manual) ===== */}
@@ -1284,10 +1205,10 @@ export default function Track() {
                           {mealTypeManual === 'BREAKFAST'
                             ? 'Sáng'
                             : mealTypeManual === 'LUNCH'
-                            ? 'Trưa'
-                            : mealTypeManual === 'DINNER'
-                            ? 'Chiều'
-                            : 'Phụ'}
+                              ? 'Trưa'
+                              : mealTypeManual === 'DINNER'
+                                ? 'Chiều'
+                                : 'Phụ'}
                         </Text>
                         <Text style={styles.dropdownCaret}>▾</Text>
                       </Pressable>
@@ -1368,54 +1289,32 @@ export default function Track() {
 
                           {/* số lượng (gram/ml) */}
                           <TextInput
-                            style={[
-                              styles.input,
-                              { width: 80, marginRight: 8 },
-                            ]}
+                            style={[styles.input, { width: 80, marginRight: 4 }]} // giảm marginRight
                             keyboardType="numeric"
                             value={it.qty}
                             onChangeText={t =>
                               setIngredients(prev =>
-                                prev.map((x, i) =>
-                                  i === idx ? { ...x, qty: t } : x,
-                                ),
+                                prev.map((x, i) => (i === idx ? { ...x, qty: t } : x)),
                               )
                             }
                           />
 
                           {/* đơn vị cố định từ DB */}
-                          <Text
-                            style={{
-                              minWidth: 40,
-                              color: '#0f172a',
-                              fontWeight: '600',
-                              textAlign: 'right',
-                            }}
-                          >
-                            {it.unit}
-                          </Text>
+                          <View style={styles.unitWrap}>
+                            <Text style={styles.unitText}>{it.unit}</Text>
+                          </View>
 
                           {/* Xóa */}
                           <Pressable
                             onPress={() =>
-                              setIngredients(prev =>
-                                prev.filter((_, i) => i !== idx),
-                              )
+                              setIngredients(prev => prev.filter((_, i) => i !== idx))
                             }
-                            style={{
-                              marginLeft: 8,
-                              paddingHorizontal: 10,
-                              height: 44,
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}
+                            style={({ pressed }) => [styles.delBtnSimple, pressed && { opacity: 0.85 }]}
+                            hitSlop={10}
                           >
-                            <Text
-                              style={{ color: '#b91c1c', fontWeight: '800' }}
-                            >
-                              X
-                            </Text>
+                            <Text style={styles.delBtnText}>Xóa</Text>
                           </Pressable>
+
                         </View>
                       ))
                     )}
@@ -1583,25 +1482,63 @@ export default function Track() {
                       )}
                     </Pressable>
                   ) : (
-                    <Pressable
-                      style={[
-                        styles.actionBtn,
-                        {
-                          marginTop: 14,
-                          opacity: submittingUpdate ? 0.7 : 1,
-                          backgroundColor: '#60a5fa',
-                          borderColor: '#3b82f6',
-                        },
-                      ]}
-                      onPress={handleUpdateMeal}
-                      disabled={submittingUpdate}
-                    >
-                      {submittingUpdate ? (
-                        <ActivityIndicator />
-                      ) : (
-                        <Text style={styles.actionText}>Cập nhật</Text>
-                      )}
-                    </Pressable>
+                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                      {/* Nút Cập nhật */}
+                      <Pressable
+                        style={[
+                          styles.actionBtn,
+                          {
+                            flex: 2,
+                            opacity: submittingUpdate ? 0.7 : 1,
+                            backgroundColor: '#60a5fa',
+                            borderColor: '#3b82f6',
+                          },
+                        ]}
+                        onPress={handleUpdateMeal}
+                        disabled={submittingUpdate}
+                      >
+                        {submittingUpdate ? (
+                          <ActivityIndicator />
+                        ) : (
+                          <Text style={styles.actionText}>Cập nhật</Text>
+                        )}
+                      </Pressable>
+
+                      {/* Nút Hủy */}
+                      <Pressable
+                        style={[
+                          styles.actionBtn,
+                          {
+                            flex: 1,
+                            backgroundColor: '#f1f5f9',
+                            borderColor: '#e2e8f0',
+                          },
+                        ]}
+                        onPress={() => {
+                          setEditingLogId(null);
+                          setSelectedFoodId(null);
+                          setMealName('');
+                          setMacrosLocked(false);
+                          setBaseKcal(0);
+                          setBaseP(0);
+                          setBaseC(0);
+                          setBaseF(0);
+                          setBaseFiber(0);
+                          setBaseSodium(0);
+                          setBaseSugar(0);
+                          setQtyManual('1');
+                          setUnitManual('phần');
+                          setMealTypeManual('BREAKFAST');
+                          setIngredients([]);
+                          setConsumedServings('1');
+                          setOpenMealDropdown(false);
+                          cancelAutocomplete();
+                          setOpenKey(null);
+                        }}
+                      >
+                        <Text style={{ color: '#0f172a', fontWeight: '900' }}>Hủy</Text>
+                      </Pressable>
+                    </View>
                   )}
                 </View>
               )}
@@ -1747,6 +1684,7 @@ export default function Track() {
             setDate(d);
             setOpenDateSheet(false);
           }}
+          maxDate={new Date()}
         />
 
         {/* ===== Modal chọn nguồn ảnh cho Scan ===== */}
@@ -1786,6 +1724,7 @@ export default function Track() {
         </Modal>
 
         {/* ===== Modal chọn nguyên liệu ===== */}
+        {/* ===== Modal chọn nguyên liệu ===== */}
         <Modal
           visible={openIngSheet}
           transparent
@@ -1793,30 +1732,25 @@ export default function Track() {
           onRequestClose={() => setOpenIngSheet(false)}
           statusBarTranslucent
         >
-          {/* Root container để tránh "giật" layout */}
           <View style={styles.modalRoot}>
-            {/* Backdrop (để đóng) */}
+            {/* Backdrop */}
             <Pressable
               style={styles.backdrop}
               onPress={() => setOpenIngSheet(false)}
             />
 
             {/* Bottom sheet */}
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 40}
-              style={styles.sheetWrap}
-            >
+            <View style={styles.sheetWrap}>
               <View
-                style={[styles.sheet, { paddingBottom: 12 + insets.bottom }]}
+                style={[
+                  styles.sheet,
+                  { paddingBottom: 12 + insets.bottom + keyboardH }, // 👈 nâng sheet theo bàn phím
+                ]}
               >
-                {/* Header sheet */}
+                {/* Header */}
                 <View style={styles.sheetHeader}>
                   <Text style={styles.sheetTitle}>Chọn nguyên liệu</Text>
-                  <Pressable
-                    onPress={() => setOpenIngSheet(false)}
-                    hitSlop={10}
-                  >
+                  <Pressable onPress={() => setOpenIngSheet(false)} hitSlop={10}>
                     <Text style={styles.sheetClose}>Đóng</Text>
                   </Pressable>
                 </View>
@@ -1836,7 +1770,7 @@ export default function Track() {
                   <ActivityIndicator />
                 ) : (
                   <FlatList
-                    keyboardShouldPersistTaps="always"
+                    keyboardShouldPersistTaps="handled"
                     data={ingResults}
                     keyExtractor={(it: IngredientResponse) => String(it.id)}
                     renderItem={({ item }) => (
@@ -1844,10 +1778,7 @@ export default function Track() {
                         onPress={() => {
                           setIngredients(prev => [
                             ...prev,
-                            {
-                              ...item,
-                              qty: '100', // mặc định 100g/ml
-                            },
+                            { ...item, qty: '100' }, // mặc định 100g/ml
                           ]);
                           setOpenIngSheet(false);
                           setIngQuery('');
@@ -1855,17 +1786,13 @@ export default function Track() {
                         }}
                         style={styles.acItem}
                       >
-                        <Image
-                          source={{ uri: getThumb(item) }}
-                          style={styles.acThumb}
-                        />
+                        <Image source={{ uri: getThumb(item) }} style={styles.acThumb} />
                         <View style={{ flex: 1 }}>
                           <Text numberOfLines={1} style={styles.acName}>
                             {item.name}
                           </Text>
                           <Text style={{ color: '#64748b', fontSize: 12 }}>
-                            {item.unit} • per 100:{' '}
-                            {fmtNum(safeNum(item.per100?.kcal), 0)} kcal
+                            {item.unit} • per 100: {fmtNum(safeNum(item.per100?.kcal), 0)} kcal
                           </Text>
                         </View>
                       </Pressable>
@@ -1874,26 +1801,21 @@ export default function Track() {
                   />
                 )}
 
-                {/* Nút Hủy (nếu không chọn) */}
+                {/* Nút Hủy */}
                 <Pressable
                   onPress={() => setOpenIngSheet(false)}
                   style={[
                     styles.actionBtn,
-                    {
-                      marginTop: 10,
-                      backgroundColor: '#f1f5f9',
-                      borderColor: '#e2e8f0',
-                    },
+                    { marginTop: 10, backgroundColor: '#f1f5f9', borderColor: '#e2e8f0' },
                   ]}
                 >
-                  <Text style={{ color: '#0f172a', fontWeight: '900' }}>
-                    Hủy
-                  </Text>
+                  <Text style={{ color: '#0f172a', fontWeight: '900' }}>Hủy</Text>
                 </Pressable>
               </View>
-            </KeyboardAvoidingView>
+            </View>
           </View>
         </Modal>
+
       </Container>
     </KeyboardAvoidingView>
   );
@@ -1971,6 +1893,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   tabTextActive: { color: '#ffffff' },
+  unitWrap: {
+    height: 44,                 // bằng với styles.input.height
+    minWidth: 40,
+    paddingHorizontal: 4,       // sát hơn
+    justifyContent: 'center',   // canh giữa theo trục dọc
+    alignItems: 'flex-start',
+  },
+  unitText: {
+    color: '#0f172a',
+    fontWeight: '600',
+    textAlign: 'right',
+  },
 
   card: {
     width: '100%',
@@ -2131,6 +2065,7 @@ const styles = StyleSheet.create({
   modalRoot: {
     flex: 1,
     justifyContent: 'flex-end',
+
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -2233,4 +2168,17 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   modalCancelText: { fontWeight: '800', color: '#fff' },
+  delBtnSimple: {
+    marginLeft: 20,
+    paddingHorizontal: 14,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#ef4444',   // đỏ
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  delBtnText: {
+    color: '#ffffff',
+    fontWeight: '800',
+  },
 });

@@ -186,10 +186,10 @@ function mapItemsToSectionsStable(
       slot === 'BREAKFAST'
         ? 'coffee'
         : slot === 'LUNCH'
-        ? 'silverware-fork-knife'
-        : slot === 'DINNER'
-        ? 'weather-night'
-        : 'leaf';
+          ? 'silverware-fork-knife'
+          : slot === 'DINNER'
+            ? 'weather-night'
+            : 'leaf';
 
     sections.push({
       id: slot,
@@ -608,7 +608,7 @@ const st = StyleSheet.create({
 
   mealThumbWrap: {
     width: '100%',
-    height: 260,
+    height: 360,
     position: 'relative',
     backgroundColor: C.slate100,
   },

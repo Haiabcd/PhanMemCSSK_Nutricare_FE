@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosHeaders } from 'axios';
 import { Platform } from 'react-native';
 import {
   removeTokenSecure,
@@ -13,9 +13,9 @@ import { refreshWithStoredToken } from '../services/auth.service';
  * - iOS Simulator → localhost
  * - Thiết bị thật → IP LAN máy dev (vd: 192.168.1.15)
  */
-// const LOCAL_IP = '192.168.110.253';
+const LOCAL_IP = '192.168.110.253';
 // const LOCAL_IP = '192.168.110.187';  // Bo
-const LOCAL_IP = '10.0.2.2'; 
+// const LOCAL_IP = '10.0.2.2'; 
 const PORT = 8080;
 
 export const BASE_URL =
@@ -27,10 +27,13 @@ export const api = axios.create({
   baseURL: BASE_URL,
   headers: {
     Accept: 'application/json',
-    'Content-Type': 'application/json',
+    // 'Content-Type': 'application/json',
   },
-  timeout: 10000,
+  timeout: 60000,
 });
+
+
+
 
 registerAuthHeaderSetter((auth?: string) => {
   if (auth) {
@@ -72,6 +75,8 @@ api.interceptors.response.use(
         method: config?.method,
         status: response?.status,
         data: response?.data,
+        code: error?.code,       // ERR_NETWORK / ECONNABORTED / ERR_CANCELED
+        message: error?.message, // "Network Error" / "timeout exceeded"...
       }
     );
 

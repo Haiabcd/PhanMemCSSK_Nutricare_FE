@@ -1,8 +1,8 @@
 
 import { api } from '../config/api';
-import type { ApiResponse , NutritionResponse} from '../types/types';
+import type { ApiResponse, NutritionResponse } from '../types/types';
 import axios from 'axios';
-import type { LogResponse,PlanLogManualRequest, PlanLogUpdateRequest } from '../types/log.type';
+import type { LogResponse, PlanLogManualRequest, PlanLogUpdateRequest } from '../types/log.type';
 import type { FoodAnalyzeResponse } from '../types/ai.type';
 import type { MealSlot } from '../types/types';
 
@@ -51,7 +51,7 @@ export const getLogs = async (
 export async function getDailyNutrition(dateIso: string, signal?: AbortSignal) {
   const res = await api.get<ApiResponse<NutritionResponse>>('/logs/nutriLog', {
     params: { date: dateIso },
-    signal, 
+    signal,
   });
   return res.data.data!;
 }
@@ -75,29 +75,23 @@ export async function saveManualLog(
 }
 
 export async function saveAILog(
-  asset: { uri: string; type?: string; fileName?: string },
-  signal?: AbortSignal
+  asset: { uri: string; type?: string; fileName?: string }
 ): Promise<FoodAnalyzeResponse> {
   const form = new FormData();
+  form.append('image', {
+    uri: asset.uri,
+    type: asset.type || 'image/jpeg',
+    name: asset.fileName || 'photo.jpg',
+  } as any);
 
-  form.append(
-    'image',
-    {
-      uri: asset.uri,                   
-      type: asset.type || 'image/jpeg', 
-      name: asset.fileName || 'photo.jpg', 
-    } as any
-  );
-  const res = await api.post<ApiResponse<FoodAnalyzeResponse>>(
-    '/meallog-ai/analyze-url',
-    form,
-    { 
-      signal, 
-      headers: {Authorization: undefined,},
-    },
-  );
-  return res.data.data!;
+  const res = await api.post<FoodAnalyzeResponse>('/meallog-ai/analyze-url', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  console.log('AI log response:', res);
+  return res.data;
 }
+
+
 
 export async function updatePlanLog(
   planLogId: string,
@@ -107,7 +101,7 @@ export async function updatePlanLog(
   const body = payload;
 
   const res = await api.put<ApiResponse<void>>(
-    `/logs/${planLogId}`, 
+    `/logs/${planLogId}`,
     body,
     { signal }
   );

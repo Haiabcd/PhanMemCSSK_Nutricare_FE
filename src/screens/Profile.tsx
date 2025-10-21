@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Linking,
   useWindowDimensions,
+  Platform,
+  Image,
 } from 'react-native';
 import McIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Container from '../components/Container';
@@ -55,8 +57,10 @@ import { getMyInfo, updateProfile } from '../services/user.service';
 import { getOrCreateDeviceId } from '../config/deviceId';
 import { useHeader } from '../context/HeaderProvider';
 import { getTokenSecure, removeTokenSecure } from '../config/secureToken';
+import { useAuth } from '../context/AuthProvider';
 
 type PickerType = 'condition' | 'allergy';
+
 
 /* ====================== Constants & helpers ====================== */
 const SAFE = {
@@ -88,12 +92,12 @@ const normalizeTargetDeltaForApi = (goal: string, delta: number) => {
 type PlanCheck =
   | { ok: true }
   | {
-      ok: false;
-      reason: 'invalid' | 'too_fast' | 'too_slow';
-      message: string;
-      subMessage?: string;
-      suggestWeeks?: number;
-    };
+    ok: false;
+    reason: 'invalid' | 'too_fast' | 'too_slow';
+    message: string;
+    subMessage?: string;
+    suggestWeeks?: number;
+  };
 
 function validatePlan(
   goal: 'LOSE' | 'GAIN',
@@ -124,12 +128,10 @@ function validatePlan(
       suggestWeeks: suggest,
       message:
         goal === 'LOSE'
-          ? `Tốc độ giảm ${rate.toFixed(2)} kg/tuần vượt mức an toàn (${
-              R.MAX
-            } kg/tuần).`
-          : `Tốc độ tăng ${rate.toFixed(2)} kg/tuần vượt mức an toàn (${
-              R.MAX
-            } kg/tuần).`,
+          ? `Tốc độ giảm ${rate.toFixed(2)} kg/tuần vượt mức an toàn (${R.MAX
+          } kg/tuần).`
+          : `Tốc độ tăng ${rate.toFixed(2)} kg/tuần vượt mức an toàn (${R.MAX
+          } kg/tuần).`,
       subMessage:
         goal === 'LOSE'
           ? 'Khuyến nghị giảm 0.5–1.0 kg/tuần để bền vững.'
@@ -143,12 +145,10 @@ function validatePlan(
       reason: 'too_slow',
       message:
         goal === 'LOSE'
-          ? `Tốc độ giảm ${rate.toFixed(2)} kg/tuần thấp hơn khuyến nghị (${
-              R.MIN
-            }–${R.MAX} kg/tuần).`
-          : `Tốc độ tăng ${rate.toFixed(2)} kg/tuần thấp hơn khuyến nghị (${
-              R.MIN
-            }–${R.MAX} kg/tuần).`,
+          ? `Tốc độ giảm ${rate.toFixed(2)} kg/tuần thấp hơn khuyến nghị (${R.MIN
+          }–${R.MAX} kg/tuần).`
+          : `Tốc độ tăng ${rate.toFixed(2)} kg/tuần thấp hơn khuyến nghị (${R.MIN
+          }–${R.MAX} kg/tuần).`,
       subMessage:
         'Bạn có thể tiếp tục (an toàn) hoặc điều chỉnh để nhanh hơn nếu muốn.',
     };
@@ -194,6 +194,7 @@ export default function ProfileScreen() {
   // validate theo thời gian thực cho cặp mục tiêu
   const [planTouched, setPlanTouched] = useState(false);
   const [planCheck, setPlanCheck] = useState<PlanCheck>({ ok: true });
+  const { setAuthed } = useAuth();
 
   // ===== Fetch
   const fetchData = useCallback(async (signal?: AbortSignal) => {
@@ -279,6 +280,7 @@ export default function ProfileScreen() {
           const deviceId = await getOrCreateDeviceId();
           const res = await startGoogleOAuth(deviceId);
           const url = res?.data?.authorizeUrl;
+          console.log('🔗 Google OAuth URL:', url);
           if (!url) {
             Alert.alert('Lỗi', 'Không nhận được liên kết đăng nhập Google.');
             return;
@@ -310,25 +312,20 @@ export default function ProfileScreen() {
           try {
             const cur = await getTokenSecure();
             const refreshToken = cur?.refreshToken;
-            if (refreshToken) {
-              await logoutApi({ refreshToken });
-            } else {
-              await removeTokenSecure();
-            }
+            if (refreshToken) await logoutApi({ refreshToken });
+            await removeTokenSecure();
+
             resetHeader?.();
-            showToast(
-              {
-                title: 'Đăng xuất thành công',
-                subtitle: 'Hẹn gặp lại bạn sớm nhé!',
-              },
-              () =>
-                navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] }),
-            );
+
+            // ❗ Không navigate Welcome nữa — chỉ flip auth:
+            setAuthed(false);
+
+            showToast({ title: 'Đăng xuất thành công', subtitle: 'Hẹn gặp lại bạn sớm nhé!' });
           } catch {
             await removeTokenSecure();
             resetHeader?.();
+            setAuthed(false); // vẫn flip để quay về AppNavigator
             Alert.alert('Thông báo', 'Đã đăng xuất ở phía thiết bị.');
-            navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
           } finally {
             setLoggingOut(false);
           }
@@ -540,14 +537,14 @@ export default function ProfileScreen() {
       setMyInfo(prev =>
         prev
           ? {
-              ...prev,
-              profileCreationResponse: {
-                ...(prev.profileCreationResponse ?? {}),
-                ...payload.profile,
-              } as ProfileDto,
-              conditions: editInfo.conditions ?? [],
-              allergies: editInfo.allergies ?? [],
-            }
+            ...prev,
+            profileCreationResponse: {
+              ...(prev.profileCreationResponse ?? {}),
+              ...payload.profile,
+            } as ProfileDto,
+            conditions: editInfo.conditions ?? [],
+            allergies: editInfo.allergies ?? [],
+          }
           : prev,
       );
 
@@ -575,7 +572,7 @@ export default function ProfileScreen() {
       Alert.alert(
         'Điều chỉnh mục tiêu',
         planCheck.message +
-          (planCheck.subMessage ? `\n${planCheck.subMessage}` : ''),
+        (planCheck.subMessage ? `\n${planCheck.subMessage}` : ''),
       );
       return;
     }
@@ -593,8 +590,8 @@ export default function ProfileScreen() {
           oauthStarting
             ? 'Đang mở Google...'
             : loggingOut
-            ? 'Đang đăng xuất...'
-            : 'Đang đồng bộ...'
+              ? 'Đang đăng xuất...'
+              : 'Đang đồng bộ...'
         }
       />
 
@@ -850,7 +847,7 @@ export default function ProfileScreen() {
                       styles.input,
                       {
                         minHeight: 46,
-                        paddingVertical: 10,
+                        paddingVertical: 0,
                         justifyContent: 'center',
                       },
                     ]}
@@ -866,9 +863,9 @@ export default function ProfileScreen() {
                           ? 'default'
                           : 'muted'
                       }
-                      numberOfLines={3}
+                      numberOfLines={2}
                       ellipsizeMode="tail"
-                      style={{ flexWrap: 'wrap', minHeight: 65 }}
+                      style={{ includeFontPadding: false }}
                     />
                   </ViewComponent>
                 </Pressable>
@@ -886,7 +883,7 @@ export default function ProfileScreen() {
                       styles.input,
                       {
                         minHeight: 46,
-                        paddingVertical: 10,
+                        paddingVertical: 0,
                         justifyContent: 'center',
                       },
                     ]}
@@ -902,9 +899,9 @@ export default function ProfileScreen() {
                           ? 'default'
                           : 'muted'
                       }
-                      numberOfLines={3}
+                      numberOfLines={2}
                       ellipsizeMode="tail"
-                      style={{ flexWrap: 'wrap', minHeight: 65 }}
+                      style={{ includeFontPadding: false }}
                     />
                   </ViewComponent>
                 </Pressable>
@@ -922,11 +919,11 @@ export default function ProfileScreen() {
                     <TextInput
                       value={
                         editData.targetWeightDeltaKg !== undefined &&
-                        editData.targetWeightDeltaKg !== null
+                          editData.targetWeightDeltaKg !== null
                           ? `${formatTargetDeltaForDisplay(
-                              editData.goal as any,
-                              Number(editData.targetWeightDeltaKg),
-                            )}`
+                            editData.goal as any,
+                            Number(editData.targetWeightDeltaKg),
+                          )}`
                           : ''
                       }
                       onChangeText={t => {
@@ -1095,7 +1092,7 @@ export default function ProfileScreen() {
           {isGuest ? (
             <Pressable
               style={[styles.settingRowPress]}
-              onPress={() => setLoginChoiceOpen(true)}
+              onPress={() => onLoginWith('google')}
             >
               <ViewComponent
                 row
@@ -1105,26 +1102,31 @@ export default function ProfileScreen() {
               >
                 <ViewComponent
                   center
-                  style={[styles.settingIcon, { backgroundColor: '#dcfce7' }]}
+                  style={[styles.settingIcon, { backgroundColor: '#fee2e2' }]}
                 >
-                  <McIcon name="login" size={16} color={C.success} />
+                  <Image
+                    source={require('../assets/images/common/gg.png')}
+                    style={[{ width: 24, height: 24 }]}
+                    resizeMode="contain"
+                    accessibilityLabel="Google logo"
+                  />
                 </ViewComponent>
                 <ViewComponent>
                   <TextComponent
-                    text="Đăng nhập ngay"
+                    text="Đăng nhập với Google"
                     weight="semibold"
-                    color={C.success}
+                    color={C.text}
                     style={{ marginBottom: 5 }}
                   />
                   <TextComponent
-                    text="Đăng nhập để đồng bộ và lưu trữ dữ liệu khi đổi thiết bị"
+                    text="Đồng bộ & lưu trữ dữ liệu khi đổi thiết bị"
                     variant="caption"
                     tone="muted"
                   />
                 </ViewComponent>
               </ViewComponent>
-              <McIcon name="chevron-right" size={18} color={C.slate500} />
             </Pressable>
+
           ) : (
             <Pressable style={[styles.settingRowPress]} onPress={onLogout}>
               <ViewComponent
@@ -1137,21 +1139,16 @@ export default function ProfileScreen() {
                   center
                   style={[styles.settingIcon, { backgroundColor: '#ebf5ff' }]}
                 >
-                  <McIcon name="logout" size={16} color={C.primary} />
+                  <McIcon name="logout" size={16} color={C.red} />
                 </ViewComponent>
                 <TextComponent
                   text="Đăng xuất"
                   weight="semibold"
                   numberOfLines={1}
                   ellipsizeMode="tail"
+                  color={C.red}
                 />
               </ViewComponent>
-              <McIcon
-                name="chevron-right"
-                size={18}
-                color={C.slate500}
-                style={{ marginLeft: 'auto' }}
-              />
             </Pressable>
           )}
         </ViewComponent>
@@ -1256,5 +1253,23 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: C.slate100,
+  },
+  googleBtn: {
+    backgroundColor: C.white,
+    borderWidth: 1.5,
+    borderColor: C.slate200,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 3 },
+      },
+      android: { elevation: 2 },
+    }),
   },
 });

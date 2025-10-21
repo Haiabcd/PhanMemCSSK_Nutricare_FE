@@ -27,6 +27,7 @@ import {
   registerHydrationBackground,
   bootstrapHydrationSchedule,
 } from './src/notifications/hydrationAuto';
+import { AuthProvider } from './src/context/AuthProvider';
 
 // 🟢 Bắt buộc: đăng ký background handler ngoài component
 registerBackgroundHandler();
@@ -100,11 +101,13 @@ function App() {
   if (!ready) return null;
 
   return (
-    <HeaderProvider>
-      <NavigationContainer>
-        {isAuthed ? <BottomNavigator /> : <AppNavigator />}
-      </NavigationContainer>
-    </HeaderProvider>
+    <AuthProvider>
+      <HeaderProvider>
+        <NavigationContainer>
+          {isAuthed ? <BottomNavigator /> : <AppNavigator />}
+        </NavigationContainer>
+      </HeaderProvider>
+    </AuthProvider>
   );
 }
 

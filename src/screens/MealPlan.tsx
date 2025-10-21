@@ -24,6 +24,7 @@ import DateButton from '../components/Date/DateButton';
 import DatePickerSheet from '../components/Date/DatePickerSheet';
 import AppHeader from '../components/AppHeader';
 import LoadingOverlay from '../components/LoadingOverlay';
+import { useHeader } from '../context/HeaderProvider';
 
 const MealPlan = () => {
   const [range, setRange] = useState<'day' | 'week'>('day');
@@ -35,9 +36,20 @@ const MealPlan = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
+  const { refresh } = useHeader();
+  const didRefreshHeaderRef = useRef(false);
 
   // Dedupe in-flight theo ngày để chặn gọi trùng
   const inFlightKey = useRef<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!didRefreshHeaderRef.current) {
+        didRefreshHeaderRef.current = true;
+        refresh();
+      }
+    }, [refresh]),
+  );
 
   const fetchData = useCallback(
     async (d: Date, signal?: AbortSignal, opts?: { isRefresh?: boolean }) => {
