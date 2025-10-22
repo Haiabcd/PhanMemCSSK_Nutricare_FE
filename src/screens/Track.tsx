@@ -22,7 +22,7 @@ import {
   RefreshControl,
   Alert,
   Keyboard,
-  KeyboardEvent
+  KeyboardEvent,
 } from 'react-native';
 import Container from '../components/Container';
 import { useFocusEffect } from '@react-navigation/native';
@@ -38,7 +38,11 @@ import {
   updatePlanLog,
 } from '../services/log.service';
 import type { MealSlot } from '../types/types';
-import type { LogResponse, PlanLogUpdateRequest } from '../types/log.type';
+import type {
+  LogResponse,
+  PlanLogUpdateRequest,
+  KcalWarningResponse,
+} from '../types/log.type';
 import type { FoodResponse, IngredientResponse } from '../types/food.type';
 import type { FoodAnalyzeResponse } from '../types/ai.type';
 import {
@@ -62,8 +66,10 @@ function useKeyboardHeight() {
     };
     const onHide = () => setHeight(0);
 
-    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showEvt =
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt =
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
     const subShow = Keyboard.addListener(showEvt, onShow);
     const subHide = Keyboard.addListener(hideEvt, onHide);
@@ -77,23 +83,7 @@ function useKeyboardHeight() {
   return height;
 }
 
-
-
 type TabKey = 'scan' | 'manual' | 'history';
-
-type MealType = 'Sáng' | 'Trưa' | 'Tối' | 'Phụ';
-const UNITS = [
-  'phần',
-  'gram',
-  'kg',
-  'chén',
-  'ly',
-  'miếng',
-  'bát',
-  'đĩa',
-] as const;
-type UnitType = (typeof UNITS)[number];
-
 
 const fmtVNFull = (d: Date) => {
   const dow = [
@@ -166,19 +156,23 @@ const Row = ({ label, value }: { label: string; value: string }) => (
   </View>
 );
 
-
-
 const fmt = (n?: number, d = 1) =>
-  typeof n === 'number'
-    ? (Math.round(n * 10 ** d) / 10 ** d).toString()
-    : '0';
+  typeof n === 'number' ? (Math.round(n * 10 ** d) / 10 ** d).toString() : '0';
 
 function ScanAIResult(props: FoodAnalyzeResponse) {
   const { name, servingGram, nutrition, ingredients, confidence } = props;
 
   return (
     <View style={[styles.nutTable, { marginTop: 12, padding: 14 }]}>
-      <Text style={{ fontWeight: '900', fontSize: 18, color: '#0f172a', textAlign: 'center', marginBottom: 8 }}>
+      <Text
+        style={{
+          fontWeight: '900',
+          fontSize: 18,
+          color: '#0f172a',
+          textAlign: 'center',
+          marginBottom: 8,
+        }}
+      >
         KẾT QUẢ TỪ AI
       </Text>
 
@@ -201,7 +195,9 @@ function ScanAIResult(props: FoodAnalyzeResponse) {
 
       {!!ingredients?.length && (
         <>
-          <Text style={[styles.blockLabel, { marginTop: 12 }]}>Nguyên liệu</Text>
+          <Text style={[styles.blockLabel, { marginTop: 12 }]}>
+            Nguyên liệu
+          </Text>
           <View style={[styles.summaryBar, { marginTop: 4 }]}>
             {ingredients.map((ing, idx) => (
               <View key={`${ing}-${idx}`} style={styles.scanChipBox}>
@@ -227,7 +223,6 @@ export default function Track() {
 
   const [openKey, setOpenKey] = useState<string | null>(null);
   const keyboardH = useKeyboardHeight();
-
 
   // ==== Date pickers ====
   const [date, setDate] = useState(new Date());
@@ -255,10 +250,6 @@ export default function Track() {
   const [scanError, setScanError] = useState<string | null>(null);
   const scanControllerRef = useRef<AbortController | null>(null);
 
-  const [qtyScan, setQtyScan] = useState<string>('1');
-  const [unitScan, setUnitScan] = useState<UnitType>('phần');
-  const [mealTypeScan, setMealTypeScan] = useState<MealType>('Sáng');
-
   const [scanChoiceOpen, setScanChoiceOpen] = useState(false);
 
   const beginScan = useCallback(
@@ -266,6 +257,27 @@ export default function Track() {
       scanControllerRef.current?.abort?.();
       const ac = new AbortController();
       scanControllerRef.current = ac;
+
+      // ✅ Giảm kích thước ảnh trước khi gửi (tránh lỗi 413: ảnh >1MB)
+      try {
+        const ImageResizer = (await import('react-native-image-resizer'))
+          .default;
+        const resized = await ImageResizer.createResizedImage(
+          asset.uri,
+          1024, // chiều rộng tối đa
+          1024, // chiều cao tối đa
+          'JPEG', // định dạng
+          80, // chất lượng (0–100)
+          0,
+        );
+        asset = {
+          uri: resized.uri,
+          type: 'image/jpeg',
+          fileName: resized.name || 'compressed.jpg',
+        };
+      } catch (err) {
+        console.warn('⚠️ Không thể resize ảnh, dùng ảnh gốc:', err);
+      }
 
       setIsScanning(true);
       setShowScanResult(false);
@@ -275,7 +287,6 @@ export default function Track() {
       try {
         const data = await saveAILog(asset);
         setScanResult(data ?? null);
-        console.log('Scan AI result:', data);
         setShowScanResult(true);
       } catch (e: any) {
         if (e?.name !== 'AbortError') {
@@ -311,7 +322,7 @@ export default function Track() {
           fileName: asset.fileName,
         });
       }
-    } catch { }
+    } catch {}
   };
 
   const handleScanFromLibrary = async () => {
@@ -333,7 +344,7 @@ export default function Track() {
           fileName: asset.fileName,
         });
       }
-    } catch { }
+    } catch {}
   };
 
   useEffect(() => {
@@ -592,6 +603,7 @@ export default function Track() {
   // Điền dữ liệu Manual từ 1 log (HISTORY -> MANUAL)
   const fillManualFromLog = useCallback(
     (m: LogResponse) => {
+      skipAcRef.current = true;
       // Đổi tab & dọn trạng thái phụ
       setEditingLogId(m.id ?? null);
       setTab('manual');
@@ -851,7 +863,7 @@ export default function Track() {
     try {
       setSubmittingAdd(true);
       const payload = {
-        date: toYMDLocal(date), // YYYY-MM-DD
+        date: toYMDLocal(date),
         mealSlot: mealTypeManual,
         foodId: macrosLocked ? selectedFoodId : null,
         nameFood: mealName?.trim() || (macrosLocked ? '' : 'Món tự nhập'),
@@ -872,10 +884,44 @@ export default function Track() {
       } as const;
 
       const ac = new AbortController();
-      await saveManualLog(payload, ac.signal);
+      const warn: KcalWarningResponse = await saveManualLog(payload, ac.signal);
+      const slotLabel: Record<string, string> = {
+        BREAKFAST: 'Sáng',
+        LUNCH: 'Trưa',
+        DINNER: 'Chiều tối',
+        SNACK: 'Phụ',
+      };
+      const slotName = slotLabel[warn.mealSlot] ?? warn.mealSlot;
+      const d = Math.round(Math.abs(warn.diff));
 
-      Alert.alert('Thành công', 'Tạo log thủ công thành công');
+      // Tùy status mà hiển thị message khác nhau
+      if (warn.status === 'OVER') {
+        Alert.alert(
+          'Đã lưu bữa ăn',
+          `⚠️ Bạn đã vượt mục tiêu kcal cho bữa ${slotName} khoảng ${d} kcal.\n` +
+            `Mục tiêu: ${Math.round(
+              warn.targetKcal,
+            )} kcal · Thực tế: ${Math.round(warn.actualKcal)} kcal`,
+        );
+      } else if (warn.status === 'UNDER') {
+        Alert.alert(
+          'Đã lưu bữa ăn',
+          `ℹ️ Bạn còn thiếu khoảng ${d} kcal so với mục tiêu bữa ${slotName}.\n` +
+            `Mục tiêu: ${Math.round(
+              warn.targetKcal,
+            )} kcal · Thực tế: ${Math.round(warn.actualKcal)} kcal`,
+        );
+      } else {
+        Alert.alert(
+          'Thành công',
+          `✅ Bạn đang bám sát mục tiêu kcal cho bữa ${slotName}.\n` +
+            `Mục tiêu: ${Math.round(
+              warn.targetKcal,
+            )} kcal · Thực tế: ${Math.round(warn.actualKcal)} kcal`,
+        );
+      }
 
+      // (giữ nguyên) reset form + reload lịch sử nếu cần
       setEditingLogId(null);
       setSelectedFoodId(null);
       setMealName('');
@@ -950,6 +996,7 @@ export default function Track() {
       Alert.alert('Thành công', 'Cập nhật bữa ăn thành công');
 
       // reset trạng thái như khi thêm xong
+      setTab('history');
       setEditingLogId(null);
       setSelectedFoodId(null);
       setMealName('');
@@ -1127,70 +1174,70 @@ export default function Track() {
 
                     {(autoLoading ||
                       (!isBlank(mealName) && autoItems.length > 0)) && (
-                        <View
-                          style={[
-                            styles.dropdownPanel,
-                            {
-                              top: 52,
-                              height: AC_ITEM_HEIGHT * AC_VISIBLE_ROWS + 2,
-                              paddingVertical: 6,
-                              overflow: 'hidden',
-                            },
-                          ]}
-                        >
-                          {autoLoading && autoItems.length === 0 ? (
-                            <View
-                              style={{ paddingVertical: 8, alignItems: 'center' }}
-                            >
-                              <ActivityIndicator />
-                            </View>
-                          ) : (
-                            <FlatList
-                              keyboardShouldPersistTaps="always"
-                              style={{ flexGrow: 0 }}
-                              data={autoItems}
-                              keyExtractor={(it: FoodResponse) => String(it.id)}
-                              renderItem={({ item }: { item: FoodResponse }) => (
-                                <Pressable
-                                  onPress={() => onSelectFood(item)}
-                                  style={styles.acItem}
+                      <View
+                        style={[
+                          styles.dropdownPanel,
+                          {
+                            top: 52,
+                            height: AC_ITEM_HEIGHT * AC_VISIBLE_ROWS + 2,
+                            paddingVertical: 6,
+                            overflow: 'hidden',
+                          },
+                        ]}
+                      >
+                        {autoLoading && autoItems.length === 0 ? (
+                          <View
+                            style={{ paddingVertical: 8, alignItems: 'center' }}
+                          >
+                            <ActivityIndicator />
+                          </View>
+                        ) : (
+                          <FlatList
+                            keyboardShouldPersistTaps="always"
+                            style={{ flexGrow: 0 }}
+                            data={autoItems}
+                            keyExtractor={(it: FoodResponse) => String(it.id)}
+                            renderItem={({ item }: { item: FoodResponse }) => (
+                              <Pressable
+                                onPress={() => onSelectFood(item)}
+                                style={styles.acItem}
+                              >
+                                <Image
+                                  source={{ uri: getThumb(item) }}
+                                  style={styles.acThumb}
+                                />
+                                <Text numberOfLines={1} style={styles.acName}>
+                                  {item.name}
+                                </Text>
+                              </Pressable>
+                            )}
+                            ItemSeparatorComponent={() => (
+                              <View style={styles.acSep} />
+                            )}
+                            onEndReachedThreshold={0.3}
+                            onEndReached={loadMoreAuto}
+                            ListFooterComponent={
+                              acHasMore ? (
+                                <View
+                                  style={{
+                                    paddingVertical: 8,
+                                    alignItems: 'center',
+                                  }}
                                 >
-                                  <Image
-                                    source={{ uri: getThumb(item) }}
-                                    style={styles.acThumb}
-                                  />
-                                  <Text numberOfLines={1} style={styles.acName}>
-                                    {item.name}
-                                  </Text>
-                                </Pressable>
-                              )}
-                              ItemSeparatorComponent={() => (
-                                <View style={styles.acSep} />
-                              )}
-                              onEndReachedThreshold={0.3}
-                              onEndReached={loadMoreAuto}
-                              ListFooterComponent={
-                                acHasMore ? (
-                                  <View
-                                    style={{
-                                      paddingVertical: 8,
-                                      alignItems: 'center',
-                                    }}
-                                  >
-                                    {acLoadingMore ? (
-                                      <ActivityIndicator />
-                                    ) : (
-                                      <Text style={{ color: '#64748b' }}>
-                                        Kéo để tải thêm…
-                                      </Text>
-                                    )}
-                                  </View>
-                                ) : null
-                              }
-                            />
-                          )}
-                        </View>
-                      )}
+                                  {acLoadingMore ? (
+                                    <ActivityIndicator />
+                                  ) : (
+                                    <Text style={{ color: '#64748b' }}>
+                                      Kéo để tải thêm…
+                                    </Text>
+                                  )}
+                                </View>
+                              ) : null
+                            }
+                          />
+                        )}
+                      </View>
+                    )}
                   </View>
 
                   {/* ===== NEW: Combobox chọn bữa (Manual) ===== */}
@@ -1205,10 +1252,10 @@ export default function Track() {
                           {mealTypeManual === 'BREAKFAST'
                             ? 'Sáng'
                             : mealTypeManual === 'LUNCH'
-                              ? 'Trưa'
-                              : mealTypeManual === 'DINNER'
-                                ? 'Chiều'
-                                : 'Phụ'}
+                            ? 'Trưa'
+                            : mealTypeManual === 'DINNER'
+                            ? 'Chiều'
+                            : 'Phụ'}
                         </Text>
                         <Text style={styles.dropdownCaret}>▾</Text>
                       </Pressable>
@@ -1289,12 +1336,17 @@ export default function Track() {
 
                           {/* số lượng (gram/ml) */}
                           <TextInput
-                            style={[styles.input, { width: 80, marginRight: 4 }]} // giảm marginRight
+                            style={[
+                              styles.input,
+                              { width: 80, marginRight: 4 },
+                            ]} // giảm marginRight
                             keyboardType="numeric"
                             value={it.qty}
                             onChangeText={t =>
                               setIngredients(prev =>
-                                prev.map((x, i) => (i === idx ? { ...x, qty: t } : x)),
+                                prev.map((x, i) =>
+                                  i === idx ? { ...x, qty: t } : x,
+                                ),
                               )
                             }
                           />
@@ -1307,14 +1359,18 @@ export default function Track() {
                           {/* Xóa */}
                           <Pressable
                             onPress={() =>
-                              setIngredients(prev => prev.filter((_, i) => i !== idx))
+                              setIngredients(prev =>
+                                prev.filter((_, i) => i !== idx),
+                              )
                             }
-                            style={({ pressed }) => [styles.delBtnSimple, pressed && { opacity: 0.85 }]}
+                            style={({ pressed }) => [
+                              styles.delBtnSimple,
+                              pressed && { opacity: 0.85 },
+                            ]}
                             hitSlop={10}
                           >
                             <Text style={styles.delBtnText}>Xóa</Text>
                           </Pressable>
-
                         </View>
                       ))
                     )}
@@ -1482,7 +1538,9 @@ export default function Track() {
                       )}
                     </Pressable>
                   ) : (
-                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                    <View
+                      style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}
+                    >
                       {/* Nút Cập nhật */}
                       <Pressable
                         style={[
@@ -1536,7 +1594,9 @@ export default function Track() {
                           setOpenKey(null);
                         }}
                       >
-                        <Text style={{ color: '#0f172a', fontWeight: '900' }}>Hủy</Text>
+                        <Text style={{ color: '#0f172a', fontWeight: '900' }}>
+                          Hủy
+                        </Text>
                       </Pressable>
                     </View>
                   )}
@@ -1750,7 +1810,10 @@ export default function Track() {
                 {/* Header */}
                 <View style={styles.sheetHeader}>
                   <Text style={styles.sheetTitle}>Chọn nguyên liệu</Text>
-                  <Pressable onPress={() => setOpenIngSheet(false)} hitSlop={10}>
+                  <Pressable
+                    onPress={() => setOpenIngSheet(false)}
+                    hitSlop={10}
+                  >
                     <Text style={styles.sheetClose}>Đóng</Text>
                   </Pressable>
                 </View>
@@ -1786,13 +1849,17 @@ export default function Track() {
                         }}
                         style={styles.acItem}
                       >
-                        <Image source={{ uri: getThumb(item) }} style={styles.acThumb} />
+                        <Image
+                          source={{ uri: getThumb(item) }}
+                          style={styles.acThumb}
+                        />
                         <View style={{ flex: 1 }}>
                           <Text numberOfLines={1} style={styles.acName}>
                             {item.name}
                           </Text>
                           <Text style={{ color: '#64748b', fontSize: 12 }}>
-                            {item.unit} • per 100: {fmtNum(safeNum(item.per100?.kcal), 0)} kcal
+                            {item.unit} • per 100:{' '}
+                            {fmtNum(safeNum(item.per100?.kcal), 0)} kcal
                           </Text>
                         </View>
                       </Pressable>
@@ -1806,16 +1873,21 @@ export default function Track() {
                   onPress={() => setOpenIngSheet(false)}
                   style={[
                     styles.actionBtn,
-                    { marginTop: 10, backgroundColor: '#f1f5f9', borderColor: '#e2e8f0' },
+                    {
+                      marginTop: 10,
+                      backgroundColor: '#f1f5f9',
+                      borderColor: '#e2e8f0',
+                    },
                   ]}
                 >
-                  <Text style={{ color: '#0f172a', fontWeight: '900' }}>Hủy</Text>
+                  <Text style={{ color: '#0f172a', fontWeight: '900' }}>
+                    Hủy
+                  </Text>
                 </Pressable>
               </View>
             </View>
           </View>
         </Modal>
-
       </Container>
     </KeyboardAvoidingView>
   );
@@ -1894,10 +1966,10 @@ const styles = StyleSheet.create({
   },
   tabTextActive: { color: '#ffffff' },
   unitWrap: {
-    height: 44,                 // bằng với styles.input.height
+    height: 44, // bằng với styles.input.height
     minWidth: 40,
-    paddingHorizontal: 4,       // sát hơn
-    justifyContent: 'center',   // canh giữa theo trục dọc
+    paddingHorizontal: 4, // sát hơn
+    justifyContent: 'center', // canh giữa theo trục dọc
     alignItems: 'flex-start',
   },
   unitText: {
@@ -2065,7 +2137,6 @@ const styles = StyleSheet.create({
   modalRoot: {
     flex: 1,
     justifyContent: 'flex-end',
-
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -2173,7 +2244,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#ef4444',   // đỏ
+    backgroundColor: '#ef4444', // đỏ
     alignItems: 'center',
     justifyContent: 'center',
   },
