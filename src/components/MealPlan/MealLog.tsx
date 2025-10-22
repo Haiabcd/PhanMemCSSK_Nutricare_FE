@@ -186,10 +186,10 @@ function mapItemsToSectionsStable(
       slot === 'BREAKFAST'
         ? 'coffee'
         : slot === 'LUNCH'
-          ? 'silverware-fork-knife'
-          : slot === 'DINNER'
-            ? 'weather-night'
-            : 'leaf';
+        ? 'silverware-fork-knife'
+        : slot === 'DINNER'
+        ? 'weather-night'
+        : 'leaf';
 
     sections.push({
       id: slot,
@@ -205,17 +205,17 @@ function mapItemsToSectionsStable(
 function SectionHeader({ name, kcal }: { name: string; kcal: number }) {
   const lower = name.toLowerCase();
   const icon = lower.includes('sáng') ? (
-    <MaterialCommunityIcons name="coffee" size={18} color={C.slate600} />
+    <MaterialCommunityIcons name="coffee" size={18} color={C.red} />
   ) : lower.includes('trưa') ? (
     <MaterialCommunityIcons
       name="silverware-fork-knife"
       size={18}
-      color={C.slate600}
+      color={C.red}
     />
-  ) : lower.includes('tối') ? (
-    <MaterialCommunityIcons name="weather-night" size={18} color={C.slate600} />
+  ) : lower.includes('chiều') ? (
+    <MaterialCommunityIcons name="weather-night" size={18} color={C.red} />
   ) : (
-    <Entypo name="leaf" size={16} color={C.slate600} />
+    <Entypo name="leaf" size={16} color={C.red} />
   );
 
   return (
@@ -227,12 +227,12 @@ function SectionHeader({ name, kcal }: { name: string; kcal: number }) {
     >
       <ViewComponent row gap={8} alignItems="center" flex={0}>
         {icon}
-        <TextComponent text={name} size={16} color={C.text} weight="bold" />
+        <TextComponent text={name} size={18} color={C.red} weight="bold" />
       </ViewComponent>
       <TextComponent
         text={`${kcal} cal`}
         color={ACCENT}
-        size={13}
+        size={15}
         weight="bold"
       />
     </ViewComponent>
@@ -246,7 +246,7 @@ function MealItemCard({
   onChange,
   onDetail,
   changing,
-  disabledToggle, // ✨ NEW
+  disabledToggle,
 }: {
   it: MealItem;
   checked?: boolean;
@@ -254,7 +254,7 @@ function MealItemCard({
   onChange?: () => void;
   onDetail?: () => void;
   changing?: boolean;
-  disabledToggle?: boolean; // ✨ NEW
+  disabledToggle?: boolean;
 }) {
   const [imgError, setImgError] = useState(false);
   const showDisabled = !!changing;

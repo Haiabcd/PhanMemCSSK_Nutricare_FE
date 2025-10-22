@@ -1,24 +1,69 @@
-import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+} from 'react';
 import { StyleSheet, Animated, Easing, Pressable, Alert } from 'react-native';
 import Slider from '@react-native-community/slider';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import ViewComponent from '../ViewComponent';
 import TextComponent from '../TextComponent';
 import { colors as AppColors } from '../../constants/colors';
-import { createWaterLog, getTotalWaterByDate } from '../../services/waterLog.service';
+import {
+  createWaterLog,
+  getTotalWaterByDate,
+} from '../../services/waterLog.service';
 
-/** ===== Helpers ===== */
-const formatYMDLocal = (d = new Date()) =>
-  new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+/* ================= Helpers ================= */
+const ymdLocalOf = (d: Date) =>
+  new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 10);
 
-/** ===== Progress Bar (safe & smooth) ===== */
+const isoForSelectedDayNow = (day: Date) => {
+  const now = new Date();
+  const local = new Date(
+    day.getFullYear(),
+    day.getMonth(),
+    day.getDate(),
+    now.getHours(),
+    now.getMinutes(),
+    now.getSeconds(),
+    now.getMilliseconds(),
+  );
+  return local.toISOString(); // server expects ISO UTC
+};
+
+const isFutureDay = (d: Date) => {
+  const a = new Date(d);
+  const t = new Date();
+  a.setHours(0, 0, 0, 0);
+  t.setHours(0, 0, 0, 0);
+  return a.getTime() > t.getTime();
+};
+
+/* ===== Progress Bar (safe & smooth) ===== */
 function AnimatedProgress({
-  percent, tint, bg, height = 8, radius = 999,
-}: { percent: number; tint: string; bg: string; height?: number; radius?: number }) {
+  percent,
+  tint,
+  bg,
+  height = 8,
+  radius = 999,
+}: {
+  percent: number;
+  tint: string;
+  bg: string;
+  height?: number;
+  radius?: number;
+}) {
   const anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const safe = Number.isFinite(percent) ? Math.max(0, Math.min(100, percent)) : 0;
+    const safe = Number.isFinite(percent)
+      ? Math.max(0, Math.min(100, percent))
+      : 0;
     anim.stopAnimation();
     Animated.timing(anim, {
       toValue: safe,
@@ -28,15 +73,21 @@ function AnimatedProgress({
     }).start();
   }, [percent, anim]);
 
-  const width = anim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] });
+  const width = anim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ['0%', '100%'],
+  });
   return (
-    <ViewComponent style={{ height, borderRadius: radius, overflow: 'hidden' }} backgroundColor={bg}>
+    <ViewComponent
+      style={{ height, borderRadius: radius, overflow: 'hidden' }}
+      backgroundColor={bg}
+    >
       <Animated.View style={{ height: '100%', width, backgroundColor: tint }} />
     </ViewComponent>
   );
 }
 
-/** ===== Props ===== */
+/* ================= Props ================= */
 type Props = {
   target: number;
   initial?: number;
@@ -47,9 +98,12 @@ type Props = {
   pickMin?: number;
   pickMax?: number;
   pickStep?: number;
+
+  /** Ngày được chọn từ màn hình cha (mặc định hôm nay) */
+  selectedDate?: Date;
 };
 
-/** ===== Main ===== */
+/* ================= Main ================= */
 export default function HydrationSummaryCard({
   target,
   initial = 0,
@@ -60,6 +114,7 @@ export default function HydrationSummaryCard({
   pickMin = 100,
   pickMax = 1000,
   pickStep = 50,
+  selectedDate = new Date(),
 }: Props) {
   const C = useMemo(() => ({ ...AppColors, ...(palette ?? {}) }), [palette]);
 
@@ -68,15 +123,21 @@ export default function HydrationSummaryCard({
   const FRAME_BORDER = C.primaryBorder || C.greenBorder;
 
   /** Tổng đã uống (ML) – nguồn sự thật: Server */
-  const [water, setWater] = useState<number>(() => Math.max(0, Math.round(initial)));
+  const [water, setWater] = useState<number>(() =>
+    Math.max(0, Math.round(initial)),
+  );
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   /** Lượng sẽ thêm (ML) – điều khiển bởi Slider */
-  const [pick, setPick] = useState<number>(() => Math.min(Math.max(pickMin, 500), pickMax));
+  const [pick, setPick] = useState<number>(() =>
+    Math.min(Math.max(pickMin, 500), pickMax),
+  );
 
   // notify parent khi water đổi
-  useEffect(() => { onChange?.(water); }, [water, onChange]);
+  useEffect(() => {
+    onChange?.(water);
+  }, [water, onChange]);
 
   // % hoàn thành (safe)
   const pct = useMemo(() => {
@@ -86,14 +147,17 @@ export default function HydrationSummaryCard({
     return Math.max(0, Math.min(1, Math.min(w, t) / t));
   }, [water, target]);
 
-  const remain = Math.max(0, Math.round(Math.max(target - (Number.isFinite(water) ? water : 0), 0)));
+  const remain = Math.max(
+    0,
+    Math.round(Math.max(target - (Number.isFinite(water) ? water : 0), 0)),
+  );
 
   /** ====== ANIM – Bottle color & mực nước dâng ====== */
   const iconAnim = useRef(new Animated.Value(0)).current;
   const waterAnim = useRef(new Animated.Value(0)).current; // 0..1
   const AnimatedIcon = useMemo(
     () => Animated.createAnimatedComponent(MaterialCommunityIcons),
-    []
+    [],
   );
 
   useEffect(() => {
@@ -116,56 +180,72 @@ export default function HydrationSummaryCard({
     }).start();
   }, [pct, iconAnim, waterAnim]);
 
-  const bottleColor = iconAnim.interpolate({ inputRange: [0, 1], outputRange: ['#94a3b8', WATER] });
-  const glowOpacity = iconAnim.interpolate({ inputRange: [0, 1], outputRange: [0.12, 0.36] });
-  const fillHeight = waterAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 72] });
+  const bottleColor = iconAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['#94a3b8', WATER],
+  });
+  const glowOpacity = iconAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.12, 0.36],
+  });
+  const fillHeight = waterAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 72],
+  });
 
-  /** ========= API integration ========= */
-  const today = useMemo(() => formatYMDLocal(), []);
+  /** ========= API integration theo ngày được chọn ========= */
+  const dayYMD = useMemo(() => ymdLocalOf(selectedDate), [selectedDate]);
+  const future = useMemo(() => isFutureDay(selectedDate), [selectedDate]);
 
   useEffect(() => {
     const ac = new AbortController();
     (async () => {
       try {
         setLoading(true);
-        const total = await getTotalWaterByDate(today, ac.signal);
+        const total = await getTotalWaterByDate(dayYMD, ac.signal);
         setWater(Number.isFinite(total) ? Math.max(0, Math.round(total)) : 0);
-      } catch (e: any) {
+      } catch {
         setWater(0); // fallback an toàn
       } finally {
         setLoading(false);
       }
     })();
     return () => ac.abort();
-  }, [today]);
+  }, [dayYMD]);
 
   const onChangePick = useCallback((v: number) => setPick(Math.round(v)), []);
   const addPick = useCallback(async () => {
-    if (submitting) return;
+    if (submitting || future) return; // không cho thêm vào ngày tương lai
     try {
       setSubmitting(true);
       const before = water;
       setWater(v => v + pick);
 
-      const ok = await createWaterLog({ drankAt: new Date().toISOString(), amountMl: pick });
+      const ok = await createWaterLog({
+        drankAt: isoForSelectedDayNow(selectedDate), // gắn log vào ngày đang chọn
+        amountMl: pick,
+      });
       if (!ok) {
         setWater(before);
         Alert.alert('Không lưu được', 'Vui lòng thử lại.');
         return;
       }
 
-      const total = await getTotalWaterByDate(today);
+      const total = await getTotalWaterByDate(dayYMD);
       if (Number.isFinite(total)) {
         const serverTotal = Math.max(0, Math.round(total));
         if (serverTotal !== before + pick) setWater(serverTotal);
       }
     } catch {
       setWater(v => Math.max(0, v - pick));
-      Alert.alert('Lỗi mạng', 'Không thể lưu nước. Kiểm tra kết nối và thử lại.');
+      Alert.alert(
+        'Lỗi mạng',
+        'Không thể lưu nước. Kiểm tra kết nối và thử lại.',
+      );
     } finally {
       setSubmitting(false);
     }
-  }, [pick, submitting, today, water]);
+  }, [pick, submitting, water, selectedDate, dayYMD, future]);
 
   return (
     <ViewComponent
@@ -178,10 +258,30 @@ export default function HydrationSummaryCard({
     >
       {/* Header */}
       <ViewComponent row between alignItems="center">
-        <TextComponent text="Uống nước" variant="h3" weight="bold" tone="primary" style={titleStyle} />
-        <ViewComponent row gap={6} px={10} py={6} radius={999} border borderColor={FRAME_BORDER} backgroundColor={C.white} alignItems="center">
+        <TextComponent
+          text="Uống nước"
+          variant="h3"
+          weight="bold"
+          tone="primary"
+          style={titleStyle}
+        />
+        <ViewComponent
+          row
+          gap={6}
+          px={10}
+          py={6}
+          radius={999}
+          border
+          borderColor={FRAME_BORDER}
+          backgroundColor={C.white}
+          alignItems="center"
+        >
           <MaterialCommunityIcons name="target" size={14} color={WATER} />
-          <TextComponent text={`Mục tiêu ${target} ml`} variant="caption" weight="semibold" />
+          <TextComponent
+            text={`Mục tiêu ${target} ml`}
+            variant="caption"
+            weight="semibold"
+          />
         </ViewComponent>
       </ViewComponent>
 
@@ -203,16 +303,20 @@ export default function HydrationSummaryCard({
             maximumTrackTintColor="#D5D8DE"
             thumbTintColor={C.white}
             style={{ height: 28 }}
-            disabled={loading || submitting}
+            disabled={loading || submitting || future}
           />
         </ViewComponent>
 
         <Pressable
           onPress={addPick}
-          disabled={loading || submitting}
+          disabled={loading || submitting || future}
           style={({ pressed }) => [
             styles.addBtn,
-            { backgroundColor: WATER, opacity: pressed || loading || submitting ? 0.6 : 1, shadowColor: WATER },
+            {
+              backgroundColor: WATER,
+              opacity: pressed || loading || submitting || future ? 0.6 : 1,
+              shadowColor: WATER,
+            },
           ]}
         >
           <TextComponent
@@ -227,7 +331,15 @@ export default function HydrationSummaryCard({
       <ViewComponent center mt={6}>
         <ViewComponent center style={styles.heroWrap}>
           {/* Glow */}
-          <Animated.View style={[styles.heroGlow, { backgroundColor: 'rgba(59,130,246,0.22)', opacity: glowOpacity }]} />
+          <Animated.View
+            style={[
+              styles.heroGlow,
+              {
+                backgroundColor: 'rgba(59,130,246,0.22)',
+                opacity: glowOpacity,
+              },
+            ]}
+          />
           {/* Khung tròn – clip mực nước */}
           <ViewComponent
             style={styles.bottleFrame}
@@ -238,29 +350,82 @@ export default function HydrationSummaryCard({
             backgroundColor={C.white}
           >
             {/* Mực nước dâng từ đáy lên */}
-            <Animated.View style={[styles.waterFill, { backgroundColor: WATER, height: fillHeight }]} />
+            <Animated.View
+              style={[
+                styles.waterFill,
+                { backgroundColor: WATER, height: fillHeight },
+              ]}
+            />
             {/* Chai outline */}
-            <AnimatedIcon name="bottle-soda-outline" size={46} style={styles.bottleIcon as any} color={bottleColor as any} />
+            <AnimatedIcon
+              name="bottle-soda-outline"
+              size={46}
+              style={styles.bottleIcon as any}
+              color={bottleColor as any}
+            />
           </ViewComponent>
         </ViewComponent>
 
         <TextComponent text="Đã uống" variant="caption" tone="muted" />
-        <TextComponent text={loading ? '...' : `${water} ml`} variant="h2" weight="bold" style={{ marginTop: 2 }} />
+        <TextComponent
+          text={loading ? '...' : `${water} ml`}
+          variant="h2"
+          weight="bold"
+          style={{ marginTop: 2 }}
+        />
 
         <ViewComponent style={{ width: 200 }} mt={8}>
-          <AnimatedProgress percent={(Number.isFinite(pct) ? pct : 0) * 100} tint={WATER} bg="#DCEBFF" />
+          <AnimatedProgress
+            percent={(Number.isFinite(pct) ? pct : 0) * 100}
+            tint={WATER}
+            bg="#DCEBFF"
+          />
         </ViewComponent>
       </ViewComponent>
 
       {/* Chips thống kê */}
       <ViewComponent row gap={10} justifyContent="center" mt={10} wrap>
-        <ViewComponent row gap={6} px={10} py={6} radius={999} border borderColor={FRAME_BORDER} backgroundColor={C.white} alignItems="center">
+        <ViewComponent
+          row
+          gap={6}
+          px={10}
+          py={6}
+          radius={999}
+          border
+          borderColor={FRAME_BORDER}
+          backgroundColor={C.white}
+          alignItems="center"
+        >
           <MaterialCommunityIcons name="cup-water" size={16} color={WATER} />
-          <TextComponent text={`Còn lại ${remain} ml`} variant="caption" weight="semibold" />
+          <TextComponent
+            text={`Còn lại ${remain} ml`}
+            variant="caption"
+            weight="semibold"
+          />
         </ViewComponent>
-        <ViewComponent row gap={6} px={10} py={6} radius={999} border borderColor={FRAME_BORDER} backgroundColor={C.white} alignItems="center">
-          <MaterialCommunityIcons name="water-check" size={16} color={C.success} />
-          <TextComponent text={`Hoàn thành ${Math.round((Number.isFinite(pct) ? pct : 0) * 100)}%`} variant="caption" weight="semibold" />
+        <ViewComponent
+          row
+          gap={6}
+          px={10}
+          py={6}
+          radius={999}
+          border
+          borderColor={FRAME_BORDER}
+          backgroundColor={C.white}
+          alignItems="center"
+        >
+          <MaterialCommunityIcons
+            name="water-check"
+            size={16}
+            color={C.success}
+          />
+          <TextComponent
+            text={`Hoàn thành ${Math.round(
+              (Number.isFinite(pct) ? pct : 0) * 100,
+            )}%`}
+            variant="caption"
+            weight="semibold"
+          />
         </ViewComponent>
       </ViewComponent>
     </ViewComponent>
@@ -287,6 +452,14 @@ const styles = StyleSheet.create({
   heroWrap: { width: 90, height: 90, marginTop: 6 },
   heroGlow: { position: 'absolute', width: 90, height: 90, borderRadius: 999 },
   bottleFrame: { width: 72, height: 72, overflow: 'hidden' },
-  waterFill: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopLeftRadius: 10, borderTopRightRadius: 10, opacity: 0.9 },
+  waterFill: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+    opacity: 0.9,
+  },
   bottleIcon: { position: 'absolute' },
 });

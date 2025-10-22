@@ -294,6 +294,7 @@ const MealPlan = () => {
             target={data?.waterTargetMl || 2000}
             initial={0}
             palette={C}
+            selectedDate={date}
           />
         </ViewComponent>
       </ScrollView>
