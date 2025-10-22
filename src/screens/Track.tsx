@@ -81,19 +81,6 @@ function useKeyboardHeight() {
 
 type TabKey = 'scan' | 'manual' | 'history';
 
-type MealType = 'Sáng' | 'Trưa' | 'Tối' | 'Phụ';
-const UNITS = [
-  'phần',
-  'gram',
-  'kg',
-  'chén',
-  'ly',
-  'miếng',
-  'bát',
-  'đĩa',
-] as const;
-type UnitType = (typeof UNITS)[number];
-
 
 const fmtVNFull = (d: Date) => {
   const dow = [
@@ -255,10 +242,6 @@ export default function Track() {
   const [scanError, setScanError] = useState<string | null>(null);
   const scanControllerRef = useRef<AbortController | null>(null);
 
-  const [qtyScan, setQtyScan] = useState<string>('1');
-  const [unitScan, setUnitScan] = useState<UnitType>('phần');
-  const [mealTypeScan, setMealTypeScan] = useState<MealType>('Sáng');
-
   const [scanChoiceOpen, setScanChoiceOpen] = useState(false);
 
   const beginScan = useCallback(
@@ -266,6 +249,26 @@ export default function Track() {
       scanControllerRef.current?.abort?.();
       const ac = new AbortController();
       scanControllerRef.current = ac;
+
+      // ✅ Giảm kích thước ảnh trước khi gửi (tránh lỗi 413: ảnh >1MB)
+      try {
+        const ImageResizer = (await import('react-native-image-resizer')).default;
+        const resized = await ImageResizer.createResizedImage(
+          asset.uri,
+          1024, // chiều rộng tối đa
+          1024, // chiều cao tối đa
+          'JPEG', // định dạng
+          80, // chất lượng (0–100)
+          0,
+        );
+        asset = {
+          uri: resized.uri,
+          type: 'image/jpeg',
+          fileName: resized.name || 'compressed.jpg',
+        };
+      } catch (err) {
+        console.warn('⚠️ Không thể resize ảnh, dùng ảnh gốc:', err);
+      }
 
       setIsScanning(true);
       setShowScanResult(false);
@@ -275,7 +278,6 @@ export default function Track() {
       try {
         const data = await saveAILog(asset);
         setScanResult(data ?? null);
-        console.log('Scan AI result:', data);
         setShowScanResult(true);
       } catch (e: any) {
         if (e?.name !== 'AbortError') {
@@ -290,6 +292,7 @@ export default function Track() {
     },
     [],
   );
+
 
   const handleScanFromCamera = async () => {
     setScanChoiceOpen(false);
@@ -592,6 +595,7 @@ export default function Track() {
   // Điền dữ liệu Manual từ 1 log (HISTORY -> MANUAL)
   const fillManualFromLog = useCallback(
     (m: LogResponse) => {
+      skipAcRef.current = true;
       // Đổi tab & dọn trạng thái phụ
       setEditingLogId(m.id ?? null);
       setTab('manual');
@@ -950,6 +954,7 @@ export default function Track() {
       Alert.alert('Thành công', 'Cập nhật bữa ăn thành công');
 
       // reset trạng thái như khi thêm xong
+      setTab('history');
       setEditingLogId(null);
       setSelectedFoodId(null);
       setMealName('');

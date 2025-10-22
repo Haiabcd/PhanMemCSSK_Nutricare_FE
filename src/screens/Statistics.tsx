@@ -134,6 +134,7 @@ export default function Statistics(): JSX.Element {
     }, []);
 
     /** DỮ LIỆU THEO CHẾ ĐỘ */
+    /** DỮ LIỆU THEO CHẾ ĐỘ */
     const ds = useMemo(() => {
         type DS = {
             macrosLegend: string[];
@@ -150,8 +151,8 @@ export default function Statistics(): JSX.Element {
         let out: DS;
         if (range === 'day') {
             out = {
-                macrosLegend: ['Carb', 'Protein', 'Fat'],
-                macrosData: [[55, 30, 15]],
+                macrosLegend: ['Carb', 'Chất đạm', 'Chất béo', 'Chất xơ'],
+                macrosData: [[50, 25, 15, 10]], // Thêm chất xơ
                 labelsMacros: ['Hôm nay'],
                 caloriesLabels: ['0h', '3h', '6h', '9h', '12h', '15h', '18h', '21h'],
                 caloriesData: [120, 150, 200, 350, 420, 260, 180, 140],
@@ -168,8 +169,8 @@ export default function Statistics(): JSX.Element {
             };
         } else if (range === 'week') {
             out = {
-                macrosLegend: ['Carb', 'Protein', 'Fat'],
-                macrosData: [[50, 30, 20]],
+                macrosLegend: ['Carb', 'Chất đạm', 'Chất béo', 'Chất xơ'],
+                macrosData: [[48, 27, 15, 10]],
                 labelsMacros: ['Tuần này'],
                 caloriesLabels: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
                 caloriesData: [1900, 2000, 1850, 2100, 2150, 1950, 2050],
@@ -186,8 +187,8 @@ export default function Statistics(): JSX.Element {
             };
         } else {
             out = {
-                macrosLegend: ['Carb', 'Protein', 'Fat'],
-                macrosData: [[52, 28, 20]],
+                macrosLegend: ['Carb', 'Chất đạm', 'Chất béo', 'Chất xơ'],
+                macrosData: [[50, 25, 15, 10]],
                 labelsMacros: ['Tháng này'],
                 caloriesLabels: ['W1', 'W2', 'W3', 'W4', 'W5'],
                 caloriesData: [2000, 2050, 1980, 2100, 2020],
