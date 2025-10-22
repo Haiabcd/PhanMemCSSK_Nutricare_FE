@@ -6,8 +6,7 @@ import React, {
   useCallback,
 } from 'react';
 import {
-  View,
-  Text,
+  View as RNView,
   StyleSheet,
   Image,
   Pressable,
@@ -20,13 +19,13 @@ import {
   Modal,
   KeyboardAvoidingView,
   RefreshControl,
-  Alert,
   Keyboard,
   KeyboardEvent,
 } from 'react-native';
+
 import Container from '../components/Container';
 import { useFocusEffect } from '@react-navigation/native';
-import { colors as C } from '../constants/colors';
+import { colors } from '../constants/colors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateButton from '../components/Date/DateButton';
 import DatePickerSheet from '../components/Date/DatePickerSheet';
@@ -57,29 +56,28 @@ import {
   type CameraOptions,
 } from 'react-native-image-picker';
 
+// NEW
+import Text from '../components/TextComponent';
+import V from '../components/ViewComponent';
+
+/* =================== small utilities =================== */
 function useKeyboardHeight() {
   const [height, setHeight] = React.useState(0);
-
   React.useEffect(() => {
-    const onShow = (e: KeyboardEvent) => {
+    const onShow = (e: KeyboardEvent) =>
       setHeight(e.endCoordinates?.height ?? 0);
-    };
     const onHide = () => setHeight(0);
-
     const showEvt =
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvt =
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
     const subShow = Keyboard.addListener(showEvt, onShow);
     const subHide = Keyboard.addListener(hideEvt, onHide);
-
     return () => {
       subShow.remove();
       subHide.remove();
     };
   }, []);
-
   return height;
 }
 
@@ -106,7 +104,7 @@ const toYMDLocal = (d: Date) =>
     .toISOString()
     .slice(0, 10);
 
-const INPUT_TEXT_COLOR = '#0f172a';
+const INPUT_TEXT_COLOR = colors.text;
 const PLACEHOLDER_COLOR = '#94a3b8';
 
 /** ===== Autocomplete config ===== */
@@ -121,127 +119,351 @@ const safeNum = (v: unknown) => {
 };
 const fmtNum = (n: number, digits = 1) =>
   (Math.round(n * 10 ** digits) / 10 ** digits).toString();
-const isBlank = (s?: string) => !s || s.trim().length === 0; // <- guard chung
-
-/* ===== Tiny UI helpers for new Scan tab ===== */
-const Chip = ({ children }: { children: React.ReactNode }) => (
-  <View style={styles.scanChipBox}>
-    <Text style={styles.scanChipText}>{children}</Text>
-  </View>
-);
-const SummaryBar = ({
-  qty,
-  unit,
-  mealType,
-}: {
-  qty?: string;
-  unit?: string;
-  mealType?: string;
-}) => (
-  <View style={styles.summaryBar}>
-    {qty && unit ? (
-      <Chip>
-        {qty} {unit}
-      </Chip>
-    ) : null}
-    {mealType ? (
-      <Chip>{mealType === 'Tối' ? 'Chiều tối' : mealType}</Chip>
-    ) : null}
-  </View>
-);
-const Row = ({ label, value }: { label: string; value: string }) => (
-  <View style={styles.nutRow}>
-    <Text style={styles.nutLabel}>{label}:</Text>
-    <Text style={styles.nutValue}>{value}</Text>
-  </View>
-);
-
+const isBlank = (s?: string) => !s || s.trim().length === 0;
 const fmt = (n?: number, d = 1) =>
   typeof n === 'number' ? (Math.round(n * 10 ** d) / 10 ** d).toString() : '0';
 
-function ScanAIResult(props: FoodAnalyzeResponse) {
-  const { name, servingGram, nutrition, ingredients, confidence } = props;
+/* =================== Modern Notice / Toast =================== */
+type NoticeTone = 'default' | 'success' | 'warning' | 'danger' | 'info';
+function toneToColor(t: NoticeTone) {
+  switch (t) {
+    case 'success':
+      return {
+        bg: colors.primarySurface,
+        border: colors.primaryBorder,
+        text: colors.primaryDark,
+      };
+    case 'warning':
+      return {
+        bg: colors.accentSurface,
+        border: colors.accentBorder,
+        text: colors.accentDark,
+      };
+    case 'danger':
+      return { bg: '#fee2e2', border: '#fecaca', text: '#7f1d1d' };
+    case 'info':
+      return { bg: '#eff6ff', border: '#bfdbfe', text: '#1e3a8a' };
+    default:
+      return { bg: colors.bg, border: colors.border, text: colors.text };
+  }
+}
+
+const ToastBar = ({
+  message,
+  tone = 'default',
+  onClose,
+}: {
+  message: string;
+  tone?: NoticeTone;
+  onClose: () => void;
+}) => {
+  const c = toneToColor(tone);
+  return (
+    <V style={[styles.toastWrap]}>
+      <V
+        variant="card"
+        style={[
+          {
+            backgroundColor: c.bg,
+            borderColor: c.border,
+            borderWidth: 1,
+            padding: 12,
+            borderRadius: 14,
+          },
+        ]}
+      >
+        <V row between alignItems="center">
+          <Text text={message} color={c.text} weight="semibold" />
+          <Pressable onPress={onClose} hitSlop={10}>
+            <Text text="✕" color={c.text} weight="bold" />
+          </Pressable>
+        </V>
+      </V>
+    </V>
+  );
+};
+
+/* =================== Reusable Confirm Modal (replaces Alert.confirm) =================== */
+const ORANGE = {
+  bg: '#FFF7ED',
+  border: '#FDBA74',
+  text: '#7C2D12',
+  solid: '#F59E0B',
+};
+
+const AlertSheet = ({
+  visible,
+  title = 'Thông báo',
+  message,
+  onClose,
+}: {
+  visible: boolean;
+  title?: string;
+  message: string;
+  onClose: () => void;
+}) => {
+  // Tách dòng: dòng đầu = lead, phần còn lại = bullets
+  const lines = (message || '')
+    .split('\n')
+    .map(s => s.trim())
+    .filter(Boolean);
+  const lead = lines[0] || '';
+  const bullets = lines.slice(1);
 
   return (
-    <View style={[styles.nutTable, { marginTop: 12, padding: 14 }]}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+        <V
+          variant="card"
+          style={[
+            styles.modalCard,
+            {
+              borderColor: ORANGE.border,
+              backgroundColor: ORANGE.bg,
+              paddingTop: 18,
+              paddingBottom: 14,
+              maxWidth: 480,
+            },
+          ]}
+        >
+          {/* Header: Icon + Title */}
+          <V row alignItems="center" style={{ marginBottom: 10 }}>
+            <V
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 999,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 10,
+                backgroundColor: '#FED7AA',
+                borderWidth: 1,
+                borderColor: '#FDBA74',
+              }}
+            >
+              <Text text="⚠️" style={{ fontSize: 18 }} />
+            </V>
+            <Text
+              text={title}
+              variant="h3"
+              weight="bold"
+              style={{ color: ORANGE.text }}
+            />
+          </V>
+
+          {/* Lead (câu mở đầu) */}
+          {lead ? (
+            <Text
+              text={lead}
+              style={{
+                color: ORANGE.text,
+                marginBottom: 8,
+                lineHeight: 22,
+                fontWeight: '600',
+              }}
+            />
+          ) : null}
+
+          {/* Nội dung cuộn được + gạch đầu dòng */}
+          {bullets.length > 0 && (
+            <RNView
+              style={{
+                maxHeight: 220,
+                borderWidth: 1,
+                borderColor: ORANGE.border,
+                borderRadius: 12,
+                backgroundColor: '#FFF9F3',
+                padding: 10,
+                marginBottom: 12,
+              }}
+            >
+              <FlatList
+                data={bullets}
+                keyExtractor={(t, i) => t + i}
+                renderItem={({ item }) => (
+                  <V row style={{ marginBottom: 6 }}>
+                    <Text
+                      text="•"
+                      style={{
+                        color: ORANGE.text,
+                        marginRight: 8,
+                        lineHeight: 22,
+                        fontSize: 16,
+                      }}
+                    />
+                    <Text
+                      text={item}
+                      style={{ color: ORANGE.text, lineHeight: 22 }}
+                    />
+                  </V>
+                )}
+              />
+            </RNView>
+          )}
+
+          {/* Button */}
+          <Pressable
+            onPress={onClose}
+            style={[
+              styles.actionBtn,
+              { backgroundColor: ORANGE.solid, borderColor: ORANGE.solid },
+            ]}
+          >
+            <Text text="OK" weight="bold" color={colors.onPrimary} />
+          </Pressable>
+        </V>
+      </Pressable>
+    </Modal>
+  );
+};
+
+const ConfirmSheet = ({
+  visible,
+  title,
+  message,
+  confirmLabel = 'Xóa',
+  cancelLabel = 'Hủy',
+  onConfirm,
+  onCancel,
+}: {
+  visible: boolean;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) => (
+  <Modal
+    visible={visible}
+    transparent
+    animationType="fade"
+    statusBarTranslucent
+    onRequestClose={onCancel}
+  >
+    <Pressable style={styles.modalBackdrop} onPress={onCancel}>
+      <V variant="card" style={styles.modalCard}>
+        <Text text={title} variant="h3" align="center" />
+        <Text
+          text={message}
+          tone="muted"
+          align="center"
+          style={{ marginTop: 6, marginBottom: 10 }}
+        />
+        <V row gap={10}>
+          <Pressable
+            style={[
+              styles.actionBtn,
+              { backgroundColor: '#f1f5f9', borderColor: '#e2e8f0', flex: 1 },
+            ]}
+            onPress={onCancel}
+          >
+            <Text text={cancelLabel} weight="bold" color={colors.text} />
+          </Pressable>
+          <Pressable
+            style={[
+              styles.actionBtn,
+              { backgroundColor: colors.red, borderColor: '#fca5a5', flex: 1 },
+            ]}
+            onPress={onConfirm}
+          >
+            <Text text={confirmLabel} weight="bold" color={colors.onPrimary} />
+          </Pressable>
+        </V>
+      </V>
+    </Pressable>
+  </Modal>
+);
+
+/* ===== Tiny UI helpers for new Scan tab ===== */
+const Row = ({ label, value }: { label: string; value: string }) => (
+  <V row between style={styles.nutRow}>
+    <Text text={`${label}:`} weight="semibold" />
+    <Text text={value} weight="semibold" />
+  </V>
+);
+
+function ScanAIResult(props: FoodAnalyzeResponse) {
+  const { name, servingGram, nutrition, ingredients, confidence } = props;
+  return (
+    <V variant="card" style={[styles.nutTable, { marginTop: 12, padding: 14 }]}>
       <Text
-        style={{
-          fontWeight: '900',
-          fontSize: 18,
-          color: '#0f172a',
-          textAlign: 'center',
-          marginBottom: 8,
-        }}
-      >
-        KẾT QUẢ TỪ AI
-      </Text>
-
+        text="KẾT QUẢ TỪ AI"
+        variant="h3"
+        align="center"
+        style={{ marginBottom: 8 }}
+      />
       <Row label="Tên" value={name || '—'} />
-
       {typeof servingGram === 'number' && (
         <Row label="Khối lượng" value={`${fmt(servingGram, 0)} g`} />
       )}
-
       <Row label="Calo" value={`${fmt(nutrition?.kcal, 0)} kcal`} />
-
-      <View style={{ marginTop: 4 }}>
+      <V style={{ marginTop: 4 }}>
         <Row label="Protein" value={`${fmt(nutrition?.proteinG)} g`} />
         <Row label="Carbs" value={`${fmt(nutrition?.carbG)} g`} />
         <Row label="Fat" value={`${fmt(nutrition?.fatG)} g`} />
         <Row label="Chất xơ" value={`${fmt(nutrition?.fiberG)} g`} />
         <Row label="Natri" value={`${fmt(nutrition?.sodiumMg, 0)} mg`} />
         <Row label="Đường" value={`${fmt(nutrition?.sugarMg, 0)} mg`} />
-      </View>
+      </V>
 
       {!!ingredients?.length && (
         <>
-          <Text style={[styles.blockLabel, { marginTop: 12 }]}>
-            Nguyên liệu
-          </Text>
-          <View style={[styles.summaryBar, { marginTop: 4 }]}>
+          <Text
+            text="Nguyên liệu"
+            weight="semibold"
+            style={{ marginTop: 12 }}
+          />
+          <V row wrap gap={8} center style={{ marginTop: 4 }}>
             {ingredients.map((ing, idx) => (
-              <View key={`${ing}-${idx}`} style={styles.scanChipBox}>
-                <Text style={styles.scanChipText}>{ing}</Text>
-              </View>
+              <V key={`${ing}-${idx}`} style={styles.scanChipBox}>
+                <Text text={ing} weight="semibold" />
+              </V>
             ))}
-          </View>
+          </V>
         </>
       )}
 
       {typeof confidence === 'number' && (
-        <Text style={{ marginTop: 10, color: '#64748b', textAlign: 'center' }}>
-          Mức tự tin: {Math.round(confidence * 100)}%
-        </Text>
+        <Text
+          text={`Mức tự tin: ${Math.round(confidence * 100)}%`}
+          tone="muted"
+          align="center"
+          style={{ marginTop: 10 }}
+        />
       )}
-    </View>
+    </V>
   );
 }
 
+/* =================== main screen =================== */
 export default function Track() {
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<any>>(null);
-
-  const [openKey, setOpenKey] = useState<string | null>(null);
   const keyboardH = useKeyboardHeight();
-
-  // ==== Date pickers ====
+  const [warnAlert, setWarnAlert] = useState<string | null>(null);
+  // Date pickers
   const [date, setDate] = useState(new Date());
   const [openDateSheet, setOpenDateSheet] = useState(false);
-
   const [tab, setTab] = useState<TabKey>('manual');
   const onChangeTab = (k: TabKey) => {
     setTab(k);
-    setOpenKey(null);
     setOpenDateSheet(false);
     requestAnimationFrame(() =>
       listRef.current?.scrollToOffset({ offset: 0, animated: false }),
     );
   };
 
-  // ====== Scan AI state (REWRITTEN) ======
-  const [selectedImageUri, setSelectedImageUri] = useState<string | undefined>(
-    undefined,
-  );
+  // Scan AI state
+  const [selectedImageUri, setSelectedImageUri] = useState<
+    string | undefined
+  >();
   const [isScanning, setIsScanning] = useState(false);
   const [showScanResult, setShowScanResult] = useState(false);
   const [scanResult, setScanResult] = useState<FoodAnalyzeResponse | null>(
@@ -249,8 +471,16 @@ export default function Track() {
   );
   const [scanError, setScanError] = useState<string | null>(null);
   const scanControllerRef = useRef<AbortController | null>(null);
-
   const [scanChoiceOpen, setScanChoiceOpen] = useState(false);
+
+  // Toast + Confirm
+  const [toast, setToast] = useState<{ msg: string; tone: NoticeTone } | null>(
+    null,
+  );
+  const notify = (msg: string, tone: NoticeTone = 'default') =>
+    setToast({ msg, tone });
+
+  const [confirm, setConfirm] = useState<{ id?: string } | null>(null);
 
   const beginScan = useCallback(
     async (asset: { uri: string; type?: string; fileName?: string }) => {
@@ -258,16 +488,15 @@ export default function Track() {
       const ac = new AbortController();
       scanControllerRef.current = ac;
 
-      // ✅ Giảm kích thước ảnh trước khi gửi (tránh lỗi 413: ảnh >1MB)
       try {
         const ImageResizer = (await import('react-native-image-resizer'))
           .default;
         const resized = await ImageResizer.createResizedImage(
           asset.uri,
-          1024, // chiều rộng tối đa
-          1024, // chiều cao tối đa
-          'JPEG', // định dạng
-          80, // chất lượng (0–100)
+          1024,
+          1024,
+          'JPEG',
+          80,
           0,
         );
         asset = {
@@ -275,8 +504,8 @@ export default function Track() {
           type: 'image/jpeg',
           fileName: resized.name || 'compressed.jpg',
         };
-      } catch (err) {
-        console.warn('⚠️ Không thể resize ảnh, dùng ảnh gốc:', err);
+      } catch {
+        // fallback dùng ảnh gốc
       }
 
       setIsScanning(true);
@@ -347,13 +576,9 @@ export default function Track() {
     } catch {}
   };
 
-  useEffect(() => {
-    return () => {
-      scanControllerRef.current?.abort?.();
-    };
-  }, []);
+  useEffect(() => () => scanControllerRef.current?.abort?.(), []);
 
-  // ===== Manual =====
+  // Manual
   const mealNameInputRef = useRef<TextInput>(null);
   const [selectedFoodId, setSelectedFoodId] = useState<string | null>(null);
   const [mealName, setMealName] = useState<string>('');
@@ -368,18 +593,19 @@ export default function Track() {
   const [baseSodium, setBaseSodium] = useState<number>(0);
   const [baseSugar, setBaseSugar] = useState<number>(0);
 
-  // lock = selected from food list
+  // lock
   const [macrosLocked, setMacrosLocked] = useState<boolean>(false);
 
-  // Qty/Unit for meal (serving)
+  // Qty/Unit
   const [qtyManual, setQtyManual] = useState<string>('1');
   const [unitManual, setUnitManual] = useState<string>('phần');
 
-  // NEW: meal type for Manual + dropdown open state
+  // Meal type
   const [mealTypeManual, setMealTypeManual] = useState<MealSlot>('BREAKFAST');
   const [openMealDropdown, setOpenMealDropdown] = useState(false);
   const [submittingAdd, setSubmittingAdd] = useState(false);
   const [submittingUpdate, setSubmittingUpdate] = useState(false);
+
   // Autocomplete Food
   const [autoLoading, setAutoLoading] = useState<boolean>(false);
   const [acLoadingMore, setAcLoadingMore] = useState<boolean>(false);
@@ -387,9 +613,9 @@ export default function Track() {
   const [acHasMore, setAcHasMore] = useState<boolean>(true);
   const [autoItems, setAutoItems] = useState<FoodResponse[]>([]);
   const acRef = useRef<AbortController | null>(null);
-  const skipAcRef = useRef<boolean>(false); // prevent re-trigger
+  const skipAcRef = useRef<boolean>(false);
 
-  // Ingredients (dùng trực tiếp IngredientResponse + qty text)
+  // Ingredients
   const [ingredients, setIngredients] = useState<
     (IngredientResponse & { qty: string })[]
   >([]);
@@ -398,14 +624,14 @@ export default function Track() {
   const [ingLoading, setIngLoading] = useState(false);
   const [ingResults, setIngResults] = useState<IngredientResponse[]>([]);
 
-  // ===== Số khẩu phần đã ăn (hệ số nhân) =====
+  // Khẩu phần đã ăn
   const [consumedServings, setConsumedServings] = useState<string>('1');
   const consumedNum = useMemo(() => {
     const n = Number(consumedServings);
     return Number.isFinite(n) && n > 0 ? n : 1;
   }, [consumedServings]);
 
-  // ===== Food autocomplete effect =====
+  // Food autocomplete effect
   useEffect(() => {
     if (skipAcRef.current) {
       skipAcRef.current = false;
@@ -413,24 +639,19 @@ export default function Track() {
       setAutoLoading(false);
       return;
     }
-
     const q = mealName ?? '';
     setAcPage(1);
     setAcHasMore(true);
-
-    // guard: rỗng/toàn space => không gọi API, clear UI
     if (isBlank(q)) {
       acRef.current?.abort?.();
       setAutoItems([]);
       setAutoLoading(false);
       return;
     }
-
     setAutoLoading(true);
     acRef.current?.abort?.();
     const ac = new AbortController();
     acRef.current = ac;
-
     const t = setTimeout(async () => {
       try {
         const data = await autocompleteFoods(q.trim(), AC_PAGE_SIZE, ac.signal);
@@ -446,7 +667,6 @@ export default function Track() {
         setAutoLoading(false);
       }
     }, 220);
-
     return () => {
       clearTimeout(t);
       ac.abort();
@@ -456,8 +676,7 @@ export default function Track() {
   const loadMoreAuto = useCallback(async () => {
     if (autoLoading || acLoadingMore || !acHasMore) return;
     const q = mealName ?? '';
-    if (isBlank(q)) return; // guard
-
+    if (isBlank(q)) return;
     try {
       setAcLoadingMore(true);
       const nextPage = acPage + 1;
@@ -481,16 +700,12 @@ export default function Track() {
     f?.imageUrl ||
     'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=300&q=80';
 
-  // When user selects a food from list (single tap)
   const onSelectFood = useCallback((item: FoodResponse) => {
     skipAcRef.current = true;
-
     setMealName(item.name);
     setSelectedFoodId(String(item.id));
     setAutoItems([]);
     setAutoLoading(false);
-
-    // base per serving
     const n = item.nutrition as any;
     setBaseKcal(safeNum(n?.kcal));
     setBaseP(safeNum(n?.proteinG));
@@ -499,20 +714,16 @@ export default function Track() {
     setBaseFiber(safeNum(n?.fiberG));
     setBaseSodium(safeNum(n?.sodiumMg));
     setBaseSugar(safeNum(n?.sugarMg));
-
-    // lock editing & set qty/unit
     setQtyManual(
       item.defaultServing != null ? String(item.defaultServing) : '1',
     );
     setUnitManual((item.servingName as string) || 'phần');
     setMacrosLocked(true);
-
-    // blur input & close keyboard
     mealNameInputRef.current?.blur();
     Keyboard.dismiss();
   }, []);
 
-  /** ======= HISTORY (API) giữ nguyên ======= */
+  /* ======= HISTORY ======= */
   const [logs, setLogs] = useState<LogResponse[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -530,10 +741,8 @@ export default function Track() {
       try {
         setHistoryLoading(true);
         setHistoryError(null);
-
         const ymd = toYMDLocal(theDate);
         const slots: MealSlot[] = ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK'];
-
         const results = await Promise.all(
           slots.map(slot =>
             getLogs(ymd, slot, signal)
@@ -541,7 +750,6 @@ export default function Track() {
               .catch(() => []),
           ),
         );
-
         setLogs(results.flat());
       } catch (e: any) {
         setHistoryError(e?.message ?? 'Không thể tải lịch sử');
@@ -553,28 +761,10 @@ export default function Track() {
     [],
   );
 
-  const onDeleteLog = useCallback(
-    (logId?: string) => {
-      if (!logId) return;
-      Alert.alert('Xác nhận', 'Bạn muốn xoá mục này?', [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Xóa',
-          style: 'destructive',
-          onPress: async () => {
-            const ac = new AbortController();
-            setLogs(prev => prev.filter(x => x.id !== logId));
-            try {
-              await deletePlanLogById(logId, ac.signal);
-            } catch {
-              await loadHistory(date);
-            }
-          },
-        },
-      ]);
-    },
-    [date, loadHistory],
-  );
+  const onDeleteLog = useCallback((logId?: string) => {
+    if (!logId) return;
+    setConfirm({ id: logId });
+  }, []);
 
   const toUIIngredient = (x: any): IngredientResponse & { qty: string } => {
     const src = x?.ingredient ?? x ?? {};
@@ -592,7 +782,6 @@ export default function Track() {
         sugarMg: 0,
       },
       imageUrl: src.imageUrl ?? undefined,
-
       aliases: Array.isArray(src.aliases) ? src.aliases : [],
       servingName: src.servingName ?? '',
       servingSizeGram: Number(src.servingSizeGram) || 0,
@@ -600,35 +789,27 @@ export default function Track() {
       qty: String(x.quantity ?? 100),
     };
   };
-  // Điền dữ liệu Manual từ 1 log (HISTORY -> MANUAL)
+
   const fillManualFromLog = useCallback(
     (m: LogResponse) => {
       skipAcRef.current = true;
-      // Đổi tab & dọn trạng thái phụ
       setEditingLogId(m.id ?? null);
       setTab('manual');
-      setOpenKey(null);
       setOpenDateSheet(false);
       cancelAutocomplete();
       mealNameInputRef.current?.blur();
 
-      // Loại bữa
       const slot = (m?.mealSlot as MealSlot) || 'SNACK';
       setMealTypeManual(slot);
-
-      // Số khẩu phần đã ăn (phần nhân)
       const portion = Number(m?.portion);
       setConsumedServings(
         Number.isFinite(portion) && portion > 0 ? String(portion) : '1',
       );
 
-      // Nếu là món trong DB (có m.food) -> khóa macro, base = per serving của DB
       if (m?.food) {
         setMacrosLocked(true);
         setSelectedFoodId(String(m.food.id));
         setMealName(m.food.name || '');
-
-        // per serving (đúng theo cách bạn tính hiện tại)
         const n = m.food.nutrition as any;
         setBaseKcal(safeNum(n?.kcal));
         setBaseP(safeNum(n?.proteinG));
@@ -637,23 +818,15 @@ export default function Track() {
         setBaseFiber(safeNum(n?.fiberG));
         setBaseSodium(safeNum(n?.sodiumMg));
         setBaseSugar(safeNum(n?.sugarMg));
-
-        // Số lượng “cơ sở” của món (không nhân): dùng defaultServing nếu có, else 1
         setQtyManual(
           m.food.defaultServing != null ? String(m.food.defaultServing) : '1',
         );
         setUnitManual(m.food.servingName || 'phần');
-
-        // Log có thể không có nguyên liệu kèm
-        const ingList = (m.ingredients || []).map(toUIIngredient);
-        setIngredients(ingList);
+        setIngredients((m.ingredients || []).map(toUIIngredient));
       } else {
-        // Món tự nhập (không có food)
         setMacrosLocked(false);
         setSelectedFoodId(null);
         setMealName(m?.nameFood || '');
-
-        // Base = 0, người dùng chỉ định nghĩa qua ingredient
         setBaseKcal(0);
         setBaseP(0);
         setBaseC(0);
@@ -661,37 +834,12 @@ export default function Track() {
         setBaseFiber(0);
         setBaseSodium(0);
         setBaseSugar(0);
-
-        // Với món tự nhập, qtyManual & unitManual không quan trọng -> reset về mặc định
         setQtyManual('1');
         setUnitManual('phần');
-
-        // Map nguyên liệu từ log -> state Ingredient của bạn
-        const ingList = (m.ingredients || []).map(toUIIngredient);
-        setIngredients(ingList);
+        setIngredients((m.ingredients || []).map(toUIIngredient));
       }
     },
-    [
-      cancelAutocomplete,
-      setTab,
-      setOpenKey,
-      setOpenDateSheet,
-      setMealTypeManual,
-      setConsumedServings,
-      setMacrosLocked,
-      setSelectedFoodId,
-      setMealName,
-      setBaseKcal,
-      setBaseP,
-      setBaseC,
-      setBaseF,
-      setBaseFiber,
-      setBaseSodium,
-      setBaseSugar,
-      setQtyManual,
-      setUnitManual,
-      setIngredients,
-    ],
+    [cancelAutocomplete],
   );
 
   const onRefresh = useCallback(async () => {
@@ -739,8 +887,7 @@ export default function Track() {
     return g;
   }, [logs]);
 
-  // ======== Nutrition totals ========
-  // 1) Tổng từ món ăn (nếu đã chọn)
+  // ===== Totals =====
   const qtyNum = useMemo(() => {
     const n = Number(qtyManual);
     return Number.isFinite(n) && n > 0 ? n : 1;
@@ -779,7 +926,6 @@ export default function Track() {
     qtyNum,
   ]);
 
-  // 2) Tổng từ các nguyên liệu (per100 * qty/100)
   const ingredientsTotal = useMemo(() => {
     const sum = {
       kcal: 0,
@@ -804,9 +950,8 @@ export default function Track() {
     return sum;
   }, [ingredients]);
 
-  // 3) Tổng món (Food + Ingredients) trước khi nhân khẩu phần đã ăn
-  const totalNutrition = useMemo(() => {
-    return {
+  const totalNutrition = useMemo(
+    () => ({
       kcal: foodTotal.kcal + ingredientsTotal.kcal,
       proteinG: foodTotal.proteinG + ingredientsTotal.proteinG,
       carbG: foodTotal.carbG + ingredientsTotal.carbG,
@@ -814,12 +959,12 @@ export default function Track() {
       fiberG: foodTotal.fiberG + ingredientsTotal.fiberG,
       sodiumMg: foodTotal.sodiumMg + ingredientsTotal.sodiumMg,
       sugarMg: foodTotal.sugarMg + ingredientsTotal.sugarMg,
-    };
-  }, [foodTotal, ingredientsTotal]);
+    }),
+    [foodTotal, ingredientsTotal],
+  );
 
-  // 4) Tổng ĐÃ ĂN = tổng món * số khẩu phần đã ăn (0.5, 1, 2, ...)
-  const eatenNutrition = useMemo(() => {
-    return {
+  const eatenNutrition = useMemo(
+    () => ({
       kcal: totalNutrition.kcal * consumedNum,
       proteinG: totalNutrition.proteinG * consumedNum,
       carbG: totalNutrition.carbG * consumedNum,
@@ -827,28 +972,32 @@ export default function Track() {
       fiberG: totalNutrition.fiberG * consumedNum,
       sodiumMg: totalNutrition.sodiumMg * consumedNum,
       sugarMg: totalNutrition.sugarMg * consumedNum,
-    };
-  }, [totalNutrition, consumedNum]);
+    }),
+    [totalNutrition, consumedNum],
+  );
 
-  // ===== Load search results for Ingredient sheet =====
+  const canSubmitAdd = useMemo(
+    () => Math.round(eatenNutrition.kcal) > 0,
+    [eatenNutrition.kcal],
+  );
+
+  const isAddDisabled = submittingAdd || !canSubmitAdd;
+
+  // Ingredient sheet search
   useEffect(() => {
     if (!openIngSheet) return;
     const q = ingQuery ?? '';
-
-    // guard: rỗng/toàn space => clear & không gọi API
     if (isBlank(q)) {
       setIngResults([]);
       setIngLoading(false);
       return;
     }
-
     const ac = new AbortController();
     setIngLoading(true);
     const t = setTimeout(async () => {
       try {
         const list = await autocompleteIngredients(q.trim(), 20, ac.signal);
         setIngResults(Array.isArray(list) ? list : []);
-      } catch {
       } finally {
         setIngLoading(false);
       }
@@ -858,6 +1007,28 @@ export default function Track() {
       ac.abort();
     };
   }, [openIngSheet, ingQuery]);
+
+  /* ===== Handlers: Save/Update with modern toast ===== */
+  const resetManualForm = useCallback(() => {
+    setEditingLogId(null);
+    setSelectedFoodId(null);
+    setMealName('');
+    setMacrosLocked(false);
+    setBaseKcal(0);
+    setBaseP(0);
+    setBaseC(0);
+    setBaseF(0);
+    setBaseFiber(0);
+    setBaseSodium(0);
+    setBaseSugar(0);
+    setQtyManual('1');
+    setUnitManual('phần');
+    setMealTypeManual('BREAKFAST');
+    setIngredients([]);
+    setConsumedServings('1');
+    setOpenMealDropdown(false);
+    cancelAutocomplete();
+  }, [cancelAutocomplete]);
 
   const handleAddMeal = useCallback(async () => {
     try {
@@ -888,64 +1059,47 @@ export default function Track() {
       const slotLabel: Record<string, string> = {
         BREAKFAST: 'Sáng',
         LUNCH: 'Trưa',
-        DINNER: 'Chiều tối',
+        DINNER: 'Chiều',
         SNACK: 'Phụ',
       };
       const slotName = slotLabel[warn.mealSlot] ?? warn.mealSlot;
       const d = Math.round(Math.abs(warn.diff));
 
-      // Tùy status mà hiển thị message khác nhau
+      // Luôn dùng AlertSheet, không dùng notify nữa
+      let msg = '';
       if (warn.status === 'OVER') {
-        Alert.alert(
-          'Đã lưu bữa ăn',
-          `⚠️ Bạn đã vượt mục tiêu kcal cho bữa ${slotName} khoảng ${d} kcal.\n` +
-            `Mục tiêu: ${Math.round(
-              warn.targetKcal,
-            )} kcal · Thực tế: ${Math.round(warn.actualKcal)} kcal`,
-        );
+        msg =
+          `Đã lưu bữa ${slotName}.\n` +
+          `Bạn vượt mục tiêu ~${d} kcal.\n` +
+          `Mục tiêu ${Math.round(warn.targetKcal)} · Thực tế ${Math.round(
+            warn.actualKcal,
+          )} kcal.` +
+          `\n\nHệ thống đã tinh chỉnh các bữa còn lại trong ngày. ` +
+          `\nBạn hãy cố gắng tuân theo kế hoạch đã điều chỉnh để đảm bảo mục tiêu hôm nay nhé.`;
       } else if (warn.status === 'UNDER') {
-        Alert.alert(
-          'Đã lưu bữa ăn',
-          `ℹ️ Bạn còn thiếu khoảng ${d} kcal so với mục tiêu bữa ${slotName}.\n` +
-            `Mục tiêu: ${Math.round(
-              warn.targetKcal,
-            )} kcal · Thực tế: ${Math.round(warn.actualKcal)} kcal`,
-        );
+        msg =
+          `Đã lưu bữa ${slotName}.\n` +
+          `Bạn còn thiếu ~${d} kcal.\n` +
+          `Mục tiêu ${Math.round(warn.targetKcal)} · Thực tế ${Math.round(
+            warn.actualKcal,
+          )} kcal.` +
+          `\n\nHệ thống đã tinh chỉnh các bữa còn lại trong ngày. ` +
+          `\nBạn hãy cố gắng tuân theo kế hoạch đã điều chỉnh để đảm bảo mục tiêu hôm nay nhé.`;
       } else {
-        Alert.alert(
-          'Thành công',
-          `✅ Bạn đang bám sát mục tiêu kcal cho bữa ${slotName}.\n` +
-            `Mục tiêu: ${Math.round(
-              warn.targetKcal,
-            )} kcal · Thực tế: ${Math.round(warn.actualKcal)} kcal`,
-        );
+        msg =
+          `Đã lưu bữa ${slotName}.\n` +
+          `Bạn đang bám sát mục tiêu!\n` +
+          `${Math.round(warn.actualKcal)} / ${Math.round(
+            warn.targetKcal,
+          )} kcal.` +
+          `\nTiếp tục tuân theo kế hoạch hiện tại để duy trì nhịp độ nhé.`;
       }
-
-      // (giữ nguyên) reset form + reload lịch sử nếu cần
-      setEditingLogId(null);
-      setSelectedFoodId(null);
-      setMealName('');
-      setMacrosLocked(false);
-      setBaseKcal(0);
-      setBaseP(0);
-      setBaseC(0);
-      setBaseF(0);
-      setBaseFiber(0);
-      setBaseSodium(0);
-      setBaseSugar(0);
-      setQtyManual('1');
-      setUnitManual('phần');
-      setMealTypeManual('BREAKFAST');
-      setIngredients([]);
-      setConsumedServings('1');
-      setOpenMealDropdown(false);
-      cancelAutocomplete();
-      setOpenKey(null);
-      if (tab === 'history') {
-        await loadHistory(date);
-      }
+      setWarnAlert(msg);
+      setTab('history');
+      resetManualForm();
+      await loadHistory(date);
     } catch (err: any) {
-      Alert.alert('Lỗi', err?.message || 'Không thể lưu bữa ăn');
+      notify(err?.message || 'Không thể lưu bữa ăn', 'danger');
     } finally {
       setSubmittingAdd(false);
     }
@@ -960,7 +1114,7 @@ export default function Track() {
     ingredients,
     tab,
     loadHistory,
-    cancelAutocomplete,
+    resetManualForm,
   ]);
 
   const handleUpdateMeal = useCallback(async () => {
@@ -968,7 +1122,6 @@ export default function Track() {
     try {
       setSubmittingUpdate(true);
 
-      // payload KHÔNG có 'date' theo PlanLogUpdateRequest
       const payload: PlanLogUpdateRequest = {
         mealSlot: mealTypeManual,
         foodId: macrosLocked ? selectedFoodId : null,
@@ -990,37 +1143,58 @@ export default function Track() {
       };
 
       const ac = new AbortController();
-      console.log('Updating log', payload);
-      await updatePlanLog(editingLogId, payload, ac.signal);
+      // ⬇️ API giờ trả về KcalWarningResponse
+      const warn: KcalWarningResponse = await updatePlanLog(
+        editingLogId,
+        payload,
+        ac.signal,
+      );
 
-      Alert.alert('Thành công', 'Cập nhật bữa ăn thành công');
+      const slotLabel: Record<string, string> = {
+        BREAKFAST: 'Sáng',
+        LUNCH: 'Trưa',
+        DINNER: 'Chiều',
+        SNACK: 'Phụ',
+      };
+      const slotName = slotLabel[warn.mealSlot] ?? warn.mealSlot;
+      const d = Math.round(Math.abs(warn.diff));
 
-      // reset trạng thái như khi thêm xong
+      // ⬇️ Hiển thị giống phần thêm bữa
+      let msg = '';
+      if (warn.status === 'OVER') {
+        msg =
+          `Đã cập nhật bữa ${slotName}.\n` +
+          `Bạn vượt mục tiêu ~${d} kcal.\n` +
+          `Mục tiêu ${Math.round(warn.targetKcal)} · Thực tế ${Math.round(
+            warn.actualKcal,
+          )} kcal.` +
+          `\n\nHệ thống đã tinh chỉnh các bữa còn lại trong ngày. ` +
+          `\nBạn hãy cố gắng tuân theo kế hoạch đã điều chỉnh để đảm bảo mục tiêu hôm nay nhé.`;
+      } else if (warn.status === 'UNDER') {
+        msg =
+          `Đã cập nhật bữa ${slotName}.\n` +
+          `Bạn còn thiếu ~${d} kcal.\n` +
+          `Mục tiêu ${Math.round(warn.targetKcal)} · Thực tế ${Math.round(
+            warn.actualKcal,
+          )} kcal.` +
+          `\n\nHệ thống đã tinh chỉnh các bữa còn lại trong ngày. ` +
+          `\nBạn hãy cố gắng tuân theo kế hoạch đã điều chỉnh để đảm bảo mục tiêu hôm nay nhé.`;
+      } else {
+        msg =
+          `Đã cập nhật bữa ${slotName}.\n` +
+          `Bạn đang bám sát mục tiêu!\n` +
+          `${Math.round(warn.actualKcal)} / ${Math.round(
+            warn.targetKcal,
+          )} kcal.` +
+          `\nTiếp tục tuân theo kế hoạch hiện tại để duy trì nhịp độ nhé.`;
+      }
+      setWarnAlert(msg);
+
       setTab('history');
-      setEditingLogId(null);
-      setSelectedFoodId(null);
-      setMealName('');
-      setMacrosLocked(false);
-      setBaseKcal(0);
-      setBaseP(0);
-      setBaseC(0);
-      setBaseF(0);
-      setBaseFiber(0);
-      setBaseSodium(0);
-      setBaseSugar(0);
-      setQtyManual('1');
-      setUnitManual('phần');
-      setMealTypeManual('BREAKFAST');
-      setIngredients([]);
-      setConsumedServings('1');
-      setOpenMealDropdown(false);
-      cancelAutocomplete();
-      setOpenKey(null);
-
-      // reload lịch sử (nếu đang ở tab lịch sử) hoặc theo ngày đang chọn
+      resetManualForm();
       await loadHistory(date);
     } catch (e: any) {
-      Alert.alert('Lỗi', e?.message || 'Không thể cập nhật bữa ăn');
+      notify(e?.message || 'Không thể cập nhật bữa ăn', 'danger');
     } finally {
       setSubmittingUpdate(false);
     }
@@ -1035,9 +1209,8 @@ export default function Track() {
     ingredients,
     loadHistory,
     date,
-    cancelAutocomplete,
+    resetManualForm,
   ]);
-
   /* ===== UI ===== */
   return (
     <KeyboardAvoidingView
@@ -1048,28 +1221,27 @@ export default function Track() {
       <Container>
         {/* Header */}
         <AppHeader />
-        <View style={[s.line, styles.fullBleed]} />
+        <RNView style={[s.line, styles.fullBleed]} />
 
         {/* Date line */}
-        <View style={[styles.calendarWrap, styles.fullBleed]}>
+        <V alignItems="center" style={[styles.calendarWrap, styles.fullBleed]}>
           <DateButton
             date={date}
             onPress={() => {
-              setOpenKey(null);
               setOpenDateSheet(true);
             }}
             formatter={fmtVNFull}
           />
-        </View>
+        </V>
 
         <FlatList
           ref={listRef}
           data={[0]}
           keyExtractor={() => 'screen'}
           renderItem={() => (
-            <View style={[styles.inner, styles.fullBleed]}>
+            <V style={[styles.inner, styles.fullBleed]}>
               {/* Tabs */}
-              <View style={styles.tabs}>
+              <V row gap={8} style={styles.tabs}>
                 <Tab
                   label="Scan AI"
                   active={tab === 'scan'}
@@ -1081,25 +1253,33 @@ export default function Track() {
                   onPress={() => onChangeTab('manual')}
                 />
                 <Tab
-                  label="Xem lịch sử"
+                  label="Xem lịch sử "
                   active={tab === 'history'}
                   onPress={() => onChangeTab('history')}
                 />
-              </View>
+              </V>
 
-              {/* ========== SCAN (REPLACED) ========== */}
+              {/* ========== SCAN ========== */}
               {tab === 'scan' && (
-                <View style={styles.card}>
-                  <Text style={styles.sectionTitle}>NHẬP BỮA ĂN BẰNG AI</Text>
-                  <Text style={styles.sectionSub}>
-                    Chụp ảnh hoặc chọn ảnh món ăn để phân tích nhanh.
-                  </Text>
+                <V variant="card" style={styles.card}>
+                  <Text
+                    text="NHẬP BỮA ĂN BẰNG AI"
+                    variant="h3"
+                    align="center"
+                  />
+                  <Text
+                    text="Chụp ảnh hoặc chọn ảnh món ăn để phân tích nhanh."
+                    tone="muted"
+                    variant="caption"
+                    align="center"
+                    style={{ marginTop: 4, marginBottom: 8 }}
+                  />
 
                   <Image
                     source={{
-                      uri: selectedImageUri
-                        ? selectedImageUri
-                        : 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/98fb941f-eb1e-49d6-9c4c-7235d38840a5.png',
+                      uri:
+                        selectedImageUri ||
+                        'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/98fb941f-eb1e-49d6-9c4c-7235d38840a5.png',
                     }}
                     style={styles.scanImage}
                   />
@@ -1112,51 +1292,58 @@ export default function Track() {
                     {isScanning ? (
                       <ActivityIndicator />
                     ) : (
-                      <Text style={styles.actionText}>Quét Scan</Text>
+                      <Text text="Quét Scan" weight="bold" color="#0b2149" />
                     )}
                   </Pressable>
 
                   {isScanning && (
-                    <View style={styles.scanningBox}>
+                    <V alignItems="center" style={styles.scanningBox}>
                       <ActivityIndicator />
-                      <Text style={{ marginTop: 6, color: '#6b7280' }}>
-                        Đang phân tích hình ảnh...
-                      </Text>
-                    </View>
+                      <Text
+                        text="Đang phân tích hình ảnh..."
+                        tone="muted"
+                        style={{ marginTop: 6 }}
+                      />
+                    </V>
                   )}
 
                   {scanError && !isScanning && (
-                    <View style={{ marginTop: 10 }}>
-                      <Text style={{ color: '#b91c1c', textAlign: 'center' }}>
-                        {scanError}
-                      </Text>
-                    </View>
+                    <V style={{ marginTop: 10 }}>
+                      <Text text={scanError} color="#b91c1c" align="center" />
+                    </V>
                   )}
 
                   {showScanResult && !isScanning && scanResult && (
                     <ScanAIResult {...scanResult} />
                   )}
-                </View>
+                </V>
               )}
 
               {/* ========== MANUAL ========== */}
               {tab === 'manual' && (
-                <View style={styles.card}>
-                  <Text style={styles.sectionTitle}>NHẬP BỮA ĂN THỦ CÔNG</Text>
-                  <Text style={styles.sectionSub}>
-                    Chọn nhanh từ danh sách hoặc thêm nguyên liệu riêng.
-                  </Text>
+                <V variant="card" style={styles.card}>
+                  <Text
+                    text="NHẬP BỮA ĂN THỦ CÔNG"
+                    variant="h3"
+                    align="center"
+                  />
+                  <Text
+                    text="Chọn nhanh từ danh sách hoặc thêm nguyên liệu riêng."
+                    tone="muted"
+                    variant="caption"
+                    align="center"
+                    style={{ marginTop: 4, marginBottom: 8 }}
+                  />
 
-                  {/* Name + Autocomplete Food */}
-                  <View style={{ position: 'relative' }}>
+                  {/* Name + Autocomplete */}
+                  <RNView style={{ position: 'relative' }}>
                     <TextInput
                       ref={mealNameInputRef}
-                      placeholder="Nhập tên bữa ăn (tùy chọn)"
+                      placeholder="Nhập tên bữa ăn"
                       style={styles.input}
                       placeholderTextColor={PLACEHOLDER_COLOR}
-                      selectionColor={C.primary}
+                      selectionColor={colors.primary}
                       value={mealName}
-                      onFocus={() => setOpenKey(null)}
                       onChangeText={(t: string) => {
                         setMealName(t);
                         if (isBlank(t)) {
@@ -1169,12 +1356,11 @@ export default function Track() {
                         }
                       }}
                       onBlur={cancelAutocomplete}
-                      editable={true}
                     />
 
                     {(autoLoading ||
                       (!isBlank(mealName) && autoItems.length > 0)) && (
-                      <View
+                      <V
                         style={[
                           styles.dropdownPanel,
                           {
@@ -1186,11 +1372,9 @@ export default function Track() {
                         ]}
                       >
                         {autoLoading && autoItems.length === 0 ? (
-                          <View
-                            style={{ paddingVertical: 8, alignItems: 'center' }}
-                          >
+                          <V alignItems="center" style={{ paddingVertical: 8 }}>
                             <ActivityIndicator />
-                          </View>
+                          </V>
                         ) : (
                           <FlatList
                             keyboardShouldPersistTaps="always"
@@ -1206,62 +1390,75 @@ export default function Track() {
                                   source={{ uri: getThumb(item) }}
                                   style={styles.acThumb}
                                 />
-                                <Text numberOfLines={1} style={styles.acName}>
-                                  {item.name}
-                                </Text>
+                                <Text
+                                  text={item.name}
+                                  weight="semibold"
+                                  style={styles.acName as any}
+                                />
                               </Pressable>
                             )}
                             ItemSeparatorComponent={() => (
-                              <View style={styles.acSep} />
+                              <RNView style={styles.acSep} />
                             )}
                             onEndReachedThreshold={0.3}
                             onEndReached={loadMoreAuto}
                             ListFooterComponent={
                               acHasMore ? (
-                                <View
-                                  style={{
-                                    paddingVertical: 8,
-                                    alignItems: 'center',
-                                  }}
+                                <V
+                                  alignItems="center"
+                                  style={{ paddingVertical: 8 }}
                                 >
                                   {acLoadingMore ? (
                                     <ActivityIndicator />
                                   ) : (
-                                    <Text style={{ color: '#64748b' }}>
-                                      Kéo để tải thêm…
-                                    </Text>
+                                    <Text
+                                      text="Kéo để tải thêm…"
+                                      tone="muted"
+                                    />
                                   )}
-                                </View>
+                                </V>
                               ) : null
                             }
                           />
                         )}
-                      </View>
+                      </V>
                     )}
-                  </View>
+                  </RNView>
 
-                  {/* ===== NEW: Combobox chọn bữa (Manual) ===== */}
-                  <View style={{ marginTop: 6 }}>
-                    <Text style={styles.blockLabel}>Loại bữa</Text>
-                    <View style={{ position: 'relative' }}>
+                  {/* Combobox chọn bữa */}
+                  <V style={{ marginTop: 6 }}>
+                    <Text
+                      text="Loại bữa"
+                      weight="semibold"
+                      style={styles.blockLabel}
+                    />
+                    <RNView style={{ position: 'relative' }}>
                       <Pressable
                         onPress={() => setOpenMealDropdown(v => !v)}
                         style={[styles.input, { justifyContent: 'center' }]}
                       >
-                        <Text style={{ color: INPUT_TEXT_COLOR, fontSize: 16 }}>
-                          {mealTypeManual === 'BREAKFAST'
-                            ? 'Sáng'
-                            : mealTypeManual === 'LUNCH'
-                            ? 'Trưa'
-                            : mealTypeManual === 'DINNER'
-                            ? 'Chiều'
-                            : 'Phụ'}
-                        </Text>
-                        <Text style={styles.dropdownCaret}>▾</Text>
+                        <Text
+                          text={
+                            mealTypeManual === 'BREAKFAST'
+                              ? 'Sáng'
+                              : mealTypeManual === 'LUNCH'
+                              ? 'Trưa'
+                              : mealTypeManual === 'DINNER'
+                              ? 'Chiều'
+                              : 'Phụ'
+                          }
+                          color={INPUT_TEXT_COLOR}
+                          style={{ fontSize: 16 }}
+                        />
+                        <Text
+                          text="▾"
+                          tone="muted"
+                          style={styles.dropdownCaret}
+                        />
                       </Pressable>
 
                       {openMealDropdown && (
-                        <View
+                        <V
                           style={[
                             styles.dropdownPanel,
                             { top: 52, paddingVertical: 4 },
@@ -1289,57 +1486,53 @@ export default function Track() {
                                 ]}
                               >
                                 <Text
-                                  style={{
-                                    fontWeight: active ? '800' : '600',
-                                    color: active ? C.primary : '#0f172a',
-                                  }}
-                                >
-                                  {opt.label}
-                                </Text>
+                                  text={opt.label}
+                                  weight={active ? 'bold' : 'semibold'}
+                                  color={active ? colors.primary : colors.text}
+                                />
                               </Pressable>
                             );
                           })}
-                        </View>
+                        </V>
                       )}
-                    </View>
-                  </View>
+                    </RNView>
+                  </V>
 
-                  {/* ===== Nguyên liệu ===== */}
-                  <View style={{ marginTop: 10 }}>
-                    <Text style={styles.blockLabel}>Nguyên liệu</Text>
-
+                  {/* Nguyên liệu */}
+                  <V style={{ marginTop: 10 }}>
+                    <Text
+                      text="Nguyên liệu"
+                      weight="semibold"
+                      style={styles.blockLabel}
+                    />
                     {ingredients.length === 0 ? (
-                      <Text style={{ color: '#64748b', marginBottom: 8 }}>
-                        Thêm từng nguyên liệu (mặc định 100g/ml) để mô tả món tự
-                        do.
-                      </Text>
+                      <Text
+                        text="Thêm từng nguyên liệu để mô tả món tự do."
+                        tone="muted"
+                        style={{ marginBottom: 8 }}
+                      />
                     ) : (
                       ingredients.map((it, idx) => (
-                        <View
+                        <V
                           key={it.id + idx}
-                          style={[styles.inlineRow, { marginBottom: 6 }]}
+                          row
+                          alignItems="center"
+                          style={{ marginBottom: 6 }}
                         >
                           <Image
                             source={{ uri: getThumb(it) }}
                             style={[styles.acThumb, { marginRight: 8 }]}
                           />
                           <Text
-                            style={{
-                              flex: 1,
-                              fontWeight: '600',
-                              color: '#0f172a',
-                            }}
-                            numberOfLines={1}
-                          >
-                            {it.name}
-                          </Text>
-
-                          {/* số lượng (gram/ml) */}
+                            text={it.name}
+                            weight="semibold"
+                            style={{ flex: 1 }}
+                          />
                           <TextInput
                             style={[
                               styles.input,
                               { width: 80, marginRight: 4 },
-                            ]} // giảm marginRight
+                            ]}
                             keyboardType="numeric"
                             value={it.qty}
                             onChangeText={t =>
@@ -1350,13 +1543,9 @@ export default function Track() {
                               )
                             }
                           />
-
-                          {/* đơn vị cố định từ DB */}
-                          <View style={styles.unitWrap}>
-                            <Text style={styles.unitText}>{it.unit}</Text>
-                          </View>
-
-                          {/* Xóa */}
+                          <V style={styles.unitWrap}>
+                            <Text text={it.unit} weight="semibold" />
+                          </V>
                           <Pressable
                             onPress={() =>
                               setIngredients(prev =>
@@ -1369,9 +1558,13 @@ export default function Track() {
                             ]}
                             hitSlop={10}
                           >
-                            <Text style={styles.delBtnText}>Xóa</Text>
+                            <Text
+                              text="Xóa"
+                              color={colors.onPrimary}
+                              weight="bold"
+                            />
                           </Pressable>
-                        </View>
+                        </V>
                       ))
                     )}
 
@@ -1391,65 +1584,51 @@ export default function Track() {
                         },
                       ]}
                     >
-                      <Text style={{ color: '#0c4a6e', fontWeight: '900' }}>
-                        + Thêm nguyên liệu
-                      </Text>
+                      <Text
+                        text="+ Thêm nguyên liệu"
+                        weight="bold"
+                        color="#0c4a6e"
+                      />
                     </Pressable>
-                  </View>
+                  </V>
 
-                  {/* ===== Số khẩu phần đã ăn (hệ số nhân) ===== */}
-                  <Text style={[styles.blockLabel, { marginTop: 10 }]}>
-                    Bạn đã ăn bao nhiêu?
-                  </Text>
-                  <View style={styles.inlineRow}>
+                  {/* Số khẩu phần đã ăn */}
+                  <Text
+                    text="Bạn đã dùng bao nhiêu?"
+                    weight="semibold"
+                    style={[styles.blockLabel, { marginTop: 10 }]}
+                  />
+                  <V row alignItems="center">
                     <TextInput
                       placeholder="1 (có thể 0.5, 2...)"
                       keyboardType="numeric"
                       style={[styles.input, styles.flex1]}
                       placeholderTextColor={PLACEHOLDER_COLOR}
-                      selectionColor={C.primary}
+                      selectionColor={colors.primary}
                       value={consumedServings}
                       onChangeText={(t: string) => setConsumedServings(t)}
                     />
-                    {macrosLocked ? (
-                      <Text
-                        style={{
-                          color: '#0f172a',
-                          fontSize: 16,
-                          marginLeft: 16,
-                        }}
-                      >
-                        {unitManual || 'phần'}
-                      </Text>
-                    ) : (
-                      <Text
-                        style={{
-                          color: '#0f172a',
-                          fontSize: 16,
-                          marginLeft: 16,
-                        }}
-                      >
-                        khẩu phần đã ăn
-                      </Text>
-                    )}
-                  </View>
+                    <Text
+                      text={macrosLocked ? unitManual || 'phần' : 'khẩu phần'}
+                      color={colors.text}
+                      style={{ fontSize: 16, marginLeft: 16 }}
+                    />
+                  </V>
 
                   {/* Nutrition (READ-ONLY) */}
-                  <Text style={[styles.blockLabel, { marginTop: 10 }]}>
-                    Dinh dưỡng (tính tổng đã ăn)
-                  </Text>
+                  <Text
+                    text="Dinh dưỡng"
+                    weight="semibold"
+                    style={[styles.blockLabel, { marginTop: 10 }]}
+                  />
 
                   {/* Tổng món (chưa nhân) */}
-                  <View style={styles.nutTable}>
+                  <V variant="card" style={styles.nutTable}>
                     <Text
-                      style={{
-                        fontWeight: '800',
-                        marginBottom: 4,
-                        color: '#0f172a',
-                      }}
-                    >
-                      Tổng cho món (chưa nhân khẩu phần đã ăn)
-                    </Text>
+                      text="Tổng cho món (chưa nhân khẩu phần đã ăn)"
+                      weight="bold"
+                      style={{ marginBottom: 4 }}
+                    />
                     <Row
                       label="Calo"
                       value={`${fmtNum(totalNutrition.kcal, 0)} kcal`}
@@ -1478,19 +1657,18 @@ export default function Track() {
                       label="Đường"
                       value={`${fmtNum(totalNutrition.sugarMg, 0)} mg`}
                     />
-                  </View>
+                  </V>
 
                   {/* Tổng ĐÃ ĂN */}
-                  <View style={[styles.nutTable, { marginTop: 6 }]}>
+                  <V variant="card" style={[styles.nutTable, { marginTop: 6 }]}>
                     <Text
-                      style={{
-                        fontWeight: '800',
-                        marginBottom: 4,
-                        color: '#0f172a',
-                      }}
-                    >
-                      Tổng dinh dưỡng bạn đã ăn (x{fmtNum(consumedNum, 2)})
-                    </Text>
+                      text={`Tổng dinh dưỡng bạn đã ăn (x${fmtNum(
+                        consumedNum,
+                        2,
+                      )})`}
+                      weight="bold"
+                      style={{ marginBottom: 4 }}
+                    />
                     <Row
                       label="Calo"
                       value={`${fmtNum(eatenNutrition.kcal, 0)} kcal`}
@@ -1519,29 +1697,40 @@ export default function Track() {
                       label="Đường"
                       value={`${fmtNum(eatenNutrition.sugarMg, 0)} mg`}
                     />
-                  </View>
+                  </V>
 
                   {/* Nút hành động */}
                   {!editingLogId ? (
                     <Pressable
-                      style={[
-                        styles.actionBtn,
-                        { marginTop: 14, opacity: submittingAdd ? 0.7 : 1 },
-                      ]}
-                      onPress={handleAddMeal}
-                      disabled={submittingAdd}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: isAddDisabled }}
+                      onPress={isAddDisabled ? undefined : handleAddMeal}
+                      disabled={isAddDisabled}
+                      android_ripple={
+                        isAddDisabled ? undefined : { borderless: false }
+                      }
                     >
-                      {submittingAdd ? (
-                        <ActivityIndicator />
-                      ) : (
-                        <Text style={styles.actionText}>Thêm bữa ăn</Text>
-                      )}
+                      <RNView
+                        style={[
+                          styles.actionBtn,
+                          isAddDisabled
+                            ? styles.actionBtnDisabled
+                            : styles.actionBtnEnabled,
+                        ]}
+                      >
+                        {submittingAdd ? (
+                          <ActivityIndicator />
+                        ) : (
+                          <Text
+                            text="Thêm bữa ăn"
+                            weight="bold"
+                            color={isAddDisabled ? '#64748b' : '#0b2149'}
+                          />
+                        )}
+                      </RNView>
                     </Pressable>
                   ) : (
-                    <View
-                      style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}
-                    >
-                      {/* Nút Cập nhật */}
+                    <V row gap={10} style={{ marginTop: 14 }}>
                       <Pressable
                         style={[
                           styles.actionBtn,
@@ -1558,11 +1747,9 @@ export default function Track() {
                         {submittingUpdate ? (
                           <ActivityIndicator />
                         ) : (
-                          <Text style={styles.actionText}>Cập nhật</Text>
+                          <Text text="Cập nhật" weight="bold" color="#0b2149" />
                         )}
                       </Pressable>
-
-                      {/* Nút Hủy */}
                       <Pressable
                         style={[
                           styles.actionBtn,
@@ -1572,66 +1759,38 @@ export default function Track() {
                             borderColor: '#e2e8f0',
                           },
                         ]}
-                        onPress={() => {
-                          setEditingLogId(null);
-                          setSelectedFoodId(null);
-                          setMealName('');
-                          setMacrosLocked(false);
-                          setBaseKcal(0);
-                          setBaseP(0);
-                          setBaseC(0);
-                          setBaseF(0);
-                          setBaseFiber(0);
-                          setBaseSodium(0);
-                          setBaseSugar(0);
-                          setQtyManual('1');
-                          setUnitManual('phần');
-                          setMealTypeManual('BREAKFAST');
-                          setIngredients([]);
-                          setConsumedServings('1');
-                          setOpenMealDropdown(false);
-                          cancelAutocomplete();
-                          setOpenKey(null);
-                        }}
+                        onPress={resetManualForm}
                       >
-                        <Text style={{ color: '#0f172a', fontWeight: '900' }}>
-                          Hủy
-                        </Text>
+                        <Text text="Hủy" weight="bold" color={colors.text} />
                       </Pressable>
-                    </View>
+                    </V>
                   )}
-                </View>
+                </V>
               )}
-
               {/* ========== HISTORY ========== */}
               {tab === 'history' && (
-                <View style={{ width: '100%' }}>
-                  <Text style={styles.sectionTitle}>LỊCH SỬ BỮA ĂN</Text>
+                <V style={{ width: '100%' }}>
+                  <Text text="LỊCH SỬ BỮA ĂN" variant="h3" align="center" />
                   {historyLoading ? (
-                    <View style={{ paddingVertical: 16 }}>
+                    <V style={{ paddingVertical: 16 }} alignItems="center">
                       <ActivityIndicator />
                       <Text
-                        style={{
-                          textAlign: 'center',
-                          color: '#64748b',
-                          marginTop: 6,
-                        }}
-                      >
-                        Đang tải...
-                      </Text>
-                    </View>
+                        text="Đang tải..."
+                        tone="muted"
+                        style={{ marginTop: 6 }}
+                      />
+                    </V>
                   ) : historyError ? (
-                    <View style={{ paddingVertical: 16 }}>
-                      <Text style={{ textAlign: 'center', color: '#b91c1c' }}>
-                        {historyError}
-                      </Text>
-                    </View>
+                    <V style={{ paddingVertical: 16 }} alignItems="center">
+                      <Text text={historyError} color="#b91c1c" />
+                    </V>
                   ) : logs.length === 0 ? (
-                    <View style={{ paddingVertical: 16 }}>
-                      <Text style={{ textAlign: 'center', color: '#64748b' }}>
-                        Chưa có lịch sử ăn cho ngày này
-                      </Text>
-                    </View>
+                    <V style={{ paddingVertical: 16 }} alignItems="center">
+                      <Text
+                        text="Chưa có lịch sử ăn cho ngày này"
+                        tone="muted"
+                      />
+                    </V>
                   ) : (
                     (
                       ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK'] as MealSlot[]
@@ -1639,12 +1798,16 @@ export default function Track() {
                       const items = groupedLogs[slot] || [];
                       if (!items.length) return null;
                       return (
-                        <View key={slot} style={{ marginBottom: 16 }}>
-                          <Text style={styles.groupHeader}>
-                            {groupLabel[slot] === 'Chiều'
-                              ? 'Chiều tối'
-                              : groupLabel[slot]}
-                          </Text>
+                        <V key={slot} style={{ marginBottom: 16 }}>
+                          <Text
+                            text={
+                              groupLabel[slot] === 'Chiều'
+                                ? 'Chiều tối'
+                                : groupLabel[slot]
+                            }
+                            weight="bold"
+                            style={styles.groupHeader}
+                          />
                           {items.map((m, i) => {
                             const name = m?.food?.name ?? m.nameFood;
                             const portionText =
@@ -1657,35 +1820,41 @@ export default function Track() {
                             const f = m?.actualNutrition?.fatG;
 
                             return (
-                              <View
+                              <V
                                 key={`${m.id ?? i}`}
+                                variant="card"
                                 style={styles.historyCard}
                               >
-                                <Text style={styles.mealName}>{name}</Text>
+                                <Text text={name} weight="bold" />
                                 <Text
-                                  style={{ color: '#334155', marginBottom: 2 }}
-                                >
-                                  Số lượng: {portionText}
-                                </Text>
+                                  text={`Số lượng: ${portionText}`}
+                                  color="#334155"
+                                  style={{ marginBottom: 2 }}
+                                />
                                 {kcal != null && (
-                                  <Text style={{ marginTop: 2 }}>
-                                    Calo: {Math.round(Number(kcal))} kcal
-                                  </Text>
+                                  <Text
+                                    text={`Calo: ${Math.round(
+                                      Number(kcal),
+                                    )} kcal`}
+                                  />
                                 )}
                                 {(p != null || c != null || f != null) && (
-                                  <Text>
-                                    Protein: {p ?? '-'} g, Carbs: {c ?? '-'} g,
-                                    Fat: {f ?? '-'} g
-                                  </Text>
+                                  <Text
+                                    text={`Protein: ${p ?? '-'} g, Carbs: ${
+                                      c ?? '-'
+                                    } g, Fat: ${f ?? '-'} g`}
+                                  />
                                 )}
-                                <View style={styles.rowBtns}>
+                                <V row gap={8} style={styles.rowBtns}>
                                   <Pressable
                                     style={[styles.badge, styles.badgeEditSoft]}
                                     onPress={() => fillManualFromLog(m)}
                                   >
-                                    <Text style={styles.badgeTextEdit}>
-                                      Sửa
-                                    </Text>
+                                    <Text
+                                      text="Sửa"
+                                      weight="bold"
+                                      color="#0b2149"
+                                    />
                                   </Pressable>
                                   <Pressable
                                     style={[
@@ -1693,26 +1862,35 @@ export default function Track() {
                                       styles.badgeDeleteSoft,
                                     ]}
                                     onPress={() => {
-                                      setOpenKey(null);
                                       onDeleteLog(m.id);
                                     }}
                                   >
-                                    <Text style={styles.badgeTextDelete}>
-                                      Xóa
-                                    </Text>
+                                    <Text
+                                      text="Xóa"
+                                      weight="bold"
+                                      color="#7f1d1d"
+                                    />
                                   </Pressable>
-                                </View>
-                              </View>
+                                </V>
+                              </V>
                             );
                           })}
-                        </View>
+                        </V>
                       );
                     })
                   )}
-                </View>
+                </V>
               )}
-            </View>
+            </V>
           )}
+          extraData={{
+            isAddDisabled,
+            submittingAdd,
+            tab,
+            consumedServings,
+            ingredientsLength: ingredients.length,
+            totalKcal: Math.round(eatenNutrition.kcal),
+          }}
           contentContainerStyle={[
             styles.scrollContent,
             { paddingBottom: 20 + insets.bottom },
@@ -1724,9 +1902,7 @@ export default function Track() {
             Platform.OS === 'ios' ? 'interactive' : 'on-drag'
           }
           nestedScrollEnabled
-          onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
-            /* no-op */
-          }}
+          onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {}}
           scrollEventThrottle={16}
           refreshControl={
             tab === 'history' ? (
@@ -1747,7 +1923,7 @@ export default function Track() {
           maxDate={new Date()}
         />
 
-        {/* ===== Modal chọn nguồn ảnh cho Scan ===== */}
+        {/* Modal chọn nguồn ảnh */}
         <Modal
           visible={scanChoiceOpen}
           transparent
@@ -1759,32 +1935,31 @@ export default function Track() {
             style={styles.modalBackdrop}
             onPress={() => setScanChoiceOpen(false)}
           >
-            <Pressable style={styles.modalCard}>
-              <Text style={styles.sheetTitle}>Chọn nguồn ảnh</Text>
+            <V variant="card" style={styles.modalCard}>
+              <Text text="Chọn nguồn ảnh" weight="bold" variant="h3" />
               <Pressable
                 style={styles.modalAction}
                 onPress={handleScanFromCamera}
               >
-                <Text style={styles.modalActionText}>Chụp ảnh (Camera)</Text>
+                <Text text="Chụp ảnh (Camera)" weight="bold" />
               </Pressable>
               <Pressable
                 style={styles.modalAction}
                 onPress={handleScanFromLibrary}
               >
-                <Text style={styles.modalActionText}>Chọn từ thư viện</Text>
+                <Text text="Chọn từ thư viện" weight="bold" />
               </Pressable>
               <Pressable
-                style={styles.modalCancel}
+                style={[styles.modalCancel]}
                 onPress={() => setScanChoiceOpen(false)}
               >
-                <Text style={styles.modalCancelText}>Hủy</Text>
+                <Text text="Hủy" weight="bold" color={colors.onPrimary} />
               </Pressable>
-            </Pressable>
+            </V>
           </Pressable>
         </Modal>
 
-        {/* ===== Modal chọn nguyên liệu ===== */}
-        {/* ===== Modal chọn nguyên liệu ===== */}
+        {/* Modal chọn nguyên liệu */}
         <Modal
           visible={openIngSheet}
           transparent
@@ -1792,33 +1967,28 @@ export default function Track() {
           onRequestClose={() => setOpenIngSheet(false)}
           statusBarTranslucent
         >
-          <View style={styles.modalRoot}>
-            {/* Backdrop */}
+          <RNView style={styles.modalRoot}>
             <Pressable
               style={styles.backdrop}
               onPress={() => setOpenIngSheet(false)}
             />
-
-            {/* Bottom sheet */}
-            <View style={styles.sheetWrap}>
-              <View
+            <RNView style={styles.sheetWrap}>
+              <V
                 style={[
                   styles.sheet,
-                  { paddingBottom: 12 + insets.bottom + keyboardH }, // 👈 nâng sheet theo bàn phím
+                  { paddingBottom: 12 + insets.bottom + keyboardH },
                 ]}
               >
-                {/* Header */}
-                <View style={styles.sheetHeader}>
-                  <Text style={styles.sheetTitle}>Chọn nguyên liệu</Text>
+                <V row between alignItems="center" style={styles.sheetHeader}>
+                  <Text text="Chọn nguyên liệu" variant="h3" />
                   <Pressable
                     onPress={() => setOpenIngSheet(false)}
                     hitSlop={10}
                   >
-                    <Text style={styles.sheetClose}>Đóng</Text>
+                    <Text text="Đóng" color={colors.primary} weight="bold" />
                   </Pressable>
-                </View>
+                </V>
 
-                {/* Input tìm */}
                 <TextInput
                   placeholder="Nhập tên nguyên liệu"
                   style={styles.input}
@@ -1828,7 +1998,6 @@ export default function Track() {
                   autoFocus
                 />
 
-                {/* Kết quả */}
                 {ingLoading ? (
                   <ActivityIndicator />
                 ) : (
@@ -1841,7 +2010,7 @@ export default function Track() {
                         onPress={() => {
                           setIngredients(prev => [
                             ...prev,
-                            { ...item, qty: '100' }, // mặc định 100g/ml
+                            { ...item, qty: '100' },
                           ]);
                           setOpenIngSheet(false);
                           setIngQuery('');
@@ -1853,22 +2022,29 @@ export default function Track() {
                           source={{ uri: getThumb(item) }}
                           style={styles.acThumb}
                         />
-                        <View style={{ flex: 1 }}>
-                          <Text numberOfLines={1} style={styles.acName}>
-                            {item.name}
-                          </Text>
-                          <Text style={{ color: '#64748b', fontSize: 12 }}>
-                            {item.unit} • per 100:{' '}
-                            {fmtNum(safeNum(item.per100?.kcal), 0)} kcal
-                          </Text>
-                        </View>
+                        <V style={{ flex: 1 }}>
+                          <Text
+                            text={item.name}
+                            weight="semibold"
+                            numberOfLines={1}
+                          />
+                          <Text
+                            text={`${item.unit} • per 100: ${fmtNum(
+                              safeNum(item.per100?.kcal),
+                              0,
+                            )} kcal`}
+                            tone="muted"
+                            variant="caption"
+                          />
+                        </V>
                       </Pressable>
                     )}
-                    ItemSeparatorComponent={() => <View style={styles.acSep} />}
+                    ItemSeparatorComponent={() => (
+                      <RNView style={styles.acSep} />
+                    )}
                   />
                 )}
 
-                {/* Nút Hủy */}
                 <Pressable
                   onPress={() => setOpenIngSheet(false)}
                   style={[
@@ -1880,14 +2056,50 @@ export default function Track() {
                     },
                   ]}
                 >
-                  <Text style={{ color: '#0f172a', fontWeight: '900' }}>
-                    Hủy
-                  </Text>
+                  <Text text="Hủy" weight="bold" color={colors.text} />
                 </Pressable>
-              </View>
-            </View>
-          </View>
+              </V>
+            </RNView>
+          </RNView>
         </Modal>
+
+        {/* Confirm delete */}
+        <ConfirmSheet
+          visible={!!confirm}
+          title="Xác nhận"
+          message="Bạn muốn xoá mục này?"
+          confirmLabel="Xóa"
+          onCancel={() => setConfirm(null)}
+          onConfirm={async () => {
+            const id = confirm?.id;
+            setConfirm(null);
+            if (!id) return;
+            const ac = new AbortController();
+            setLogs(prev => prev.filter(x => x.id !== id));
+            try {
+              await deletePlanLogById(id, ac.signal);
+              notify('Đã xoá mục', 'success');
+            } catch {
+              await loadHistory(date);
+              notify('Không thể xoá. Vui lòng thử lại.', 'danger');
+            }
+          }}
+        />
+        <AlertSheet
+          visible={!!warnAlert}
+          title="Cảnh báo calo"
+          message={warnAlert || ''}
+          onClose={() => setWarnAlert(null)}
+        />
+
+        {/* Toast */}
+        {toast && (
+          <ToastBar
+            message={toast.msg}
+            tone={toast.tone}
+            onClose={() => setToast(null)}
+          />
+        )}
       </Container>
     </KeyboardAvoidingView>
   );
@@ -1908,13 +2120,10 @@ const Tab = ({
     style={[styles.tabBtn, active && styles.tabBtnActive]}
   >
     <Text
-      allowFontScaling={false}
-      numberOfLines={1}
-      ellipsizeMode="tail"
-      style={[styles.tabText, active && styles.tabTextActive]}
-    >
-      {label}
-    </Text>
+      text={label}
+      allowFontScaling={false as any}
+      style={[styles.tabText as any, active && (styles.tabTextActive as any)]}
+    />
   </Pressable>
 );
 
@@ -1949,63 +2158,47 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 40,
     borderRadius: 999,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: '#e2e8f0',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  tabBtnActive: { backgroundColor: C.primary, borderColor: C.primary },
+  tabBtnActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
   tabText: {
-    color: '#0f172a',
+    color: colors.text,
     fontWeight: '800',
     fontSize: 13,
     lineHeight: 16,
     textAlign: 'center',
   },
-  tabTextActive: { color: '#ffffff' },
+  tabTextActive: { color: colors.onPrimary },
+
   unitWrap: {
-    height: 44, // bằng với styles.input.height
+    height: 44,
     minWidth: 40,
-    paddingHorizontal: 4, // sát hơn
-    justifyContent: 'center', // canh giữa theo trục dọc
+    paddingHorizontal: 4,
+    justifyContent: 'center',
     alignItems: 'flex-start',
-  },
-  unitText: {
-    color: '#0f172a',
-    fontWeight: '600',
-    textAlign: 'right',
   },
 
   card: {
     width: '100%',
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.white,
     borderRadius: 16,
     padding: 12,
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
 
-  sectionTitle: {
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '900',
-    letterSpacing: 0.2,
-    color: '#0f172a',
-  },
-  sectionSub: {
-    textAlign: 'center',
-    color: '#64748b',
-    fontSize: 12,
-    marginTop: 4,
-    marginBottom: 8,
-  },
-
   input: {
-    backgroundColor: '#f9fafb',
+    backgroundColor: colors.inputBg,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     borderRadius: 10,
     paddingHorizontal: 12,
     height: 44,
@@ -2016,39 +2209,36 @@ const styles = StyleSheet.create({
     ...Platform.select({
       android: { textAlignVertical: 'center', paddingVertical: 6 },
       ios: { paddingVertical: 10 },
-      default: {},
     }),
   },
-  inputDisabled: { backgroundColor: '#f1f5f9', opacity: 0.7 },
 
-  blockLabel: {
-    marginTop: 6,
-    marginBottom: 6,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
+  blockLabel: { marginTop: 6, marginBottom: 6 },
 
   inlineRow: { flexDirection: 'row', alignItems: 'center' },
   flex1: { flex: 1 },
 
   actionBtn: {
-    backgroundColor: '#93c5fd',
     height: 48,
     borderRadius: 12,
+    marginTop: 14,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#60a5fa',
     alignSelf: 'stretch',
   },
-  actionText: { color: '#0b2149', fontWeight: '900', letterSpacing: 0.2 },
-
-  // autocomplete & sheet list item
+  actionBtnEnabled: {
+    backgroundColor: '#93c5fd',
+    borderColor: '#60a5fa',
+  },
+  actionBtnDisabled: {
+    backgroundColor: '#e5e7eb',
+    borderColor: '#cbd5e1',
+  },
   dropdownPanel: {
     position: 'absolute',
     left: 0,
     right: 0,
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e2e8f0',
@@ -2078,17 +2268,17 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#f1f5f9',
   },
-  acName: { flex: 1, color: '#0f172a', fontWeight: '600' },
+  acName: { flex: 1 } as any,
   acSep: { height: 1, backgroundColor: '#eef2f7', marginLeft: 58 },
 
   // nutrition
   nutTable: {
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 10,
-    backgroundColor: '#f9fafb',
+    backgroundColor: colors.bg,
     marginTop: 6,
     marginBottom: 6,
   },
@@ -2097,8 +2287,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 6,
   },
-  nutLabel: { color: '#0f172a', fontWeight: '700' },
-  nutValue: { color: '#0f172a', fontWeight: '700' },
 
   // history
   groupHeader: {
@@ -2106,20 +2294,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 8,
     borderLeftWidth: 4,
-    borderLeftColor: C.primary,
+    borderLeftColor: colors.primary,
     paddingLeft: 10,
     paddingRight: 16,
   },
   historyCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.white,
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     marginBottom: 10,
     marginHorizontal: 16,
   },
-  mealName: { fontWeight: '700', marginBottom: 4, color: '#0f172a' },
   rowBtns: { flexDirection: 'row', gap: 8, marginTop: 8 },
   badge: {
     flex: 1,
@@ -2130,39 +2317,8 @@ const styles = StyleSheet.create({
   },
   badgeEditSoft: { backgroundColor: '#bfdbfe' },
   badgeDeleteSoft: { backgroundColor: '#fecaca' },
-  badgeTextEdit: { color: '#0b2149', fontWeight: '800' },
-  badgeTextDelete: { color: '#7f1d1d', fontWeight: '800' },
 
-  // ===== modal styles =====
-  modalRoot: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.25)',
-  },
-  sheetWrap: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 12,
-    maxHeight: '80%',
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  sheetTitle: { fontWeight: '800', fontSize: 16, color: '#0f172a' },
-  sheetClose: { color: C.primary, fontWeight: '800' },
-
-  // ===== Scan styles bổ sung =====
+  // Scan styles
   scanImage: {
     width: 120,
     height: 120,
@@ -2181,26 +2337,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
-  scanChipText: { color: '#0f172a', fontWeight: '700', fontSize: 12 },
-  summaryBar: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    justifyContent: 'center',
-    marginTop: 6,
-    marginBottom: 8,
-  },
+  summaryBar: { marginTop: 6, marginBottom: 8 },
 
-  // caret cho combobox
-  dropdownCaret: {
-    position: 'absolute',
-    right: 12,
-    top: 10,
-    fontSize: 20,
-    color: '#64748b',
-  },
+  dropdownCaret: { position: 'absolute', right: 12, top: 10, fontSize: 20 },
 
-  // Modal for scan source
+  // Generic modal styling
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',
@@ -2211,45 +2352,70 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 420,
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 16,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
   },
   modalAction: {
     height: 48,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.slate50,
     marginTop: 8,
   },
-  modalActionText: { fontWeight: '800', color: '#0f172a' },
   modalCancel: {
     height: 46,
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ef4444',
+    backgroundColor: colors.red,
     marginTop: 12,
   },
-  modalCancelText: { fontWeight: '800', color: '#fff' },
+
+  // Ingredient sheet
+  modalRoot: { flex: 1, justifyContent: 'flex-end' },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.25)',
+  },
+  sheetWrap: { flex: 1, justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 12,
+    maxHeight: '80%',
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+
+  // Delete chip
   delBtnSimple: {
     marginLeft: 20,
     paddingHorizontal: 14,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#ef4444', // đỏ
+    backgroundColor: colors.red,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  delBtnText: {
-    color: '#ffffff',
-    fontWeight: '800',
+
+  // Toast
+  toastWrap: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 16,
   },
 });

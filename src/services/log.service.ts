@@ -95,19 +95,17 @@ export async function saveAILog(
   return res.data;
 }
 
-
-
 export async function updatePlanLog(
   planLogId: string,
   payload: PlanLogUpdateRequest,
   signal?: AbortSignal
-): Promise<ApiResponse<void>> {
+): Promise<KcalWarningResponse> {
   const body = payload;
 
-  const res = await api.put<ApiResponse<void>>(
+  const res = await api.put<ApiResponse<KcalWarningResponse>>(
     `/logs/${planLogId}`,
     body,
     { signal }
   );
-  return res.data;
+  return res.data.data;
 }
