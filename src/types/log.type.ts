@@ -57,3 +57,11 @@ export interface PlanLogUpdateRequest {
     qty: number;
   }>;
 }
+
+export interface KcalWarningResponse{
+  mealSlot: string;  
+  targetKcal:number; 
+  actualKcal:number; 
+  diff:number;       
+  status: 'OVER' | 'UNDER' | 'OK'; 
+}

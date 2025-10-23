@@ -2,7 +2,7 @@
 import { api } from '../config/api';
 import type { ApiResponse, NutritionResponse } from '../types/types';
 import axios from 'axios';
-import type { LogResponse, PlanLogManualRequest, PlanLogUpdateRequest } from '../types/log.type';
+import type { LogResponse, PlanLogManualRequest, PlanLogUpdateRequest, KcalWarningResponse } from '../types/log.type';
 import type { FoodAnalyzeResponse } from '../types/ai.type';
 import type { MealSlot } from '../types/types';
 
@@ -69,10 +69,15 @@ export async function deletePlanLogById(
 export async function saveManualLog(
   payload: PlanLogManualRequest,
   signal?: AbortSignal
-): Promise<ApiResponse<void>> {
-  const res = await api.post<ApiResponse<void>>('/logs/save/manual', payload, { signal });
-  return res.data;
+): Promise<KcalWarningResponse> {
+  const res = await api.post<ApiResponse<KcalWarningResponse>>(
+    '/logs/save/manual',
+    payload,
+    { signal }
+  );
+  return res.data.data; 
 }
+
 
 export async function saveAILog(
   asset: { uri: string; type?: string; fileName?: string }
@@ -87,23 +92,20 @@ export async function saveAILog(
   const res = await api.post<FoodAnalyzeResponse>('/meallog-ai/analyze-url', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
-  console.log('AI log response:', res);
   return res.data;
 }
-
-
 
 export async function updatePlanLog(
   planLogId: string,
   payload: PlanLogUpdateRequest,
   signal?: AbortSignal
-): Promise<ApiResponse<void>> {
+): Promise<KcalWarningResponse> {
   const body = payload;
 
-  const res = await api.put<ApiResponse<void>>(
+  const res = await api.put<ApiResponse<KcalWarningResponse>>(
     `/logs/${planLogId}`,
     body,
     { signal }
   );
-  return res.data;
+  return res.data.data;
 }

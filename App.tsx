@@ -1,6 +1,6 @@
 import './src/config/api';
 import React, { useEffect, useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, LinkingOptions } from '@react-navigation/native';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import BottomNavigator from './src/navigation/BottomNavigator';
 import {
@@ -100,10 +100,20 @@ function App() {
 
   if (!ready) return null;
 
+  const linking: LinkingOptions<any> = {
+    prefixes: ['nutricare://'],
+    config: {
+      screens: {
+        OAuthReturn: 'oauth/success',
+        OAuthError: 'oauth/error',
+      },
+    },
+  };
+
   return (
     <AuthProvider>
       <HeaderProvider>
-        <NavigationContainer>
+        <NavigationContainer linking={linking}>
           {isAuthed ? <BottomNavigator /> : <AppNavigator />}
         </NavigationContainer>
       </HeaderProvider>

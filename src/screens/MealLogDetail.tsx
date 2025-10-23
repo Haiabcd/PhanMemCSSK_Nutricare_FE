@@ -103,7 +103,7 @@ type MealLogDetailRoute = RouteProp<PlanStackParamList, 'MealLogDetail'>;
 const MEAL_SLOT_VN: Record<string, string> = {
   BREAKFAST: 'Sáng',
   LUNCH: 'Trưa',
-  DINNER: 'Tối',
+  DINNER: 'Chiều',
   SNACK: 'Phụ',
 };
 

@@ -73,7 +73,6 @@ export async function startGoogleOAuth(
   return res.data;
 }
 
-
 // Đăng xuất (truyền refreshToken)
 export async function logout(
   payload: RefreshRequest

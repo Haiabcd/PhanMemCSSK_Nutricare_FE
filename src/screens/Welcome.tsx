@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Image, StatusBar, Text, Alert, Linking } from 'react-native';
-import { colors as C } from '../constants/colors';
 import BounceButton from '../components/Welcome/BounceButton';
 import TextComponent from '../components/TextComponent';
 import ViewComponent from '../components/ViewComponent';
@@ -101,14 +100,6 @@ const Welcome = () => {
             labelSize={18}
             onPress={onPressGoogle}
             disabled={loadingGoogle}
-          />
-
-          <BounceButton
-            label="Tiếp tục với Facebook"
-            icon="facebook"
-            iconStyle={{ color: C.blue }}
-            labelSize={18}
-            // onPress={() => navigation.navigate('Login', { provider: 'facebook' } as any)}
           />
 
           <Text style={s.termsText}>
