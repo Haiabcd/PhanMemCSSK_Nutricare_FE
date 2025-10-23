@@ -8,7 +8,7 @@ import type { RecommendationItemDto } from '../types/recommendation.type';
  * - Trả về: RecommendationItemDto[]
  */
 export async function findNewsfeedRecommendations(
-    limit: number = 12,
+    limit: number = 40,
     signal?: AbortSignal
 ): Promise<RecommendationItemDto[]> {
     try {

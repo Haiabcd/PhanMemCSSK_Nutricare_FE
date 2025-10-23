@@ -42,6 +42,9 @@ export default function NotificationScreen() {
           refreshControl={
             <RefreshControl refreshing={loading} onRefresh={refresh} />
           }
+          showsVerticalScrollIndicator={false}
+          showsHorizontalScrollIndicator={false}
+          overScrollMode="never"
           renderItem={({ item: [day, notis] }) => (
             <View style={{ marginBottom: 28 }}>
               <TextComponent
@@ -59,10 +62,10 @@ export default function NotificationScreen() {
                   n.type === 'meal'
                     ? 'bowl'
                     : n.type === 'water'
-                    ? 'drop'
-                    : n.type === 'suggestion'
-                    ? 'light-bulb'
-                    : 'bell';
+                      ? 'drop'
+                      : n.type === 'suggestion'
+                        ? 'light-bulb'
+                        : 'bell';
 
                 return (
                   <ViewComponent

@@ -105,12 +105,12 @@ function Card({ item }: { item: Item }) {
     item.kind === 'meal'
       ? 'Tập luyện'
       : item.kind === 'article'
-      ? 'Bài báo'
-      : 'Video';
+        ? 'Bài báo'
+        : 'Video';
 
   const handlePress = () => {
     if (item.url) {
-      Linking.openURL(item.url).catch(() => {});
+      Linking.openURL(item.url).catch(() => { });
     }
   };
 
@@ -319,7 +319,7 @@ function buildQueryFromInfo(info?: InfoResponse | null, userText?: string) {
   return unique;
 }
 
-// ===== Workout query
+// ===== Workout query (SAFE)
 function buildWorkoutQueryFromInfo(
   info?: InfoResponse | null,
   userText?: string,
@@ -328,9 +328,10 @@ function buildWorkoutQueryFromInfo(
   if (!info) return (userText?.trim() || 'bài tập tại nhà') + ' tiếng Việt';
 
   const p = info.profileCreationResponse;
+
   if (userText?.trim()) terms.push(userText.trim());
 
-  switch (p.goal) {
+  switch (p?.goal) {
     case 'LOSE':
       terms.push('giảm mỡ', 'giảm cân', 'cardio', 'HIIT', 'đốt mỡ');
       break;
@@ -342,10 +343,10 @@ function buildWorkoutQueryFromInfo(
       break;
   }
 
-  if (p.gender === 'MALE') terms.push('bài tập cho nam');
-  if (p.gender === 'FEMALE') terms.push('bài tập cho nữ');
+  if (p?.gender === 'MALE') terms.push('bài tập cho nam');
+  if (p?.gender === 'FEMALE') terms.push('bài tập cho nữ');
 
-  const age = ageFromBirthYear(p.birthYear);
+  const age = ageFromBirthYear(p?.birthYear);
   if (typeof age === 'number') {
     if (age < 18) terms.push('bài tập cho teen');
     else if (age < 30) terms.push('workout người trẻ');
@@ -353,7 +354,7 @@ function buildWorkoutQueryFromInfo(
     else terms.push('workout người trung niên low impact');
   }
 
-  switch (p.activityLevel) {
+  switch (p?.activityLevel) {
     case 'SEDENTARY':
       terms.push('beginner', 'low impact', 'bài tập nhẹ nhàng');
       break;
@@ -373,11 +374,7 @@ function buildWorkoutQueryFromInfo(
     const n = (c?.name || '').toLowerCase();
     if (!n) return;
     if (n.includes('tiểu đường') || n.includes('diabetes')) {
-      terms.push(
-        'workout cho người tiểu đường',
-        'low impact cardio',
-        'glucose control',
-      );
+      terms.push('workout cho người tiểu đường', 'low impact cardio', 'glucose control');
     } else if (n.includes('huyết áp') || n.includes('hypertension')) {
       terms.push('low impact', 'tránh HIIT quá gắt', 'breathing technique');
     } else if (n.includes('cholesterol') || n.includes('mỡ máu')) {
@@ -387,7 +384,6 @@ function buildWorkoutQueryFromInfo(
     }
   });
 
-  // Bảo đảm ưu tiên tiếng Việt
   terms.push('bài tập tại nhà', 'home workout', 'không dụng cụ', 'tiếng Việt');
 
   return Array.from(new Set(terms)).slice(0, 8).join(' | ');
@@ -612,7 +608,7 @@ export default function NutritionGuide() {
   }, []);
 
   /* ====== BÀI BÁO ====== */
-  const PAGE_SIZE = 12;
+  const PAGE_SIZE = 9999;
   const [articleItems, setArticleItems] = useState<Item[]>([]);
   const [articleLimit, setArticleLimit] = useState(PAGE_SIZE);
   const [loadingArticles, setLoadingArticles] = useState(false);
@@ -649,34 +645,31 @@ export default function NutritionGuide() {
   }, []);
 
   // ✅ reloadArticles
-  const reloadArticles = useCallback(
-    async (limit = PAGE_SIZE) => {
-      setLoadingArticles(true);
-      try {
-        const data = await findNewsfeedRecommendations(limit);
-        const mapped = mapArticles(data);
+  const reloadArticles = useCallback(async () => {
+    setLoadingArticles(true);
+    try {
+      const data = await findNewsfeedRecommendations(0);
+      const mapped = mapArticles(data);
 
-        const seen = new Set<string>();
-        const unique = mapped.filter(i => {
-          const k = i.url || i.id;
-          if (seen.has(k)) return false;
-          seen.add(k);
-          return true;
-        });
+      const seen = new Set<string>();
+      const unique = mapped.filter(i => {
+        const k = i.url || i.id;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
 
-        setArticleItems(unique);
-        setArticleLimit(limit);
-        setHasMoreArticles(unique.length >= limit);
-      } catch (e) {
-        console.log('[Articles][reload] error', e);
-        setArticleItems([]);
-        setHasMoreArticles(false);
-      } finally {
-        setLoadingArticles(false);
-      }
-    },
-    [mapArticles],
-  );
+      setArticleItems(unique);
+      setHasMoreArticles(false); // không còn phân trang
+    } catch (e) {
+      console.log('[Articles][reload] error', e);
+      setArticleItems([]);
+      setHasMoreArticles(false);
+    } finally {
+      setLoadingArticles(false);
+    }
+  }, [mapArticles]);
+
 
   // ✅ loadMoreArticles
   const loadMoreArticles = useCallback(async () => {
@@ -713,7 +706,7 @@ export default function NutritionGuide() {
   ]);
 
   useEffect(() => {
-    reloadArticles(PAGE_SIZE);
+    reloadArticles();
   }, [reloadArticles]);
 
   /* ====== VIDEO dinh dưỡng (tab "Video") ====== */
@@ -870,10 +863,23 @@ export default function NutritionGuide() {
   // ====== NEW: cờ tiện dụng để biết còn tải / còn trang không
   const anyLoading =
     loading || loadingWorkout || loadingArticles || loadingMoreArticles;
+  // ==== trạng thái đã hết cho từng nguồn
+  const isVideoDone = ytItems.length > 0 && !nextToken;
+  const isWorkoutDone = workoutItems.length > 0 && !nextWorkoutToken;
+  const isArticleDone = articleItems.length > 0 && !hasMoreArticles;
+
+  // ==== tổng hợp theo tab
   const noMore =
-    (active === 'article' && !hasMoreArticles && articleItems.length > 0) ||
-    (active === 'video' && !nextToken && ytItems.length > 0) ||
-    (active === 'meal' && !nextWorkoutToken && workoutItems.length > 0);
+    active === 'video'
+      ? isVideoDone
+      : active === 'meal'
+        ? isWorkoutDone
+        : active === 'article'
+          ? isArticleDone
+          // Tab "Tất cả": coi là hết khi mọi nguồn đều hết (hoặc không có item nào từ nguồn đó)
+          : ((isVideoDone || ytItems.length === 0) &&
+            (isWorkoutDone || workoutItems.length === 0) &&
+            (isArticleDone || articleItems.length === 0));
 
   const CONTENT_MIN_HEIGHT = Math.max(420, Math.floor(screenH * 0.79));
 
@@ -966,29 +972,35 @@ export default function NutritionGuide() {
             contentContainerStyle={{ paddingTop: 10, flexGrow: 1 }}
             showsVerticalScrollIndicator={false}
             onEndReachedThreshold={0.5}
-            onEndReached={
-              active === 'video' && nextToken
-                ? loadMore
-                : active === 'meal' && nextWorkoutToken
-                ? loadMoreWorkout
-                : active === 'article' && hasMoreArticles
-                ? loadMoreArticles
-                : undefined
-            }
+            onEndReached={() => {
+              if (active === 'video' && nextToken) {
+                loadMore();
+              } else if (active === 'meal' && nextWorkoutToken) {
+                loadMoreWorkout();
+              } else if (active === 'article' && hasMoreArticles) {
+                loadMoreArticles();
+              } else if (active === 'all') {
+                // Tất cả: gọi từng nguồn nếu vẫn còn trang
+                if (nextWorkoutToken) loadMoreWorkout();
+                if (nextToken) loadMore();
+                if (hasMoreArticles) loadMoreArticles();
+              }
+            }}
             refreshing={
               active === 'article'
                 ? loadingArticles
                 : active === 'meal'
-                ? loadingWorkout
-                : loading
+                  ? loadingWorkout
+                  : loading
             }
             onRefresh={
               active === 'article'
-                ? () => reloadArticles(PAGE_SIZE)
+                ? reloadArticles
                 : active === 'meal'
-                ? reloadWorkout
-                : reload
+                  ? reloadWorkout
+                  : reload
             }
+
             ListFooterComponent={
               filtered.length > 0 ? (
                 anyLoading ? (
