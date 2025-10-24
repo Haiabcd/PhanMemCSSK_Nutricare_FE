@@ -2,192 +2,43 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
     ScrollView,
     Pressable,
-    Platform,
-    Modal,
-    Image,
     Dimensions,
     View,
     StyleSheet,
     ScaledSize,
-    TouchableWithoutFeedback,
+    ActivityIndicator,
 } from 'react-native';
-import { BarChart, StackedBarChart, PieChart } from 'react-native-chart-kit';
+import { BarChart, LineChart, StackedBarChart } from 'react-native-chart-kit';
 import Entypo from 'react-native-vector-icons/Entypo';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import Container from '../components/Container';
 import TextComponent from '../components/TextComponent';
 import ViewComponent from '../components/ViewComponent';
 import { colors as C } from '../constants/colors';
 import { useNavigation } from '@react-navigation/native';
+import { getWeeklyStats, getMonthlyStats } from '../services/statistic.service';
+import type {
+    StatisticWeekResponse,
+    StatisticMonthResponse,
+    MonthlyWeeklyNutritionDto,
+    MealSlotSummary,
+} from '../types/statistic.type';
 
 /** ===== Types ===== */
 type Range = 'week' | 'month';
+type MealProgressItem = {
+    label: string;
+    logged: number;
+    missed: number;
+    total: number;
+    pct: number;
+};
 
 /** ===== Constants ===== */
 const PAD = 16;
 const CARD_PAD = 20;
 
-/* Avatar fallback */
-function Avatar({ name, photoUri }: { name: string; photoUri?: string | null }) {
-    const initials = name
-        .split(' ')
-        .map(n => n[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase();
-    if (photoUri) return <Image source={{ uri: photoUri }} style={{ width: 52, height: 52, borderRadius: 999 }} />;
-    return (
-        <ViewComponent
-            center
-            radius={999}
-            border
-            borderColor={C.border}
-            backgroundColor={C.bg}
-            style={{ width: 52, height: 52 }}
-            flex={0}
-        >
-            <TextComponent text={initials} variant="subtitle" weight="bold" tone="primary" />
-        </ViewComponent>
-    );
-}
-
-/** ===== Time helpers (ISO-like, Monday-start week) ===== */
-const startOfWeek = (d: Date) => {
-    const date = new Date(d);
-    const day = (date.getDay() + 6) % 7; // 0=Mon .. 6=Sun
-    date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() - day);
-    return date;
-};
-const endOfWeek = (d: Date) => {
-    const s = startOfWeek(d);
-    const e = new Date(s);
-    e.setDate(s.getDate() + 6);
-    e.setHours(23, 59, 59, 999);
-    return e;
-};
-const addDays = (d: Date, days: number) => {
-    const x = new Date(d);
-    x.setDate(x.getDate() + days);
-    return x;
-};
-const addMonths = (d: Date, months: number) => {
-    const x = new Date(d);
-    x.setMonth(x.getMonth() + months);
-    return x;
-};
-const pad2 = (n: number) => `${n}`.padStart(2, '0');
-const fmtDM = (d: Date) => `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}`;
-const fmtMonthYear = (d: Date) => `Tháng ${d.getMonth() + 1}/${d.getFullYear()}`;
-
-// ISO-ish week number (Mon-start)
-const getWeekNumber = (d: Date) => {
-    const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-    // Thursday in current week decides the year
-    date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
-    const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-    const weekNo = Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-    return weekNo;
-};
-const weekLabel = (anchor: Date) => {
-    const s = startOfWeek(anchor);
-    const e = endOfWeek(anchor);
-    const w = getWeekNumber(anchor);
-    return `Tuần ${w} • ${fmtDM(s)}–${fmtDM(e)}/${e.getFullYear()}`;
-};
-
-/** ===== Period picker row (ở TRÊN tabs) ===== */
-function PeriodPicker({
-    range,
-    anchorDate,
-    onChangeAnchor,
-}: {
-    range: Range;
-    anchorDate: Date;
-    onChangeAnchor: (d: Date) => void;
-}) {
-    const [open, setOpen] = useState(false);
-
-    const label = useMemo(() => {
-        return range === 'week' ? weekLabel(anchorDate) : fmtMonthYear(anchorDate);
-    }, [range, anchorDate]);
-
-    const goPrev = () => {
-        onChangeAnchor(range === 'week' ? addDays(anchorDate, -7) : addMonths(anchorDate, -1));
-    };
-    const goNext = () => {
-        onChangeAnchor(range === 'week' ? addDays(anchorDate, 7) : addMonths(anchorDate, 1));
-    };
-
-    return (
-        <ViewComponent row center gap={8} mb={8} flex={0}>
-            <Pressable onPress={goPrev} style={styles.navIcon}>
-                <Entypo name="chevron-left" size={18} color={C.primary} />
-            </Pressable>
-
-            {/* Nút mở lịch */}
-            <Pressable onPress={() => setOpen(true)}>
-                <ViewComponent
-                    center
-                    p={10}
-                    px={14}
-                    radius={12}
-                    border
-                    borderColor={C.primaryBorder}
-                    backgroundColor={C.primarySurface}
-                    style={styles.periodPill}
-                    flex={0}
-                >
-                    <TextComponent text={label} weight="bold" size={13} tone="primary" />
-                </ViewComponent>
-            </Pressable>
-
-            <Pressable onPress={goNext} style={styles.navIcon}>
-                <Entypo name="chevron-right" size={18} color={C.primary} />
-            </Pressable>
-
-            {/* DatePicker */}
-            {Platform.OS === 'ios' ? (
-                <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
-                    <TouchableWithoutFeedback onPress={() => setOpen(false)}>
-                        <View style={styles.backdrop} />
-                    </TouchableWithoutFeedback>
-
-                    <View style={styles.sheet}>
-                        <DateTimePicker
-                            value={anchorDate}
-                            mode="date"
-                            display="inline"
-                            onChange={(_, d) => {
-                                if (d) onChangeAnchor(d);
-                            }}
-                            style={{ alignSelf: 'stretch' }}
-                        />
-                        <Pressable onPress={() => setOpen(false)} style={styles.sheetBtn}>
-                            <TextComponent text="Xong" weight="bold" color={C.onPrimary} />
-                        </Pressable>
-                    </View>
-                </Modal>
-            ) : (
-                open && (
-                    <DateTimePicker
-                        value={anchorDate}
-                        mode="date"
-                        display="calendar"
-                        onChange={(event, d) => {
-                            // @ts-expect-error Android event type
-                            if (event?.type === 'set' && d) onChangeAnchor(d);
-                            setOpen(false);
-                        }}
-                    />
-                )
-            )}
-        </ViewComponent>
-    );
-}
-
-/** Component đo width thật của vùng chứa để chart không tràn */
-function ChartSizer({ children }: { children: (w: number) => JSX.Element }) {
+/** Measure width for charts */
+function ChartSizer({ children }: { children: (w: number) => React.ReactElement }) {
     const [w, setW] = useState<number>(0);
     return (
         <View
@@ -202,139 +53,89 @@ function ChartSizer({ children }: { children: (w: number) => JSX.Element }) {
     );
 }
 
-export default function Statistics(): JSX.Element {
-    const navigation = useNavigation();
-    const [range, setRange] = useState<Range>('week'); // mặc định TUẦN
-    const [anchorDate, setAnchorDate] = useState<Date>(new Date()); // mốc đang xem
-    const [showDetails, setShowDetails] = useState<boolean>(false);
+/** ===== Helpers chuyển đổi dữ liệu API → chart ===== */
+const dayVN = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+const labelDay = (iso: string) => {
+    const d = new Date(iso + 'T00:00:00');
+    return dayVN[d.getDay()];
+};
 
-    /** Width động theo xoay màn hình */
+const safeNum = (v: any) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+};
+
+const nz = (v: number) => (v === 0 ? 0 : v);
+
+/** Cắt các mảng về cùng độ dài tối thiểu, đảm bảo là số hữu hạn */
+const alignSeries = (labels: string[], ...series: number[][]) => {
+    const finiteSeries = series.map(arr => arr.map(v => (Number.isFinite(v) ? v : 0)));
+    const minLen = Math.min(labels.length, ...finiteSeries.map(a => a.length));
+    return {
+        labels: labels.slice(0, minLen),
+        series: finiteSeries.map(a => a.slice(0, minLen)),
+    };
+};
+
+/** Với tháng: chuyển weeklyNutrition → series cho LineChart */
+const toWeeklySeries = (weeks: MonthlyWeeklyNutritionDto[] | undefined) => {
+    const labels = (weeks || []).map(w => `Tuần ${w.weekIndex}`);
+    const protein = (weeks || []).map(w => safeNum(w.proteinG));
+    const carb = (weeks || []).map(w => safeNum(w.carbG));
+    const fat = (weeks || []).map(w => safeNum(w.fatG));
+    const fiber = (weeks || []).map(w => safeNum(w.fiberG));
+
+    const { labels: L, series } = alignSeries(labels, protein, carb, fat, fiber);
+    const [p, c, f, fi] = series;
+    return { labels: L, protein: p, carb: c, fat: f, fiber: fi };
+};
+
+export default function Statistics() {
+    const navigation = useNavigation();
+    const [range, setRange] = useState<Range>('week');
+
+    // fetch states
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [weekData, setWeekData] = useState<StatisticWeekResponse | null>(null);
+    const [monthData, setMonthData] = useState<StatisticMonthResponse | null>(null);
+
+    // responsive
     const [, setScreenW] = useState<number>(Dimensions.get('window').width);
     useEffect(() => {
         const handler = ({ window }: { window: ScaledSize }) => setScreenW(window.width);
         const subscription = Dimensions.addEventListener('change', handler as any);
         return () => {
-            // @ts-expect-error: RN types khác nhau theo version
-            if (typeof subscription?.remove === 'function') subscription.remove();
-            else {
-                // @ts-expect-error
-                Dimensions.removeEventListener('change', handler);
-            }
+            subscription?.remove?.();
         };
     }, []);
 
-    /** ====== DỮ LIỆU THEO CHẾ ĐỘ (MOCK) ====== */
-    const ds = useMemo(() => {
-        type DS = {
-            macrosLegend: string[];
-            macrosData: number[][];
-            labelsMacros: string[];
-            waterLabels: string[];
-            waterData: number[];
-            titles: { macros: string; water: string };
+    /** Gọi API theo chế độ */
+    useEffect(() => {
+        const ac = new AbortController();
+        setLoading(true);
+        setError(null);
 
-            mealCountLabels: string[];
-            mealCountData: number[];
-            topFoods: { name: string; count: number }[];
+        (async () => {
+            try {
+                if (range === 'week') {
+                    const res = await getWeeklyStats(ac.signal);
+                    setWeekData(res.data || null);
+                } else {
+                    const res = await getMonthlyStats(ac.signal);
+                    setMonthData(res.data || null);
+                }
+            } catch (e: any) {
+                setError(e?.message || 'Có lỗi xảy ra khi tải thống kê.');
+            } finally {
+                setLoading(false);
+            }
+        })();
 
-            waterProgressPct: number;
-            weight: string;
-            bmi: string;
-            goal: string;
-            healthScore: number;
-            goalProgress: { kcalPct: number; waterPct: number; proteinPct: number };
+        return () => ac.abort();
+    }, [range]);
 
-            badges: string[];
-            alerts: string[];
-        };
-
-        if (range === 'week') {
-            const labelsMacros = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
-            const macrosData = [
-                [48, 27, 15, 10],
-                [49, 26, 15, 10],
-                [47, 28, 15, 10],
-                [50, 26, 14, 10],
-                [48, 27, 15, 10],
-                [46, 29, 15, 10],
-                [49, 26, 15, 10],
-            ];
-
-            return {
-                macrosLegend: ['Carb', 'Chất đạm', 'Chất béo', 'Chất xơ'],
-                macrosData,
-                labelsMacros,
-                waterLabels: labelsMacros,
-                waterData: [1800, 2100, 2000, 2300, 2200, 2400, 2100],
-                titles: {
-                    macros: 'Tỷ lệ dinh dưỡng theo ngày (tuần)',
-                    water: 'Uống nước (ml) theo ngày (tuần)',
-                },
-
-                mealCountLabels: ['Sáng', 'Trưa', 'Tối', 'Snack'],
-                mealCountData: [6, 7, 7, 5],
-                topFoods: [
-                    { name: 'Salad gà', count: 8 },
-                    { name: 'Cơm gạo lứt', count: 7 },
-                    { name: 'Trứng luộc', count: 6 },
-                    { name: 'Táo đỏ', count: 6 },
-                    { name: 'Sữa chua Hy Lạp', count: 5 },
-                ],
-
-                waterProgressPct: 86,
-                weight: '60.4 kg',
-                bmi: '21.4',
-                goal: 'Tăng cân',
-                healthScore: 81,
-                goalProgress: { kcalPct: 87, waterPct: 86, proteinPct: 90 },
-
-                badges: ['🔥 Chuỗi 5 ngày đạt mục tiêu', '🥗 Đa dạng thực phẩm hơn tuần trước'],
-                alerts: ['2 ngày vượt 2.2L nước — cân nhắc phân bổ đều hơn.', 'Ngày T4 đạm hơi thấp.'],
-            } as DS;
-        }
-
-        const labelsMacros = ['Tuần 1', 'Tuần 2', 'Tuần 3', 'Tuần 4'];
-        const macrosData = [
-            [49, 26, 15, 10],
-            [50, 25, 15, 10],
-            [48, 27, 15, 10],
-            [51, 24, 15, 10],
-        ];
-
-        return {
-            macrosLegend: ['Carb', 'Chất đạm', 'Chất béo', 'Chất xơ'],
-            macrosData,
-            labelsMacros,
-            waterLabels: labelsMacros,
-            waterData: [2000, 2100, 2050, 2150],
-            titles: {
-                macros: 'Tỷ lệ dinh dưỡng TB theo tuần (tháng)',
-                water: 'Uống nước (ml) TB theo tuần (tháng)',
-            },
-
-            mealCountLabels: ['Sáng', 'Trưa', 'Tối', 'Snack'],
-            mealCountData: [26, 28, 28, 18],
-            topFoods: [
-                { name: 'Salad gà', count: 24 },
-                { name: 'Cơm gạo lứt', count: 20 },
-                { name: 'Sữa chua Hy Lạp', count: 16 },
-                { name: 'Táo đỏ', count: 15 },
-                { name: 'Trứng luộc', count: 14 },
-            ],
-
-            waterProgressPct: 82,
-            weight: '60.8 kg',
-            bmi: '21.5',
-            goal: 'Tăng cân',
-            healthScore: 83,
-            goalProgress: { kcalPct: 85, waterPct: 82, proteinPct: 89 },
-
-            badges: ['🏅 Hoàn thành mục tiêu tháng', '💧 Duy trì >80% nước trong 4 tuần'],
-            alerts: ['Tuần 3 ăn đêm nhiều hơn mức khuyến nghị.', 'Huấn luyện nhẹ tuần 2, nên tăng 10–15%.'],
-        } as DS;
-    }, [range, anchorDate]);
-
-    /** CONFIG CHUNG CHO BAR */
+    /** CONFIG CHUNG CHO CHARTS */
     const baseConfig = useMemo(() => {
         return {
             backgroundGradientFrom: C.white,
@@ -345,24 +146,144 @@ export default function Statistics(): JSX.Element {
             barPercentage: 0.6,
             propsForLabels: { fontSize: 12 },
             propsForBackgroundLines: { stroke: C.border },
+            style: { borderRadius: 12 },
         };
     }, []);
-
     const infoConfig = useMemo(() => ({ ...baseConfig, color: () => C.info }), [baseConfig]);
 
-    /* Tính "Mục tiêu đạt được" = TB % của 3 mục tiêu kcal/nước/protein */
-    const achievedPct = useMemo(
-        () => Math.round((ds.goalProgress.kcalPct + ds.goalProgress.waterPct + ds.goalProgress.proteinPct) / 3),
-        [ds.goalProgress]
-    );
+    /** Build DS (từ API) cho UI */
+    const ds = useMemo(() => {
+        if (range === 'week') {
+            const d = weekData;
 
-    /* Top 5 món */
-    const top5Foods = ds.topFoods.slice(0, 5);
+            // Labels theo ngày + dữ liệu từng chất (đơn vị gram)
+            const labels0 = (d?.dailyNutrition || []).map(x => labelDay(x.date));
+            const protein0 = (d?.dailyNutrition || []).map(x => safeNum(x.proteinG));
+            const carb0 = (d?.dailyNutrition || []).map(x => safeNum(x.carbG));
+            const fat0 = (d?.dailyNutrition || []).map(x => safeNum(x.fatG));
+            const fiber0 = (d?.dailyNutrition || []).map(x => safeNum(x.fiberG));
+
+            const { labels, series } = alignSeries(labels0, protein0, carb0, fat0, fiber0);
+            const [protein, carb, fat, fiber] = series;
+
+            // Nước theo ngày
+            const waterLabels = (d?.dailyWaterTotals || []).map(x => labelDay(x.date));
+            const waterData = (d?.dailyWaterTotals || []).map(x => safeNum(x.totalMl));
+            const waterAligned = alignSeries(waterLabels, waterData);
+            const wLabels = waterAligned.labels;
+            const wData = waterAligned.series[0];
+
+            // Meal slot summary → tiến độ logged/missed
+            const slot = d?.mealSlotSummary as MealSlotSummary | undefined;
+            const mealSlots = [
+                { key: 'BREAKFAST', label: 'Sáng' },
+                { key: 'LUNCH', label: 'Trưa' },
+                { key: 'DINNER', label: 'Tối' },
+                { key: 'SNACK', label: 'Snack' },
+            ] as const;
+
+            const mealProgress: MealProgressItem[] = mealSlots.map(s => {
+                const it = slot?.[s.key as keyof typeof slot];
+                const logged = it?.loggedDays ?? 0;
+                const total = it?.totalDays ?? 0;
+                const missed = Math.max(it?.missedDays ?? 0, total - logged);
+                const pct = total > 0 ? Math.round((logged / total) * 100) : 0;
+                return { label: s.label, logged, missed, total, pct };
+            });
+
+            return {
+                scopeTitle: 'Theo tuần',
+                weight: d ? `${d.weightKg} kg` : '-',
+                bmi: d ? `${Math.round((d.bmi + Number.EPSILON) * 10) / 10}` : '-',
+                bmiClassification: d?.bmiClassification ?? '-',
+                topFoods: d?.topFoods || [],
+                warnings: d?.warnings || [],
+
+                // Macros (LineChart)
+                macrosLabels: labels,
+                macrosSeries: { protein, carb, fat, fiber },
+
+                // Water (BarChart)
+                waterLabels: wLabels,
+                waterData: wData,
+
+                // Meal progress (StackedBarChart)
+                mealProgress,
+
+                titles: {
+                    macros: 'Dinh dưỡng theo ngày (g)',
+                    water: 'Nước theo ngày (ml)',
+                    meal: 'Bữa ăn theo kỳ',
+                },
+            };
+        }
+
+        // Month:
+        const m = monthData;
+        const { labels, protein, carb, fat, fiber } = toWeeklySeries(m?.weeklyNutrition);
+
+        // Meal slot summary → logged/missed (trong tháng)
+        const slot = m?.mealSlotSummary as MealSlotSummary | undefined;
+        const mealSlots = [
+            { key: 'BREAKFAST', label: 'Sáng' },
+            { key: 'LUNCH', label: 'Trưa' },
+            { key: 'DINNER', label: 'Tối' },
+            { key: 'SNACK', label: 'Snack' },
+        ] as const;
+
+        const mealProgress: MealProgressItem[] = mealSlots.map(s => {
+            const it = slot?.[s.key as keyof typeof slot];
+            const logged = it?.loggedDays ?? 0;
+            const total = it?.totalDays ?? 0;
+            const missed = Math.max(it?.missedDays ?? 0, total - logged);
+            const pct = total > 0 ? Math.round((logged / total) * 100) : 0;
+            return { label: s.label, logged, missed, total, pct };
+        });
+
+        // Nước theo tuần (tháng)
+        const waterLabels0 = (m?.weeklyWaterTotals || []).map(w => `Tuần ${w.weekIndex}`);
+        const waterData0 = (m?.weeklyWaterTotals || []).map(w => safeNum(w.totalMl));
+        const waterAligned = alignSeries(waterLabels0, waterData0);
+        const wLabels = waterAligned.labels;
+        const wData = waterAligned.series[0];
+
+        return {
+            scopeTitle: 'Theo tháng',
+            weight: m ? `${m.weightKg} kg` : '-',
+            bmi: m ? `${Math.round((m.bmi + Number.EPSILON) * 10) / 10}` : '-',
+            goal: m?.bmiClassification ?? '-',
+            topFoods: m?.topFoods || [],
+            warnings: m?.warnings || [],
+
+            // Macros (LineChart) theo tuần trong tháng
+            macrosLabels: labels,
+            macrosSeries: { protein, carb, fat, fiber },
+
+            // Water (BarChart)
+            waterLabels: wLabels,
+            waterData: wData,
+
+            // Meal progress (StackedBarChart)
+            mealProgress,
+
+            titles: {
+                macros: 'Dinh dưỡng theo tuần (g)',
+                water: 'Nước theo tuần (ml)',
+                meal: 'Bữa ăn trong tháng',
+            },
+        };
+    }, [range, weekData, monthData]);
+
+    const top5Foods = ds.topFoods?.slice(0, 5) || [];
+
+    /** ======= Guards cho biểu đồ ======= */
+    const hasEnoughMacroPoints = ds.macrosLabels.length >= 2;
+    const hasWaterData = ds.waterLabels.length > 0 && ds.waterLabels.length === ds.waterData.length;
 
     return (
         <Container>
             <ViewComponent style={{ flex: 1, paddingHorizontal: PAD }}>
-                {/* ===== Header: Back lớn + tiêu đề gần nhau ===== */}
+                {/* Header */}
                 <View style={styles.header}>
                     <Pressable
                         onPress={() => {
@@ -379,13 +300,10 @@ export default function Statistics(): JSX.Element {
                     <TextComponent text="Thống kê" variant="h3" weight="bold" />
                 </View>
 
-                {/* Divider */}
                 <View style={styles.line} />
 
-                {/* Period selector ABOVE, then range tabs */}
+                {/* Range tabs */}
                 <ViewComponent center mb={8}>
-                    <PeriodPicker range={range} anchorDate={anchorDate} onChangeAnchor={setAnchorDate} />
-
                     <ViewComponent
                         row
                         gap={8}
@@ -423,169 +341,152 @@ export default function Statistics(): JSX.Element {
                     </ViewComponent>
                 </ViewComponent>
 
-                {/* ================== NỘI DUNG ================== */}
-                <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 36 }}>
-                    {/* 1) CHỈ SỐ SỨC KHỎE */}
-                    <ViewComponent variant="card" p={CARD_PAD} mb={12} radius={20}>
-                        <TextComponent text="Chỉ số sức khỏe" variant="h3" weight="bold" tone="primary" />
-                        <ViewComponent row between mt={12} gap={8}>
-                            {[
-                                { label: 'Cân nặng', value: ds.weight },
-                                { label: 'BMI', value: ds.bmi },
-                                { label: 'Mục tiêu', value: ds.goal },
-                            ].map(item => (
-                                <ViewComponent
-                                    key={item.label}
-                                    flex={1}
-                                    p={14}
-                                    radius={14}
-                                    border
-                                    borderColor={C.border}
-                                    backgroundColor={C.bg}
-                                    alignItems="center"
-                                >
-                                    <TextComponent text={item.label} tone="muted" />
-                                    <TextComponent text={item.value} weight="bold" />
-                                </ViewComponent>
-                            ))}
-                        </ViewComponent>
+                {/* Loading / Error */}
+                {loading && (
+                    <ViewComponent center mt={20}>
+                        <ActivityIndicator color={C.primary} />
+                        <TextComponent text="Đang tải dữ liệu..." tone="muted" />
                     </ViewComponent>
+                )}
+                {!!error && !loading && (
+                    <ViewComponent center mt={20}>
+                        <TextComponent text={error} tone="danger" />
+                    </ViewComponent>
+                )}
 
-                    {/* 2) TIẾN ĐỘ & THÀNH TÍCH (chỉ 2 ô) */}
-                    <ViewComponent variant="card" p={CARD_PAD} mb={12} radius={20}>
-                        <TextComponent text="Tiến độ & Thành tích" variant="h3" weight="bold" tone="primary" />
-                        <ViewComponent mt={12} row between gap={8}>
-                            <ViewComponent
-                                flex={1}
-                                p={14}
-                                radius={14}
-                                border
-                                borderColor={C.border}
-                                backgroundColor={C.bg}
-                                alignItems="center"
-                            >
-                                <TextComponent text="Nước đạt được" tone="muted" />
-                                <TextComponent text={`${ds.waterProgressPct}%`} weight="bold" />
-                            </ViewComponent>
-                            <ViewComponent
-                                flex={1}
-                                p={14}
-                                radius={14}
-                                border
-                                borderColor={C.border}
-                                backgroundColor={C.bg}
-                                alignItems="center"
-                            >
-                                <TextComponent text="Mục tiêu đạt được" tone="muted" />
-                                <TextComponent text={`${achievedPct}%`} weight="bold" />
+                {/* CONTENT */}
+                {!loading && !error && (
+                    <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 36 }}>
+                        {/* Health overview */}
+                        <ViewComponent variant="card" p={CARD_PAD} mb={12} radius={20}>
+                            <TextComponent text={`Chỉ số sức khỏe • ${ds.scopeTitle}`} variant="h3" weight="bold" tone="primary" />
+                            <ViewComponent row between mt={12} gap={8}>
+                                {[
+                                    { label: 'Cân nặng', value: ds.weight || '-' },
+                                    { label: 'BMI', value: ds.bmi || '-' },
+                                    { label: 'Phân loại BMI', value: String(ds.bmiClassification || '-') },
+                                ].map(item => (
+                                    <ViewComponent
+                                        key={item.label}
+                                        flex={1}
+                                        p={14}
+                                        radius={14}
+                                        border
+                                        borderColor={C.border}
+                                        backgroundColor={C.bg}
+                                        alignItems="center"
+                                    >
+                                        <TextComponent text={item.label} tone="muted" />
+                                        <TextComponent text={item.value} weight="bold" />
+                                    </ViewComponent>
+                                ))}
                             </ViewComponent>
                         </ViewComponent>
-                    </ViewComponent>
 
-                    {/* 3) TOP 5 MÓN ĂN */}
-                    <ViewComponent variant="card" p={CARD_PAD} mb={12} radius={20}>
-                        <TextComponent text="Top 5 món ăn" variant="h3" weight="bold" tone="primary" />
-                        <ViewComponent mt={10} gap={8}>
-                            {top5Foods.map(it => (
-                                <ViewComponent
-                                    key={it.name}
-                                    row
-                                    between
-                                    alignItems="center"
-                                    p={12}
-                                    radius={12}
-                                    border
-                                    borderColor={C.border}
-                                    backgroundColor={C.bg}
-                                >
-                                    <TextComponent text={`• ${it.name}`} />
-                                    <TextComponent text={`x${it.count}`} weight="bold" />
-                                </ViewComponent>
-                            ))}
+                        {/* Top 5 foods */}
+                        <ViewComponent variant="card" p={CARD_PAD} mb={12} radius={20}>
+                            <TextComponent text="Top 5 món ăn" variant="h3" weight="bold" tone="primary" />
+                            <ViewComponent mt={10} gap={8}>
+                                {top5Foods.map(it => (
+                                    <ViewComponent
+                                        key={it.name}
+                                        row
+                                        between
+                                        alignItems="center"
+                                        p={12}
+                                        radius={12}
+                                        border
+                                        borderColor={C.border}
+                                        backgroundColor={C.bg}
+                                    >
+                                        <TextComponent text={`• ${it.name}`} />
+                                        <TextComponent text={`x${it.count}`} weight="bold" />
+                                    </ViewComponent>
+                                ))}
+                                {top5Foods.length === 0 && <TextComponent text="Chưa có dữ liệu." tone="muted" />}
+                            </ViewComponent>
                         </ViewComponent>
-                    </ViewComponent>
 
-                    {/* NÚT XEM CHI TIẾT / THU GỌN */}
-                    <Pressable onPress={() => setShowDetails(s => !s)}>
-                        <ViewComponent
-                            center
-                            p={12}
-                            radius={14}
-                            border
-                            borderColor={C.primaryBorder}
-                            backgroundColor={C.primarySurface}
-                            mb={12}
-                        >
-                            <TextComponent text={showDetails ? 'Thu gọn' : 'Xem chi tiết'} weight="bold" tone="primary" />
-                        </ViewComponent>
-                    </Pressable>
-
-                    {/* ====== KHỐI CHI TIẾT ====== */}
-                    {showDetails && (
-                        <>
-                            {/* Tỷ lệ dinh dưỡng (tuần: 7 cột | tháng: 4 cột) */}
-                            <ViewComponent variant="card" p={CARD_PAD} mb={12} radius={20}>
-                                <TextComponent text={ds.titles.macros} variant="h3" weight="bold" tone="primary" />
+                        {/* Macros (LineChart - rõ ràng theo từng chất) */}
+                        <ViewComponent variant="card" p={CARD_PAD} mb={12} radius={20}>
+                            <TextComponent text={ds.titles.macros} variant="h3" weight="bold" tone="primary" />
+                            {hasEnoughMacroPoints ? (
                                 <ChartSizer>
                                     {w => (
-                                        <StackedBarChart
+                                        <LineChart
                                             width={w}
-                                            height={240}
+                                            height={260}
                                             data={{
-                                                labels: ds.labelsMacros,
-                                                legend: ds.macrosLegend,
-                                                data: ds.macrosData,
-                                                barColors: [C.info, C.success, C.warning, '#9CA3AF'],
+                                                labels: ds.macrosLabels,
+                                                datasets: [
+                                                    { data: ds.macrosSeries.protein, strokeWidth: 2, color: (opacity = 1) => C.success, withDots: true },
+                                                    { data: ds.macrosSeries.carb, strokeWidth: 2, color: (opacity = 1) => C.info, withDots: true },
+                                                    { data: ds.macrosSeries.fat, strokeWidth: 2, color: (opacity = 1) => C.warning, withDots: true },
+                                                    { data: ds.macrosSeries.fiber, strokeWidth: 2, color: (opacity = 1) => '#9CA3AF', withDots: true },
+                                                ],
+                                                legend: ['Protein (g)', 'Carb (g)', 'Fat (g)', 'Fiber (g)'],
                                             }}
-                                            chartConfig={baseConfig}
-                                            hideLegend={false}
-                                            withHorizontalLabels
+                                            chartConfig={{
+                                                ...baseConfig,
+                                                propsForDots: { r: '3' },
+                                            }}
                                             fromZero
+                                            bezier
+                                            yAxisSuffix="g"
                                             style={{ marginTop: 10 }}
                                         />
                                     )}
                                 </ChartSizer>
-                                <ViewComponent mt={8}>
-                                    <TextComponent text="Mỗi cột là % Carb/Đạm/Béo/Xơ." tone="muted" align="center" />
+                            ) : (
+                                <ViewComponent mt={10}>
+                                    <TextComponent text="Chưa đủ dữ liệu để vẽ biểu đồ (cần ≥ 2 điểm)." tone="muted" align="center" />
                                 </ViewComponent>
-                            </ViewComponent>
+                            )}
+                        </ViewComponent>
 
-                            {/* Số bữa đã ghi log (Pie) */}
-                            <ViewComponent variant="card" p={CARD_PAD} mb={12} radius={20}>
-                                <TextComponent text="Số bữa đã ghi log" variant="h3" weight="bold" tone="primary" />
-                                <ChartSizer>
-                                    {w => {
-                                        const mealColors = [C.info, C.success, C.warning, '#9CA3AF'];
-                                        const pieData = ds.mealCountLabels.map((name, i) => ({
-                                            name,
-                                            population: ds.mealCountData[i] ?? 0,
-                                            color: mealColors[i % mealColors.length],
-                                            legendFontColor: C.text,
-                                            legendFontSize: 12,
-                                        }));
-                                        return (
-                                            <PieChart
-                                                width={w}
-                                                height={220}
-                                                data={pieData}
-                                                accessor="population"
-                                                chartConfig={baseConfig}
-                                                backgroundColor="transparent"
-                                                paddingLeft="0"
-                                                hasLegend
-                                                absolute // số tuyệt đối
-                                            />
-                                        );
-                                    }}
-                                </ChartSizer>
-                                <ViewComponent mt={8}>
-                                    <TextComponent text={`Tổng: ${ds.mealCountData.reduce((a, b) => a + b, 0)} bữa`} tone="muted" align="center" />
-                                </ViewComponent>
-                            </ViewComponent>
+                        {/* Meal slots progress (ĐÃ ĂN / BỎ BỮA) */}
+                        <ViewComponent variant="card" p={CARD_PAD} mb={12} radius={20}>
+                            <TextComponent text={ds.titles.meal} variant="h3" weight="bold" tone="primary" />
 
-                            {/* Uống nước */}
-                            <ViewComponent variant="card" p={CARD_PAD} mb={12} radius={20}>
-                                <TextComponent text={ds.titles.water} variant="h3" weight="bold" tone="primary" />
+                            <ChartSizer>
+                                {w => (
+                                    <StackedBarChart
+                                        width={w}
+                                        height={240}
+                                        data={{
+                                            labels: (ds.mealProgress || []).map((m: MealProgressItem) => m.label),
+                                            legend: ['Đã ăn', 'Bỏ bữa'],
+                                            data: (ds.mealProgress || []).map((m: MealProgressItem) => [nz(m.logged), nz(m.missed)]),
+                                            barColors: [C.success, C.warning],
+                                        }}
+                                        chartConfig={{
+                                            ...baseConfig,
+                                            decimalPlaces: 0,
+                                            formatYLabel: v => String(parseInt(v, 10)),
+                                        }}
+                                        hideLegend={false}
+                                        withHorizontalLabels
+                                        fromZero
+                                        style={{ marginTop: 10 }}
+                                    />
+                                )}
+                            </ChartSizer>
+
+                            {/* Nhãn x/y & % */}
+                            <ViewComponent mt={10} gap={6}>
+                                {(ds.mealProgress || []).map((m: MealProgressItem) => (
+                                    <ViewComponent key={m.label} row between>
+                                        <TextComponent text={`• ${m.label}`} />
+                                        <TextComponent text={`${m.logged}/${m.total} ngày (${m.pct}%)`} weight="bold" />
+                                    </ViewComponent>
+                                ))}
+                            </ViewComponent>
+                        </ViewComponent>
+
+                        {/* Water chart */}
+                        <ViewComponent variant="card" p={CARD_PAD} mb={12} radius={20}>
+                            <TextComponent text={ds.titles.water} variant="h3" weight="bold" tone="primary" />
+                            {hasWaterData ? (
                                 <ChartSizer>
                                     {w => (
                                         <BarChart
@@ -599,32 +500,39 @@ export default function Statistics(): JSX.Element {
                                             fromZero
                                             showValuesOnTopOfBars
                                             withHorizontalLabels
+                                            yAxisLabel=""
+                                            yAxisSuffix="ml"
                                             style={{ marginTop: 10 }}
                                         />
                                     )}
                                 </ChartSizer>
-                            </ViewComponent>
-                        </>
-                    )}
+                            ) : (
+                                <ViewComponent mt={10}>
+                                    <TextComponent text="Chưa có dữ liệu nước để hiển thị." tone="muted" align="center" />
+                                </ViewComponent>
+                            )}
+                        </ViewComponent>
 
-                    {/* ĐỀ XUẤT (CUỐI CÙNG) */}
-                    <ViewComponent variant="card" p={CARD_PAD} mb={28} radius={20}>
-                        <TextComponent text="Đề xuất" variant="h3" weight="bold" tone="primary" />
-                        <ViewComponent mt={10} gap={6}>
-                            {ds.alerts.map((t, idx) => (
-                                <TextComponent key={`al-${idx}`} text={`⚠️ ${t}`} />
-                            ))}
-                        </ViewComponent>
-                        <ViewComponent mt={12}>
-                            <TextComponent text="Thành tích" variant="subtitle" weight="bold" />
-                            <ViewComponent mt={6} gap={6}>
-                                {ds.badges.map((b, i) => (
-                                    <TextComponent key={`bd-${i}`} text={`🏅 ${b}`} />
-                                ))}
+                        {/* Warnings — NỔI BẬT HƠN */}
+                        <View
+                            style={[
+                                styles.warningCard,
+                                { borderColor: C.red, backgroundColor: '#FEE2E2' /* red-100 */ },
+                            ]}
+                        >
+                            <TextComponent text="⚠️ Cảnh báo" variant="h3" weight="bold" color={C.red} />
+                            <ViewComponent mt={10} gap={8}>
+                                {(ds.warnings || []).length > 0 ? (
+                                    ds.warnings.map((t: string, idx: number) => (
+                                        <TextComponent key={`warn-${idx}`} text={`• ${t}`} />
+                                    ))
+                                ) : (
+                                    <TextComponent text="Không có cảnh báo." tone="muted" />
+                                )}
                             </ViewComponent>
-                        </ViewComponent>
-                    </ViewComponent>
-                </ScrollView>
+                        </View>
+                    </ScrollView>
+                )}
             </ViewComponent>
         </Container>
     );
@@ -651,17 +559,6 @@ const styles = StyleSheet.create({
         shadowRadius: 2,
         elevation: 1,
     },
-
-    iconContainer: {
-        width: 42,
-        height: 42,
-        borderRadius: 12,
-        backgroundColor: C.bg,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: C.border,
-    },
     line: {
         height: 2,
         backgroundColor: C.border,
@@ -676,9 +573,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         overflow: 'hidden',
     },
-    filterItemInactive: {
-        backgroundColor: 'transparent',
-    },
+    filterItemInactive: { backgroundColor: 'transparent' },
     filterItemActive: {
         backgroundColor: C.primary,
         borderRadius: 999,
@@ -687,50 +582,11 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         elevation: 1,
     },
-    // Thu nhỏ icon điều hướng trong PeriodPicker
-    navIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: 12,
+    rangeTabs: { marginTop: 6 },
+    warningCard: {
         borderWidth: 1,
-        borderColor: C.primaryBorder,
-        backgroundColor: C.primarySurface,
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
-    },
-    periodPill: {
-        shadowColor: '#000',
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
-    },
-    rangeTabs: {
-        marginTop: 6,
-    },
-    // iOS bottom sheet styles
-    backdrop: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.35)',
-    },
-    sheet: {
-        backgroundColor: C.white,
-        borderTopLeftRadius: 16,
-        borderTopRightRadius: 16,
-        borderWidth: 1,
-        borderColor: C.border,
-        paddingTop: 8,
-        paddingBottom: 12,
-    },
-    sheetBtn: {
-        alignSelf: 'center',
-        marginTop: 8,
-        paddingHorizontal: 18,
-        paddingVertical: 10,
-        borderRadius: 999,
-        backgroundColor: C.primary,
+        padding: CARD_PAD,
+        borderRadius: 20,
+        marginBottom: 28,
     },
 });

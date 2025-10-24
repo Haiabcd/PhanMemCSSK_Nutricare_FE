@@ -310,7 +310,6 @@ export default function Suggestion() {
       try {
         const res = await suggestAllowedFoods({ slot, limit: 20 }, signal);
         const list = (res?.data ?? []).map(toRecipe);
-        console.log("Danh sách món", res.data);
         setCacheByCat(c, list);
         return list;
       } catch (e) {

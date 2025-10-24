@@ -551,7 +551,7 @@ export default function Track() {
           fileName: asset.fileName,
         });
       }
-    } catch {}
+    } catch { }
   };
 
   const handleScanFromLibrary = async () => {
@@ -573,7 +573,7 @@ export default function Track() {
           fileName: asset.fileName,
         });
       }
-    } catch {}
+    } catch { }
   };
 
   useEffect(() => () => scanControllerRef.current?.abort?.(), []);
@@ -1360,69 +1360,69 @@ export default function Track() {
 
                     {(autoLoading ||
                       (!isBlank(mealName) && autoItems.length > 0)) && (
-                      <V
-                        style={[
-                          styles.dropdownPanel,
-                          {
-                            top: 52,
-                            height: AC_ITEM_HEIGHT * AC_VISIBLE_ROWS + 2,
-                            paddingVertical: 6,
-                            overflow: 'hidden',
-                          },
-                        ]}
-                      >
-                        {autoLoading && autoItems.length === 0 ? (
-                          <V alignItems="center" style={{ paddingVertical: 8 }}>
-                            <ActivityIndicator />
-                          </V>
-                        ) : (
-                          <FlatList
-                            keyboardShouldPersistTaps="always"
-                            style={{ flexGrow: 0 }}
-                            data={autoItems}
-                            keyExtractor={(it: FoodResponse) => String(it.id)}
-                            renderItem={({ item }: { item: FoodResponse }) => (
-                              <Pressable
-                                onPress={() => onSelectFood(item)}
-                                style={styles.acItem}
-                              >
-                                <Image
-                                  source={{ uri: getThumb(item) }}
-                                  style={styles.acThumb}
-                                />
-                                <Text
-                                  text={item.name}
-                                  weight="semibold"
-                                  style={styles.acName as any}
-                                />
-                              </Pressable>
-                            )}
-                            ItemSeparatorComponent={() => (
-                              <RNView style={styles.acSep} />
-                            )}
-                            onEndReachedThreshold={0.3}
-                            onEndReached={loadMoreAuto}
-                            ListFooterComponent={
-                              acHasMore ? (
-                                <V
-                                  alignItems="center"
-                                  style={{ paddingVertical: 8 }}
+                        <V
+                          style={[
+                            styles.dropdownPanel,
+                            {
+                              top: 52,
+                              height: AC_ITEM_HEIGHT * AC_VISIBLE_ROWS + 2,
+                              paddingVertical: 6,
+                              overflow: 'hidden',
+                            },
+                          ]}
+                        >
+                          {autoLoading && autoItems.length === 0 ? (
+                            <V alignItems="center" style={{ paddingVertical: 8 }}>
+                              <ActivityIndicator />
+                            </V>
+                          ) : (
+                            <FlatList
+                              keyboardShouldPersistTaps="always"
+                              style={{ flexGrow: 0 }}
+                              data={autoItems}
+                              keyExtractor={(it: FoodResponse) => String(it.id)}
+                              renderItem={({ item }: { item: FoodResponse }) => (
+                                <Pressable
+                                  onPress={() => onSelectFood(item)}
+                                  style={styles.acItem}
                                 >
-                                  {acLoadingMore ? (
-                                    <ActivityIndicator />
-                                  ) : (
-                                    <Text
-                                      text="Kéo để tải thêm…"
-                                      tone="muted"
-                                    />
-                                  )}
-                                </V>
-                              ) : null
-                            }
-                          />
-                        )}
-                      </V>
-                    )}
+                                  <Image
+                                    source={{ uri: getThumb(item) }}
+                                    style={styles.acThumb}
+                                  />
+                                  <Text
+                                    text={item.name}
+                                    weight="semibold"
+                                    style={styles.acName as any}
+                                  />
+                                </Pressable>
+                              )}
+                              ItemSeparatorComponent={() => (
+                                <RNView style={styles.acSep} />
+                              )}
+                              onEndReachedThreshold={0.3}
+                              onEndReached={loadMoreAuto}
+                              ListFooterComponent={
+                                acHasMore ? (
+                                  <V
+                                    alignItems="center"
+                                    style={{ paddingVertical: 8 }}
+                                  >
+                                    {acLoadingMore ? (
+                                      <ActivityIndicator />
+                                    ) : (
+                                      <Text
+                                        text="Kéo để tải thêm…"
+                                        tone="muted"
+                                      />
+                                    )}
+                                  </V>
+                                ) : null
+                              }
+                            />
+                          )}
+                        </V>
+                      )}
                   </RNView>
 
                   {/* Combobox chọn bữa */}
@@ -1442,10 +1442,10 @@ export default function Track() {
                             mealTypeManual === 'BREAKFAST'
                               ? 'Sáng'
                               : mealTypeManual === 'LUNCH'
-                              ? 'Trưa'
-                              : mealTypeManual === 'DINNER'
-                              ? 'Chiều'
-                              : 'Phụ'
+                                ? 'Trưa'
+                                : mealTypeManual === 'DINNER'
+                                  ? 'Chiều'
+                                  : 'Phụ'
                           }
                           color={INPUT_TEXT_COLOR}
                           style={{ fontSize: 16 }}
@@ -1840,9 +1840,8 @@ export default function Track() {
                                 )}
                                 {(p != null || c != null || f != null) && (
                                   <Text
-                                    text={`Protein: ${p ?? '-'} g, Carbs: ${
-                                      c ?? '-'
-                                    } g, Fat: ${f ?? '-'} g`}
+                                    text={`Protein: ${p ?? '-'} g, Carbs: ${c ?? '-'
+                                      } g, Fat: ${f ?? '-'} g`}
                                   />
                                 )}
                                 <V row gap={8} style={styles.rowBtns}>
@@ -1902,7 +1901,7 @@ export default function Track() {
             Platform.OS === 'ios' ? 'interactive' : 'on-drag'
           }
           nestedScrollEnabled
-          onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {}}
+          onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => { }}
           scrollEventThrottle={16}
           refreshControl={
             tab === 'history' ? (
@@ -2067,7 +2066,7 @@ export default function Track() {
         <ConfirmSheet
           visible={!!confirm}
           title="Xác nhận"
-          message="Bạn muốn xoá mục này?"
+          message="Xoá mục này sẽ ảnh hưởng đến dinh dưỡng, nhưng hệ thống sẽ điều chỉnh kế hoạch mới cho bạn. Tiếp tục xoá?"
           confirmLabel="Xóa"
           onCancel={() => setConfirm(null)}
           onConfirm={async () => {

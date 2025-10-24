@@ -599,7 +599,6 @@ export default function NutritionGuide() {
         const apiRes = await getMyInfo(ac.signal);
         const info: any = (apiRes as any)?.data ?? apiRes;
         setMyInfo(info as InfoResponse);
-        console.log('[NutritionGuide][my-info]', info);
       } catch (e) {
         console.log('[NutritionGuide][my-info][error]', e);
       }

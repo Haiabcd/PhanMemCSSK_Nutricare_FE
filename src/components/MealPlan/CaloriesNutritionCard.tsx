@@ -311,7 +311,7 @@ export default function CaloriesNutritionCard({
         />
         <MacroPill
           icon="🥦"
-          label="Chất xơ"
+          label="Chất xơ "
           cur={macros.fiber.cur}
           total={macros.fiber.total}
           tint={C.success}
