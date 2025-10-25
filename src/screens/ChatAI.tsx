@@ -1,7 +1,8 @@
-// src/screens/ChatAI.tsx
+// ChatAI.tsx
 import React, { useMemo, useRef, useState } from 'react';
-import { View, Text, Image, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { Image, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import Entypo from 'react-native-vector-icons/Entypo';
 import Container from '../components/Container';
 import TextComponent from '../components/TextComponent';
@@ -9,93 +10,123 @@ import ViewComponent from '../components/ViewComponent';
 import { colors as C } from '../constants/colors';
 
 const CHATBASE_URL =
-    'https://www.chatbase.co/chatbot-iframe/stChIc4Kqt_784S75UQS6'; // ← nếu 404, thử: https://www.chatbase.co/chatbot/stChIc4Kqt_784S75UQS6
+  'https://www.chatbase.co/chatbot-iframe/stChIc4Kqt_784S75UQS6';
 
-/* ===== Small Avatar (fallback initials) ===== */
-function SmallAvatar({
-    name,
-    photoUri,
-    size = 48,
-}: { name: string; photoUri?: string | null; size?: number }) {
-    const initials = useMemo(
-        () => name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
-        [name],
-    );
-    if (photoUri) {
-        return (
-            <Image
-                source={{ uri: photoUri }}
-                style={{ width: size, height: size, borderRadius: 999, borderWidth: 3, borderColor: '#ecfdf5', backgroundColor: '#fff' }}
-            />
-        );
-    }
-    return (
-        <View
-            style={{
-                width: size, height: size, borderRadius: 999,
-                alignItems: 'center', justifyContent: 'center',
-                backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: C.border,
-            }}
-        >
-            <Text style={{ color: C.primary, fontWeight: '900', fontSize: 14 }}>{initials}</Text>
-        </View>
-    );
-}
-
+/* ===================== Screen ===================== */
 export default function ChatAI({ navigation }: { navigation?: any }) {
-    const webRef = useRef<WebView>(null);
-    const [loadingWeb, setLoadingWeb] = useState(true);
+  const webRef = useRef<WebView>(null);
+  const [loadingWeb, setLoadingWeb] = useState(true);
 
-    return (
-        <Container>
-            {/* Header gọn */}
-            <ViewComponent row between alignItems="center" mt={20}>
-                <ViewComponent row alignItems="center" gap={10} flex={0}>
-                    <SmallAvatar
-                        name="Anh Hải"
-                        photoUri={'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?q=80&w=300'}
-                        size={52}
-                    />
-                    <ViewComponent flex={0}>
-                        <TextComponent text="Xin chào," variant="caption" tone="muted" />
-                        <TextComponent text="Trợ lý dinh dưỡng AI" variant="subtitle" weight="bold" />
-                    </ViewComponent>
-                </ViewComponent>
+  return (
+    <Container>
+      {/* Header card */}
+      <ViewComponent px={16} pt={12}>
+        <ViewComponent
+          variant="card"
+          radius={16}
+          px={12}
+          py={10}
+          style={s.headerCard}
+        >
+          <ViewComponent row alignItems="center" gap={10}>
+            <Pressable
+              onPress={() => navigation?.goBack?.()}
+              style={s.iconBtn}
+              hitSlop={8}
+            >
+              <Ionicons name="chevron-back" size={20} color={C.slate700} />
+            </Pressable>
 
-                <Pressable style={s.iconContainer} onPress={() => navigation?.navigate?.('Notification')}>
-                    <Entypo name="bell" size={20} color={C.primary} />
-                </Pressable>
+            <ViewComponent style={{ flex: 1 }}>
+              <TextComponent
+                text="Trợ lý dinh dưỡng"
+                variant="caption"
+                tone="muted"
+              />
+              <TextComponent
+                text="AI Chat"
+                variant="h3"
+                weight="bold"
+                color={C.text}
+              />
             </ViewComponent>
 
-            <View style={s.line} />
+            <Pressable
+              onPress={() => navigation?.navigate?.('Notification')}
+              style={s.iconBtn}
+              hitSlop={8}
+            >
+              <Entypo name="bell" size={18} color={C.primary} />
+            </Pressable>
+          </ViewComponent>
+        </ViewComponent>
+      </ViewComponent>
 
-            {/* Chatbase chiếm toàn bộ còn lại */}
-            <View style={{ flex: 1 }}>
-                <WebView
-                    ref={webRef}
-                    source={{ uri: CHATBASE_URL }}
-                    onLoadStart={() => setLoadingWeb(true)}
-                    onLoadEnd={() => setLoadingWeb(false)}
-                    javaScriptEnabled
-                    domStorageEnabled
-                    startInLoadingState
-                    pullToRefreshEnabled
-                    onShouldStartLoadWithRequest={() => true}
-                    style={{ flex: 1, backgroundColor: '#fff' }}
-                />
-                {loadingWeb && (
-                    <ActivityIndicator size="large" color={C.primary} style={{ position: 'absolute', top: 16, right: 16 }} />
-                )}
-            </View>
-        </Container>
-    );
+      {/* WebView container */}
+      <ViewComponent flex={1} px={16} pb={16} pt={8}>
+        <ViewComponent
+          radius={16}
+          border
+          borderColor={C.border}
+          style={s.webShell}
+        >
+          <WebView
+            ref={webRef}
+            source={{ uri: CHATBASE_URL }}
+            onLoadStart={() => setLoadingWeb(true)}
+            onLoadEnd={() => setLoadingWeb(false)}
+            onError={() => setLoadingWeb(false)}
+            javaScriptEnabled
+            domStorageEnabled
+            startInLoadingState
+            pullToRefreshEnabled
+            style={{ flex: 1, backgroundColor: C.white, borderRadius: 16 }}
+          />
+
+          {loadingWeb && (
+            <ViewComponent
+              center
+              style={s.loadingOverlay}
+              radius={16}
+              backgroundColor="rgba(255,255,255,0.85)"
+            >
+              <ActivityIndicator size="large" color={C.primary} />
+              <TextComponent
+                text="Đang kết nối với AI..."
+                variant="caption"
+                tone="muted"
+                style={{ marginTop: 8 }}
+              />
+            </ViewComponent>
+          )}
+        </ViewComponent>
+      </ViewComponent>
+    </Container>
+  );
 }
 
 const s = StyleSheet.create({
-    iconContainer: {
-        width: 42, height: 42, borderRadius: 12,
-        backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center',
-        borderWidth: 1, borderColor: C.border,
-    },
-    line: { height: 2, backgroundColor: C.border, marginVertical: 12, marginHorizontal: 16 },
+  headerCard: {
+    backgroundColor: C.white,
+    borderColor: C.primarySurface,
+  },
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: C.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  webShell: {
+    flex: 1,
+    overflow: 'hidden',
+    backgroundColor: C.white,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    inset: 0,
+  } as any,
 });

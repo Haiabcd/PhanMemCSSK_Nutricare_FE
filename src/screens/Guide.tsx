@@ -1,10 +1,4 @@
-import React, {
-  useMemo,
-  useRef,
-  useState,
-  useEffect,
-  useCallback,
-} from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   Image,
   Pressable,
@@ -12,9 +6,6 @@ import {
   FlatList,
   StyleSheet,
   useWindowDimensions,
-  Animated,
-  PanResponder,
-  ScrollView,
   Linking,
   View,
   ActivityIndicator,
@@ -37,10 +28,14 @@ import AppHeader from '../components/AppHeader';
 import type { GuideStackParamList } from '../navigation/GuideNavigator';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import Config from 'react-native-config';
+import { FALLBACK_IMAGES } from '../constants/fallbackImages';
+import { variedFallbackBy, DEFAULT_FALLBACK } from '../constants/imageFallback';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 /* ================== Cấu hình YouTube ================== */
-const YOUTUBE_API_KEY = 'AIzaSyD1rMC8n1IhSBHRUmHZ7nRCA9RvDXibGZc';
-const REGION = 'VN';
+const YOUTUBE_API_KEY = Config.YOUTUBE_API_KEY!;
+const REGION = Config.REGION || 'VN';
 const FALLBACK_THUMB =
   'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=800&auto=format&fit=crop';
 
@@ -59,44 +54,27 @@ type Item = {
   publishedAt?: string;
 };
 
-const FILTERS: { key: Kind; label: string }[] = [
-  { key: 'all', label: 'Tất cả' },
-  { key: 'meal', label: 'Tập luyện' },
-  { key: 'article', label: 'Bài báo' },
-  { key: 'video', label: 'Video' },
+const CATS: Array<{ key: Kind; label: string; icon: string }> = [
+  { key: 'all', label: 'Tất cả', icon: 'grid-outline' },
+  { key: 'meal', label: 'Tập luyện', icon: 'barbell-outline' },
+  { key: 'article', label: 'Bài báo', icon: 'newspaper-outline' },
+  { key: 'video', label: 'Video', icon: 'play-circle-outline' },
 ];
 
-/* ================== Avatar ================== */
-function Avatar({
-  name,
-  photoUri,
-}: {
-  name: string;
-  photoUri?: string | null;
-}) {
-  const initials = name
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-  if (photoUri) return <Image source={{ uri: photoUri }} style={s.avatar} />;
-  return (
-    <ViewComponent
-      center
-      radius={999}
-      border
-      backgroundColor={C.bg}
-      style={s.avatar}
-    >
-      <TextComponent
-        text={initials}
-        variant="subtitle"
-        weight="bold"
-        tone="primary"
-      />
-    </ViewComponent>
-  );
+/* ================== Helpers pick topic fallback ================== */
+function getHostFromUrl(raw?: string | null): string {
+  if (!raw) return '';
+  try {
+    const hasScheme = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(raw);
+    const url = hasScheme ? raw : `https://${raw}`;
+    const m = url.match(/^[a-z]+:\/\/([^/]+)/i);
+    let host = m?.[1] ?? '';
+    host = host.replace(/^www\./, '');
+    host = host.split(':')[0];
+    return host;
+  } catch {
+    return '';
+  }
 }
 
 /* ================== Card ================== */
@@ -105,12 +83,31 @@ function Card({ item }: { item: Item }) {
     item.kind === 'meal'
       ? 'Tập luyện'
       : item.kind === 'article'
-        ? 'Bài báo'
-        : 'Video';
+      ? 'Bài báo'
+      : 'Video';
+
+  const [img, setImg] = useState(item.image || FALLBACK_THUMB);
+  useEffect(() => {
+    setImg(item.image || FALLBACK_THUMB);
+  }, [item.image]);
+
+  const handleImgError = () => {
+    const host = getHostFromUrl(item.url);
+    const bySource = host
+      ? FALLBACK_IMAGES.bySource[host as keyof typeof FALLBACK_IMAGES.bySource]
+      : undefined;
+
+    const next =
+      variedFallbackBy(`${item.title || ''} ${item.publishedAt || ''}`, host) ||
+      (host === 'news.google.com' ? undefined : bySource) ||
+      DEFAULT_FALLBACK;
+
+    setImg(next);
+  };
 
   const handlePress = () => {
     if (item.url) {
-      Linking.openURL(item.url).catch(() => { });
+      Linking.openURL(item.url).catch(() => {});
     }
   };
 
@@ -124,9 +121,10 @@ function Card({ item }: { item: Item }) {
           {/* Media */}
           <ViewComponent style={s.thumbWrap}>
             <Image
-              source={{ uri: item.image || FALLBACK_THUMB }}
+              source={{ uri: img || FALLBACK_THUMB }}
               style={s.thumb}
               resizeMode="cover"
+              onError={handleImgError}
             />
             {/* badge */}
             <ViewComponent
@@ -147,8 +145,8 @@ function Card({ item }: { item: Item }) {
               />
             </ViewComponent>
 
-            {/* play overlay */}
-            {item.url && item.kind === 'video' && (
+            {/* play overlay — CHỈ cho video */}
+            {item.kind === 'video' && item.url && (
               <ViewComponent
                 center
                 radius={16}
@@ -336,7 +334,7 @@ function buildWorkoutQueryFromInfo(
       terms.push('giảm mỡ', 'giảm cân', 'cardio', 'HIIT', 'đốt mỡ');
       break;
     case 'GAIN':
-      terms.push('tăng cơ', 'sức mạnh', 'full body workout', 'hypertrophy');
+      terms.push('tăng cơ', 'tăng cân', 'full body workout', 'hypertrophy');
       break;
     case 'MAINTAIN':
       terms.push('duy trì thể lực', 'fitness routine', 'mobility', 'balance');
@@ -374,7 +372,11 @@ function buildWorkoutQueryFromInfo(
     const n = (c?.name || '').toLowerCase();
     if (!n) return;
     if (n.includes('tiểu đường') || n.includes('diabetes')) {
-      terms.push('workout cho người tiểu đường', 'low impact cardio', 'glucose control');
+      terms.push(
+        'workout cho người tiểu đường',
+        'low impact cardio',
+        'glucose control',
+      );
     } else if (n.includes('huyết áp') || n.includes('hypertension')) {
       terms.push('low impact', 'tránh HIIT quá gắt', 'breathing technique');
     } else if (n.includes('cholesterol') || n.includes('mỡ máu')) {
@@ -443,8 +445,8 @@ const FOOD_KEYWORDS = [
   'high protein',
 ];
 
-function includesAny(haystack: string, keywords: string[]) {
-  const s = haystack.toLowerCase();
+function includesAny(haystack: string | undefined, keywords: string[]) {
+  const s = (haystack || '').toLowerCase();
   return keywords.some(k => s.includes(k.toLowerCase()));
 }
 
@@ -490,6 +492,54 @@ function isVietnameseItem(item: Item) {
   return (
     VIET_DIACRITIC_RE.test(s) || VIET_KEYWORDS.some(k => lower.includes(k))
   );
+}
+
+/* ====== NEW: Lọc theo mục tiêu tập luyện ====== */
+const LOSS_KEYWORDS = [
+  'giảm mỡ',
+  'giảm cân',
+  'đốt mỡ',
+  'eo thon',
+  'bụng phẳng',
+  'fat loss',
+  'lose fat',
+  'lose weight',
+  'burn fat',
+  'hiit đốt mỡ',
+];
+
+const GAIN_KEYWORDS = [
+  'tăng cơ',
+  'sức mạnh',
+  'hypertrophy',
+  'build muscle',
+  'muscle building',
+  'bulk',
+  'lean mass',
+  'full body strength',
+];
+
+function textOf(item: Item) {
+  return [item.title, item.desc, item.meta, item.channel]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
+
+function filterWorkoutByGoal(item: Item, goal?: ProfileDto['goal']) {
+  const s = textOf(item);
+  if (goal === 'GAIN') {
+    if (includesAny(s, LOSS_KEYWORDS)) return false; // chặn video giảm mỡ/giảm cân
+  }
+  return true;
+}
+
+function scoreGain(item: Item) {
+  const s = textOf(item);
+  let score = 0;
+  if (includesAny(s, GAIN_KEYWORDS)) score += 2;
+  if (includesAny(s, LOSS_KEYWORDS)) score -= 2;
+  return score;
 }
 
 async function fetchYoutubeVideos(
@@ -582,14 +632,14 @@ function interleave<T>(...lists: T[][]): T[] {
   return out;
 }
 
-/* ================== 👉 BÀI BÁO: gọi API trực tiếp tại đây ================== */
 /* ================== Screen ================== */
 export default function NutritionGuide() {
   const [active, setActive] = useState<Kind>('all');
   const [q, setQ] = useState('');
   const { width: screenW, height: screenH } = useWindowDimensions();
-
-  // Raw info từ API
+  const [chipsLayoutW, setChipsLayoutW] = useState(0);
+  const [chipsContentW, setChipsContentW] = useState(0);
+  const canScroll = chipsContentW > chipsLayoutW + 1;
   const [myInfo, setMyInfo] = useState<InfoResponse | null>(null);
 
   useEffect(() => {
@@ -615,8 +665,6 @@ export default function NutritionGuide() {
   const [hasMoreArticles, setHasMoreArticles] = useState(true);
   const navigation =
     useNavigation<NativeStackNavigationProp<GuideStackParamList>>();
-
-  // ✅ mapArticles dùng type từ service
   const mapArticles = useCallback((arr: RecommendationItemDto[]): Item[] => {
     const articlesOnly = (arr || []).filter(
       a => (a.type || 'article') === 'article',
@@ -630,12 +678,32 @@ export default function NutritionGuide() {
         `${(a.source || '').trim()}|${(a.title || '').trim()}` ||
         Math.random().toString(36).slice(2);
 
+      // host theo url/source
+      let host = getHostFromUrl(a.url);
+      if (!host && a.source) host = a.source.replace(/^www\./, '');
+
+      const bySource = host
+        ? FALLBACK_IMAGES.bySource[
+            host as keyof typeof FALLBACK_IMAGES.bySource
+          ]
+        : undefined;
+
+      const seedTitle = `${a.title || ''} ${dateStr}`;
+
+      const image =
+        (a.imageUrl || '').trim() ||
+        // ƯU TIÊN đa dạng trước
+        variedFallbackBy(seedTitle, host) ||
+        // Nếu host là news.google.com thì bỏ qua bySource để tránh trùng
+        (host === 'news.google.com' ? undefined : bySource) ||
+        DEFAULT_FALLBACK;
+
       return {
         id: `ar_${stableKey}`,
         title: (a.title || '').trim() || 'Bài viết',
         desc: a.source || '',
         kind: 'article' as Kind,
-        image: a.imageUrl || FALLBACK_THUMB,
+        image,
         url: a.url || undefined,
         meta: [a.source, dateStr].filter(Boolean).join(' • '),
         publishedAt: a.published || undefined,
@@ -643,7 +711,6 @@ export default function NutritionGuide() {
     });
   }, []);
 
-  // ✅ reloadArticles
   const reloadArticles = useCallback(async () => {
     setLoadingArticles(true);
     try {
@@ -659,7 +726,7 @@ export default function NutritionGuide() {
       });
 
       setArticleItems(unique);
-      setHasMoreArticles(false); // không còn phân trang
+      setHasMoreArticles(false); // không phân trang nữa
     } catch (e) {
       console.log('[Articles][reload] error', e);
       setArticleItems([]);
@@ -669,8 +736,6 @@ export default function NutritionGuide() {
     }
   }, [mapArticles]);
 
-
-  // ✅ loadMoreArticles
   const loadMoreArticles = useCallback(async () => {
     if (loadingArticles || loadingMoreArticles || !hasMoreArticles) return;
     setLoadingMoreArticles(true);
@@ -690,7 +755,6 @@ export default function NutritionGuide() {
         setHasMoreArticles(false);
       }
     } catch (e) {
-      console.log('[Articles][loadMore] error', e);
       setHasMoreArticles(false);
     } finally {
       setLoadingMoreArticles(false);
@@ -787,7 +851,8 @@ export default function NutritionGuide() {
         a.name.toLowerCase(),
       );
 
-      // 💡 CHỈ GIỮ VIDEO TIẾNG VIỆT
+      const pGoal = myInfo?.profileCreationResponse?.goal;
+
       const filtered = mapped
         .filter(
           v =>
@@ -795,16 +860,22 @@ export default function NutritionGuide() {
               (v.title + ' ' + v.desc).toLowerCase().includes(b),
             ),
         )
-        .filter(isVietnameseItem);
+        .filter(isVietnameseItem)
+        .filter(it => filterWorkoutByGoal(it, pGoal));
 
-      setWorkoutItems(filtered);
+      const sorted =
+        pGoal === 'GAIN'
+          ? [...filtered].sort((a, b) => scoreGain(b) - scoreGain(a))
+          : filtered;
+
+      setWorkoutItems(sorted);
       setNextWorkoutToken(nextPageToken);
     } catch (e) {
       if (__DEV__) console.warn('[YouTube][reloadWorkout] error', e);
     } finally {
       setLoadingWorkout(false);
     }
-  }, [workoutQuery, myInfo?.allergies]);
+  }, [workoutQuery, myInfo?.allergies, myInfo?.profileCreationResponse?.goal]);
 
   const loadMoreWorkout = useCallback(async () => {
     if (!nextWorkoutToken || loadingWorkout) return;
@@ -818,17 +889,30 @@ export default function NutritionGuide() {
       );
       const mapped = more.map(it => ({ ...it, kind: 'meal' as Kind }));
 
-      // 💡 CHỈ GIỮ VIDEO TIẾNG VIỆT cho phần load-more
-      const moreFiltered = mapped.filter(isVietnameseItem);
+      const pGoal = myInfo?.profileCreationResponse?.goal;
 
-      setWorkoutItems(prev => [...prev, ...moreFiltered]);
+      const moreFiltered = mapped
+        .filter(isVietnameseItem)
+        .filter(it => filterWorkoutByGoal(it, pGoal));
+
+      const merged =
+        pGoal === 'GAIN'
+          ? [...moreFiltered].sort((a, b) => scoreGain(b) - scoreGain(a))
+          : moreFiltered;
+
+      setWorkoutItems(prev => [...prev, ...merged]);
       setNextWorkoutToken(nextPageToken);
     } catch (e) {
       if (__DEV__) console.warn('[YouTube][loadMoreWorkout] error', e);
     } finally {
       setLoadingWorkout(false);
     }
-  }, [nextWorkoutToken, workoutQuery, loadingWorkout]);
+  }, [
+    nextWorkoutToken,
+    workoutQuery,
+    loadingWorkout,
+    myInfo?.profileCreationResponse?.goal,
+  ]);
 
   useEffect(() => {
     reload();
@@ -859,26 +943,26 @@ export default function NutritionGuide() {
     });
   }, [ALL_DATA, active, q]);
 
-  // ====== NEW: cờ tiện dụng để biết còn tải / còn trang không
+  // ====== LOADING FLAGS
   const anyLoading =
     loading || loadingWorkout || loadingArticles || loadingMoreArticles;
-  // ==== trạng thái đã hết cho từng nguồn
+
+  // Trạng thái đã hết cho từng nguồn
   const isVideoDone = ytItems.length > 0 && !nextToken;
   const isWorkoutDone = workoutItems.length > 0 && !nextWorkoutToken;
   const isArticleDone = articleItems.length > 0 && !hasMoreArticles;
 
-  // ==== tổng hợp theo tab
+  // Tổng hợp theo tab
   const noMore =
     active === 'video'
       ? isVideoDone
       : active === 'meal'
-        ? isWorkoutDone
-        : active === 'article'
-          ? isArticleDone
-          // Tab "Tất cả": coi là hết khi mọi nguồn đều hết (hoặc không có item nào từ nguồn đó)
-          : ((isVideoDone || ytItems.length === 0) &&
-            (isWorkoutDone || workoutItems.length === 0) &&
-            (isArticleDone || articleItems.length === 0));
+      ? isWorkoutDone
+      : active === 'article'
+      ? isArticleDone
+      : (isVideoDone || ytItems.length === 0) &&
+        (isWorkoutDone || workoutItems.length === 0) &&
+        (isArticleDone || articleItems.length === 0);
 
   const CONTENT_MIN_HEIGHT = Math.max(420, Math.floor(screenH * 0.79));
 
@@ -886,7 +970,8 @@ export default function NutritionGuide() {
     <Container>
       {/* Header */}
       <AppHeader
-        loading={loading}
+        // KHÔNG truyền loading ở tab Bài báo để tránh trùng spinner
+        loading={active === 'article' ? false : loading}
         onBellPress={() => navigation.navigate('Notification')}
       />
 
@@ -923,42 +1008,60 @@ export default function NutritionGuide() {
         </ViewComponent>
 
         {/* Filters */}
-        <ScrollView
+        <FlatList
           horizontal
+          data={CATS}
+          keyExtractor={item => `cat-${item.key}`}
           showsHorizontalScrollIndicator={false}
           style={{ marginTop: 10, height: 44, maxHeight: 44 }}
-          contentContainerStyle={{
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flex: 1,
-          }}
-        >
-          {FILTERS.map(f => {
-            const isActive = active === f.key;
+          onLayout={e => setChipsLayoutW(e.nativeEvent.layout.width)}
+          onContentSizeChange={(w /* contentWidth */) => setChipsContentW(w)}
+          contentContainerStyle={[
+            s.chipsRow,
+            {
+              paddingHorizontal: 16,
+              flexGrow: 1,
+              justifyContent: canScroll ? 'flex-start' : 'center',
+            },
+          ]}
+          ItemSeparatorComponent={() => <ViewComponent style={{ width: 10 }} />}
+          renderItem={({ item }) => {
+            const isActive = active === item.key;
             return (
-              <Pressable key={f.key} onPress={() => setActive(f.key)}>
+              <Pressable onPress={() => setActive(item.key)}>
                 <ViewComponent
-                  center
+                  row
+                  alignItems="center"
+                  gap={8}
                   radius={999}
                   border
-                  px={20}
+                  px={14}
                   py={8}
                   backgroundColor={isActive ? C.primary : C.white}
                   borderColor={isActive ? C.primary : C.border}
-                  style={isActive ? s.chipActiveShadow : undefined}
+                  style={[
+                    s.chip,
+                    isActive ? s.chipActiveShadow : s.chipInactiveShadow,
+                  ]}
                 >
+                  <Ionicons
+                    name={item.icon}
+                    size={14}
+                    color={isActive ? C.onPrimary : C.slate700}
+                  />
                   <TextComponent
-                    text={f.label}
+                    text={item.label}
                     variant="caption"
                     weight="bold"
                     tone={isActive ? 'inverse' : 'default'}
                     numberOfLines={1}
+                    style={{ paddingTop: 2 }}
                   />
                 </ViewComponent>
               </Pressable>
             );
-          })}
-        </ScrollView>
+          }}
+        />
 
         {/* List */}
         <ViewComponent style={{ flex: 1, minHeight: 0 }}>
@@ -989,20 +1092,36 @@ export default function NutritionGuide() {
               active === 'article'
                 ? loadingArticles
                 : active === 'meal'
-                  ? loadingWorkout
-                  : loading
+                ? loadingWorkout
+                : loading
             }
             onRefresh={
               active === 'article'
                 ? reloadArticles
                 : active === 'meal'
-                  ? reloadWorkout
-                  : reload
+                ? reloadWorkout
+                : reload
             }
-
             ListFooterComponent={
               filtered.length > 0 ? (
-                anyLoading ? (
+                active === 'article' ? (
+                  noMore ? (
+                    <View
+                      style={{
+                        paddingVertical: 20,
+                        alignItems: 'center',
+                        width: '100%',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <TextComponent
+                        text="Đã hiển thị xong"
+                        variant="caption"
+                        tone="muted"
+                      />
+                    </View>
+                  ) : null
+                ) : anyLoading ? (
                   <View style={{ paddingVertical: 16, alignItems: 'center' }}>
                     <ActivityIndicator />
                   </View>
@@ -1026,7 +1145,25 @@ export default function NutritionGuide() {
             }
             ListEmptyComponent={
               <ViewComponent center style={{ flex: 1, paddingVertical: 18 }}>
-                {loading || loadingWorkout || loadingArticles ? (
+                {active === 'article' ? (
+                  // Tab Bài báo: không spinner to — chỉ text
+                  loadingArticles ? (
+                    <TextComponent
+                      text="Đang tải bài báo..."
+                      variant="body"
+                      tone="muted"
+                    />
+                  ) : (
+                    <>
+                      <TextComponent text="Chưa có bài báo" variant="h3" />
+                      <TextComponent
+                        text="Thử từ khóa khác nhé."
+                        variant="body"
+                        tone="muted"
+                      />
+                    </>
+                  )
+                ) : loading || loadingWorkout ? (
                   <>
                     <ActivityIndicator />
                     <TextComponent
@@ -1052,82 +1189,37 @@ export default function NutritionGuide() {
       </ViewComponent>
 
       {/* Chat nổi */}
-      <FloatingChat
-        screenW={screenW}
-        screenH={screenH}
-        navigation={navigation}
-      />
+      <FloatingChat navigation={navigation} />
     </Container>
   );
 }
 
 /* ================== Floating Chat Button (draggable) ================== */
 function FloatingChat({
-  screenW,
-  screenH,
   navigation,
 }: {
-  screenW: number;
-  screenH: number;
   navigation: NativeStackNavigationProp<GuideStackParamList>;
 }) {
   const SIZE = 56;
-  const MARGIN = 12;
-
-  const pos = useRef(
-    new Animated.ValueXY({
-      x: screenW - SIZE - MARGIN,
-      y: Math.max(MARGIN, Math.min(screenH * 0.65, screenH - SIZE - MARGIN)),
-    }),
-  ).current;
-
-  const clamp = (v: number, min: number, max: number) =>
-    Math.max(min, Math.min(max, v));
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        pos.extractOffset();
-      },
-      onPanResponderMove: Animated.event([null, { dx: pos.x, dy: pos.y }], {
-        useNativeDriver: false,
-      }),
-      onPanResponderRelease: () => {
-        pos.flattenOffset();
-        const cur = {
-          x: (pos.x as any).__getValue(),
-          y: (pos.y as any).__getValue(),
-        };
-        const snapX =
-          cur.x + SIZE / 2 > screenW / 2 ? screenW - SIZE - MARGIN : MARGIN;
-        const boundedY = clamp(cur.y, MARGIN, screenH - SIZE - MARGIN);
-        Animated.spring(pos, {
-          toValue: { x: snapX, y: boundedY },
-          useNativeDriver: false,
-          bounciness: 8,
-        }).start();
-      },
-    }),
-  ).current;
+  const MARGIN = 16;
 
   return (
-    <Animated.View
+    <Pressable
+      onPress={() => navigation.navigate('ChatAI')}
       style={[
-        s.chatBall,
-        { width: SIZE, height: SIZE, borderRadius: SIZE / 2 },
-        pos.getLayout(),
+        s.chatFab,
+        {
+          width: SIZE,
+          height: SIZE,
+          borderRadius: SIZE / 2,
+          right: MARGIN,
+          bottom: 100,
+        },
       ]}
-      pointerEvents="box-none"
-      {...(panResponder as any).panHandlers}
+      hitSlop={10}
     >
-      <Pressable
-        style={s.chatInner}
-        onPress={() => navigation.navigate('ChatAI')}
-      >
-        <Ionicons name="chatbubble-ellipses" size={24} color={C.onPrimary} />
-      </Pressable>
-    </Animated.View>
+      <MaterialCommunityIcons name="robot" size={20} color={C.white} />
+    </Pressable>
   );
 }
 
@@ -1183,8 +1275,35 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     borderWidth: 2,
     borderColor: C.primaryBorder,
-    right: 0,
-    bottom: 0,
+  },
+  chatFab: {
+    position: 'absolute',
+    zIndex: 50, // iOS
+    elevation: 12, // Android
+    backgroundColor: C.primary,
+    borderWidth: 2,
+    borderColor: C.primaryBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
   },
   chatInner: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  chipsRow: {
+    alignItems: 'center',
+    gap: 20,
+  },
+  chip: {
+    minWidth: 96,
+    justifyContent: 'center',
+  },
+  chipInactiveShadow: {
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
 });

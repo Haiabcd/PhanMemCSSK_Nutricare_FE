@@ -27,10 +27,11 @@ import {
   registerHydrationBackground,
   bootstrapHydrationSchedule,
 } from './src/notifications/hydrationAuto';
-import { AuthProvider } from './src/context/AuthProvider';
 
 // 🟢 Bắt buộc: đăng ký background handler ngoài component
 registerBackgroundHandler();
+
+import { navigationRef } from './src/navigation/RootNavigation';
 
 function App() {
   const [ready, setReady] = useState(false);
@@ -104,20 +105,20 @@ function App() {
     prefixes: ['nutricare://'],
     config: {
       screens: {
-        OAuthReturn: 'oauth/success',
+        OAuthReturn: {
+          path: 'oauth/:kind', // first | upgrade | returning
+        },
         OAuthError: 'oauth/error',
       },
     },
   };
 
   return (
-    <AuthProvider>
-      <HeaderProvider>
-        <NavigationContainer linking={linking}>
-          {isAuthed ? <BottomNavigator /> : <AppNavigator />}
-        </NavigationContainer>
-      </HeaderProvider>
-    </AuthProvider>
+    <HeaderProvider>
+      <NavigationContainer linking={linking} ref={navigationRef}>
+        {isAuthed ? <BottomNavigator /> : <AppNavigator />}
+      </NavigationContainer>
+    </HeaderProvider>
   );
 }
 

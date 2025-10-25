@@ -88,3 +88,27 @@ export async function logout(
   }
 }
 
+// Đổi exchangeId (x) lấy TokenPair và lưu vào máy
+export async function redeemGoogleExchange(
+  x: string,
+  signal?: AbortSignal
+): Promise<ApiResponse<TokenPairResponse>> {
+  const res = await api.get<ApiResponse<TokenPairResponse>>(
+    '/auths/google/redeem',
+    {
+      params: { x },
+      headers: { Authorization: undefined }, 
+      signal,
+    }
+  );
+  const pair = res.data?.data ?? null;
+  if (pair) {
+    await saveTokenPairFromBE(pair);    
+    await applyAuthHeaderFromKeychain(); 
+  } else {
+    await removeTokenSecure();
+    throw new Error('Redeem failed or expired');
+  }
+
+  return res.data;
+}

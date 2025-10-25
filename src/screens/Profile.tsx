@@ -17,7 +17,7 @@ import Container from '../components/Container';
 import TextComponent from '../components/TextComponent';
 import ViewComponent from '../components/ViewComponent';
 import { colors as C } from '../constants/colors';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type {
   Allergy,
   Condition,
@@ -47,6 +47,7 @@ import ToastCenter, { ToastKind } from '../components/Profile/ToastCenter';
 import FormField from '../components/Profile/FormField';
 import Dropdown from '../components/Profile/Dropdown';
 import AppHeader from '../components/AppHeader';
+import ConfirmLogoutModal from '../components/Profile/ConfirmLogoutModal';
 import {
   startGoogleOAuth,
   logout as logoutApi,
@@ -57,10 +58,9 @@ import { getMyInfo, updateProfile } from '../services/user.service';
 import { getOrCreateDeviceId } from '../config/deviceId';
 import { useHeader } from '../context/HeaderProvider';
 import { getTokenSecure, removeTokenSecure } from '../config/secureToken';
-import { useAuth } from '../context/AuthProvider';
+import { resetTo } from '../navigation/RootNavigation';
 
 type PickerType = 'condition' | 'allergy';
-
 
 /* ====================== Constants & helpers ====================== */
 const SAFE = {
@@ -71,11 +71,6 @@ const SAFE = {
 const HEIGHT_RANGE = { MIN: 80, MAX: 250 }; // cm
 const WEIGHT_RANGE = { MIN: 20, MAX: 500 }; // kg
 const MIN_AGE = 13;
-
-const pos = (n: any) => {
-  const v = Number(n);
-  return Number.isFinite(v) && v > 0 ? v : 0;
-};
 
 const formatTargetDeltaForDisplay = (goal: string, delta: number) => {
   if (goal === 'LOSE') return Math.abs(delta);
@@ -92,12 +87,12 @@ const normalizeTargetDeltaForApi = (goal: string, delta: number) => {
 type PlanCheck =
   | { ok: true }
   | {
-    ok: false;
-    reason: 'invalid' | 'too_fast' | 'too_slow';
-    message: string;
-    subMessage?: string;
-    suggestWeeks?: number;
-  };
+      ok: false;
+      reason: 'invalid' | 'too_fast' | 'too_slow';
+      message: string;
+      subMessage?: string;
+      suggestWeeks?: number;
+    };
 
 function validatePlan(
   goal: 'LOSE' | 'GAIN',
@@ -105,9 +100,8 @@ function validatePlan(
   weeks: number,
   touched: boolean,
 ): PlanCheck {
-  if (!touched) return { ok: true }; // chưa tương tác -> im lặng
+  if (!touched) return { ok: true };
 
-  // Nếu chỉ điền 1 ô -> báo thiếu
   if (!deltaAbsKg || !weeks) {
     return {
       ok: false,
@@ -128,10 +122,12 @@ function validatePlan(
       suggestWeeks: suggest,
       message:
         goal === 'LOSE'
-          ? `Tốc độ giảm ${rate.toFixed(2)} kg/tuần vượt mức an toàn (${R.MAX
-          } kg/tuần).`
-          : `Tốc độ tăng ${rate.toFixed(2)} kg/tuần vượt mức an toàn (${R.MAX
-          } kg/tuần).`,
+          ? `Tốc độ giảm ${rate.toFixed(2)} kg/tuần vượt mức an toàn (${
+              R.MAX
+            } kg/tuần).`
+          : `Tốc độ tăng ${rate.toFixed(2)} kg/tuần vượt mức an toàn (${
+              R.MAX
+            } kg/tuần).`,
       subMessage:
         goal === 'LOSE'
           ? 'Khuyến nghị giảm 0.5–1.0 kg/tuần để bền vững.'
@@ -145,10 +141,12 @@ function validatePlan(
       reason: 'too_slow',
       message:
         goal === 'LOSE'
-          ? `Tốc độ giảm ${rate.toFixed(2)} kg/tuần thấp hơn khuyến nghị (${R.MIN
-          }–${R.MAX} kg/tuần).`
-          : `Tốc độ tăng ${rate.toFixed(2)} kg/tuần thấp hơn khuyến nghị (${R.MIN
-          }–${R.MAX} kg/tuần).`,
+          ? `Tốc độ giảm ${rate.toFixed(2)} kg/tuần thấp hơn khuyến nghị (${
+              R.MIN
+            }–${R.MAX} kg/tuần).`
+          : `Tốc độ tăng ${rate.toFixed(2)} kg/tuần thấp hơn khuyến nghị (${
+              R.MIN
+            }–${R.MAX} kg/tuần).`,
       subMessage:
         'Bạn có thể tiếp tục (an toàn) hoặc điều chỉnh để nhanh hơn nếu muốn.',
     };
@@ -194,7 +192,7 @@ export default function ProfileScreen() {
   // validate theo thời gian thực cho cặp mục tiêu
   const [planTouched, setPlanTouched] = useState(false);
   const [planCheck, setPlanCheck] = useState<PlanCheck>({ ok: true });
-  const { setAuthed } = useAuth();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // ===== Fetch
   const fetchData = useCallback(async (signal?: AbortSignal) => {
@@ -234,6 +232,16 @@ export default function ProfileScreen() {
     return () => ac.abort();
   }, [fetchData]);
 
+  useFocusEffect(
+    useCallback(() => {
+      const ac = new AbortController();
+      fetchData(ac.signal);
+      refreshHeader?.();
+
+      return () => ac.abort();
+    }, [fetchData, refreshHeader]),
+  );
+
   // ===== Helpers UI
   const showToast = (
     opts: {
@@ -268,8 +276,6 @@ export default function ProfileScreen() {
   // ===== OAuth / Logout
   const provider = myInfo?.provider ?? 'NONE';
   const isGuest = provider === 'NONE';
-  const isLoggedIn =
-    provider === 'SUPABASE_GOOGLE' || provider === 'SUPABASE_FACEBOOK';
 
   const onLoginWith = useCallback(
     async (providerPick: 'google' | 'facebook') => {
@@ -280,7 +286,6 @@ export default function ProfileScreen() {
           const deviceId = await getOrCreateDeviceId();
           const res = await startGoogleOAuth(deviceId);
           const url = res?.data?.authorizeUrl;
-          console.log('🔗 Google OAuth URL:', url);
           if (!url) {
             Alert.alert('Lỗi', 'Không nhận được liên kết đăng nhập Google.');
             return;
@@ -296,42 +301,30 @@ export default function ProfileScreen() {
         }
         return;
       }
-      navigation.navigate('Login', { provider: 'facebook' });
+      // navigation.navigate('Login', { provider: 'facebook' });
     },
     [navigation],
   );
 
+  const doLogout = async () => {
+    setLoggingOut(true);
+    try {
+      const cur = await getTokenSecure();
+      const refreshToken = cur?.refreshToken;
+      if (refreshToken) await logoutApi({ refreshToken });
+    } catch {
+      await removeTokenSecure();
+      resetHeader?.();
+    } finally {
+      resetHeader?.();
+      setLoggingOut(false);
+      setShowLogoutModal(false);
+      resetTo('Welcome');
+    }
+  };
+
   const onLogout = () => {
-    Alert.alert('Đăng xuất', 'Bạn có chắc chắn muốn đăng xuất?', [
-      { text: 'Hủy', style: 'cancel' },
-      {
-        text: 'Đăng xuất',
-        style: 'destructive',
-        onPress: async () => {
-          setLoggingOut(true);
-          try {
-            const cur = await getTokenSecure();
-            const refreshToken = cur?.refreshToken;
-            if (refreshToken) await logoutApi({ refreshToken });
-            await removeTokenSecure();
-
-            resetHeader?.();
-
-            // ❗ Không navigate Welcome nữa — chỉ flip auth:
-            setAuthed(false);
-
-            showToast({ title: 'Đăng xuất thành công', subtitle: 'Hẹn gặp lại bạn sớm nhé!' });
-          } catch {
-            await removeTokenSecure();
-            resetHeader?.();
-            setAuthed(false); // vẫn flip để quay về AppNavigator
-            Alert.alert('Thông báo', 'Đã đăng xuất ở phía thiết bị.');
-          } finally {
-            setLoggingOut(false);
-          }
-        },
-      },
-    ]);
+    setShowLogoutModal(true);
   };
 
   /* ================== Dirty check ================== */
@@ -537,14 +530,14 @@ export default function ProfileScreen() {
       setMyInfo(prev =>
         prev
           ? {
-            ...prev,
-            profileCreationResponse: {
-              ...(prev.profileCreationResponse ?? {}),
-              ...payload.profile,
-            } as ProfileDto,
-            conditions: editInfo.conditions ?? [],
-            allergies: editInfo.allergies ?? [],
-          }
+              ...prev,
+              profileCreationResponse: {
+                ...(prev.profileCreationResponse ?? {}),
+                ...payload.profile,
+              } as ProfileDto,
+              conditions: editInfo.conditions ?? [],
+              allergies: editInfo.allergies ?? [],
+            }
           : prev,
       );
 
@@ -558,7 +551,6 @@ export default function ProfileScreen() {
         () => setShowEdit(false),
       );
     } catch (err: any) {
-      console.log('updateProfile error:', err?.response?.data ?? err);
       Alert.alert('Lỗi', 'Không thể cập nhật hồ sơ. Vui lòng thử lại.');
     } finally {
       setLoading(false);
@@ -572,7 +564,7 @@ export default function ProfileScreen() {
       Alert.alert(
         'Điều chỉnh mục tiêu',
         planCheck.message +
-        (planCheck.subMessage ? `\n${planCheck.subMessage}` : ''),
+          (planCheck.subMessage ? `\n${planCheck.subMessage}` : ''),
       );
       return;
     }
@@ -590,8 +582,8 @@ export default function ProfileScreen() {
           oauthStarting
             ? 'Đang mở Google...'
             : loggingOut
-              ? 'Đang đăng xuất...'
-              : 'Đang đồng bộ...'
+            ? 'Đang đăng xuất...'
+            : 'Đang đồng bộ...'
         }
       />
 
@@ -919,11 +911,11 @@ export default function ProfileScreen() {
                     <TextInput
                       value={
                         editData.targetWeightDeltaKg !== undefined &&
-                          editData.targetWeightDeltaKg !== null
+                        editData.targetWeightDeltaKg !== null
                           ? `${formatTargetDeltaForDisplay(
-                            editData.goal as any,
-                            Number(editData.targetWeightDeltaKg),
-                          )}`
+                              editData.goal as any,
+                              Number(editData.targetWeightDeltaKg),
+                            )}`
                           : ''
                       }
                       onChangeText={t => {
@@ -1126,7 +1118,6 @@ export default function ProfileScreen() {
                 </ViewComponent>
               </ViewComponent>
             </Pressable>
-
           ) : (
             <Pressable style={[styles.settingRowPress]} onPress={onLogout}>
               <ViewComponent
@@ -1182,11 +1173,17 @@ export default function ProfileScreen() {
           }
         />
       )}
-
       <LoginChoiceModal
         visible={loginChoiceOpen}
         onClose={() => setLoginChoiceOpen(false)}
         onSelect={onLoginWith}
+      />
+      {/* Modal xác nhận đăng xuất */}
+      <ConfirmLogoutModal
+        visible={showLogoutModal}
+        loading={loggingOut}
+        onCancel={() => setShowLogoutModal(false)}
+        onConfirm={doLogout}
       />
     </Container>
   );

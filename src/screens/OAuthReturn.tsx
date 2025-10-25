@@ -1,38 +1,95 @@
 import React, { useEffect } from 'react';
-import { useNavigation } from '@react-navigation/native';
+import { ActivityIndicator } from 'react-native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+
 import ViewComponent from '../components/ViewComponent';
 import TextComponent from '../components/TextComponent';
+import { redeemGoogleExchange } from '../services/auth.service';
+
+type Params = {
+  kind?: 'first' | 'upgrade' | 'returning' | 'success';
+  x?: string;
+};
 
 export default function OAuthReturn() {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const { kind, x } = (route?.params ?? {}) as Params;
 
   useEffect(() => {
-    // Nếu đang ở trong app và còn stack trước đó → quay lại
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-      return;
-    }
-    // Trường hợp app mở bằng deep link (không có history):
-    // reset về Home tab, và mở thẳng Profile
-    navigation.reset({
-      index: 0,
-      routes: [
-        {
-          name: 'Home', // RootStackParamList
-          params: {
-            screen: 'ProfileNavigator', // MainTabParamList
-            params: {
-              screen: 'Profile', // ProfileStackParamList
-            },
-          },
-        },
-      ],
-    });
-  }, [navigation]);
+    let isMounted = true;
+
+    (async () => {
+      try {
+        if (kind === 'returning') {
+          if (!x) {
+            if (!isMounted) return;
+            navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
+            return;
+          }
+
+          await redeemGoogleExchange(x);
+
+          if (!isMounted) return;
+          navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+          return;
+        }
+
+        if (kind === 'upgrade') {
+          if (!isMounted) return;
+          navigation.reset({
+            index: 0,
+            routes: [
+              {
+                name: 'Home',
+                params: {
+                  screen: 'ProfileNavigator',
+                  params: { screen: 'Profile' },
+                },
+              },
+            ],
+          });
+          return;
+        }
+
+        if (kind === 'first') {
+          if (!isMounted) return;
+          navigation.reset({ index: 0, routes: [{ name: 'Wizard' }] });
+          return;
+        }
+
+        if (!isMounted) return;
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+        } else {
+          navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
+        }
+      } catch (e) {
+        if (!isMounted) return;
+        navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [kind, x, navigation]);
 
   return (
-    <ViewComponent center style={{ flex: 1 }}>
-      <TextComponent text="Đang quay lại..." />
+    <ViewComponent center style={{ flex: 1, padding: 16 }}>
+      <ActivityIndicator size="large" />
+      <TextComponent
+        text={
+          kind === 'returning'
+            ? 'Đang đăng nhập...'
+            : kind === 'upgrade'
+            ? 'Đang hoàn tất nâng cấp tài khoản...'
+            : kind === 'first'
+            ? 'Đang chuẩn bị trải nghiệm đầu tiên...'
+            : 'Đang xử lý...'
+        }
+        style={{ marginTop: 12 }}
+      />
     </ViewComponent>
   );
 }

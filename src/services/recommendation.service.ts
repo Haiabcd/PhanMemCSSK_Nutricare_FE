@@ -13,7 +13,7 @@ export async function findNewsfeedRecommendations(
             {
                 params: { limit },
                 signal,
-                timeout: 15000,
+                // timeout: 25000,
                 transformRequest: [(data, headers) => {
                     if (!data && headers) delete (headers as any)['Content-Type'];
                     return data as any;
