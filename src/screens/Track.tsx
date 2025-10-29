@@ -20,9 +20,7 @@ import {
   KeyboardAvoidingView,
   RefreshControl,
   Keyboard,
-  KeyboardEvent,
 } from 'react-native';
-
 import Container from '../components/Container';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../constants/colors';
@@ -33,7 +31,8 @@ import {
   getLogs,
   deletePlanLogById,
   saveManualLog,
-  saveAILog,
+  saveScanLog,
+  analyzeNutritionFromImage,
   updatePlanLog,
 } from '../services/log.service';
 import type { MealSlot } from '../types/types';
@@ -41,13 +40,11 @@ import type {
   LogResponse,
   PlanLogUpdateRequest,
   KcalWarningResponse,
+  NutritionAudit,
+  PlanLogScanRequest,
 } from '../types/log.type';
 import type { FoodResponse, IngredientResponse } from '../types/food.type';
-import type { FoodAnalyzeResponse } from '../types/ai.type';
-import {
-  autocompleteFoods,
-  autocompleteIngredients,
-} from '../services/food.service';
+import { autocompleteFoods } from '../services/food.service';
 import AppHeader from '../components/AppHeader';
 import {
   launchImageLibrary,
@@ -55,98 +52,31 @@ import {
   type ImageLibraryOptions,
   type CameraOptions,
 } from 'react-native-image-picker';
-
-// NEW
 import Text from '../components/TextComponent';
 import V from '../components/ViewComponent';
-
-/* =================== small utilities =================== */
-function useKeyboardHeight() {
-  const [height, setHeight] = React.useState(0);
-  React.useEffect(() => {
-    const onShow = (e: KeyboardEvent) =>
-      setHeight(e.endCoordinates?.height ?? 0);
-    const onHide = () => setHeight(0);
-    const showEvt =
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvt =
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const subShow = Keyboard.addListener(showEvt, onShow);
-    const subHide = Keyboard.addListener(hideEvt, onHide);
-    return () => {
-      subShow.remove();
-      subHide.remove();
-    };
-  }, []);
-  return height;
-}
+import ConfirmSheet from '../components/Modals/ConfirmSheet';
+import AlertSheet from '../components/Modals/AlertSheet';
+import useKeyboardHeight from '../hooks/useKeyboardHeight';
+import { safeNum, fmtNum, isBlank } from '../helpers/number.helper';
+import { toYMDLocal, fmtVNFull } from '../helpers/date.helper';
+import MealTypePicker from '../components/Track/MealTypePicker';
+import NutritionTable from '../components/Track/NutritionTable';
+import IngredientRow from '../components/Track/IngredientRow';
+import IngredientPickerSheet from '../components/Track/IngredientPickerSheet';
+import useNutritionTotals from '../hooks/useNutritionTotals';
+import { toneToColor } from '../helpers/track.helper';
 
 type TabKey = 'scan' | 'manual' | 'history';
-
-const fmtVNFull = (d: Date) => {
-  const dow = [
-    'Chủ nhật',
-    'Thứ 2',
-    'Thứ 3',
-    'Thứ 4',
-    'Thứ 5',
-    'Thứ 6',
-    'Thứ 7',
-  ][d.getDay()];
-  const dd = `${d.getDate()}`.padStart(2, '0');
-  const mm = `${d.getMonth() + 1}`.padStart(2, '0');
-  return `${dow}, ${dd} Tháng ${mm}`;
-};
-
-// YYYY-MM-DD (local)
-const toYMDLocal = (d: Date) =>
-  new Date(d.getTime() - d.getTimezoneOffset() * 60000)
-    .toISOString()
-    .slice(0, 10);
-
 const INPUT_TEXT_COLOR = colors.text;
 const PLACEHOLDER_COLOR = '#94a3b8';
-
-/** ===== Autocomplete config ===== */
 const AC_ITEM_HEIGHT = 52;
 const AC_VISIBLE_ROWS = 4;
 const AC_PAGE_SIZE = 12;
-
-/** ===== Helpers ===== */
-const safeNum = (v: unknown) => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-};
-const fmtNum = (n: number, digits = 1) =>
-  (Math.round(n * 10 ** digits) / 10 ** digits).toString();
-const isBlank = (s?: string) => !s || s.trim().length === 0;
 const fmt = (n?: number, d = 1) =>
   typeof n === 'number' ? (Math.round(n * 10 ** d) / 10 ** d).toString() : '0';
 
 /* =================== Modern Notice / Toast =================== */
 type NoticeTone = 'default' | 'success' | 'warning' | 'danger' | 'info';
-function toneToColor(t: NoticeTone) {
-  switch (t) {
-    case 'success':
-      return {
-        bg: colors.primarySurface,
-        border: colors.primaryBorder,
-        text: colors.primaryDark,
-      };
-    case 'warning':
-      return {
-        bg: colors.accentSurface,
-        border: colors.accentBorder,
-        text: colors.accentDark,
-      };
-    case 'danger':
-      return { bg: '#fee2e2', border: '#fecaca', text: '#7f1d1d' };
-    case 'info':
-      return { bg: '#eff6ff', border: '#bfdbfe', text: '#1e3a8a' };
-    default:
-      return { bg: colors.bg, border: colors.border, text: colors.text };
-  }
-}
 
 const ToastBar = ({
   message,
@@ -183,204 +113,6 @@ const ToastBar = ({
   );
 };
 
-/* =================== Reusable Confirm Modal (replaces Alert.confirm) =================== */
-const ORANGE = {
-  bg: '#FFF7ED',
-  border: '#FDBA74',
-  text: '#7C2D12',
-  solid: '#F59E0B',
-};
-
-const AlertSheet = ({
-  visible,
-  title = 'Thông báo',
-  message,
-  onClose,
-}: {
-  visible: boolean;
-  title?: string;
-  message: string;
-  onClose: () => void;
-}) => {
-  // Tách dòng: dòng đầu = lead, phần còn lại = bullets
-  const lines = (message || '')
-    .split('\n')
-    .map(s => s.trim())
-    .filter(Boolean);
-  const lead = lines[0] || '';
-  const bullets = lines.slice(1);
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      onRequestClose={onClose}
-    >
-      <Pressable style={styles.modalBackdrop} onPress={onClose}>
-        <V
-          variant="card"
-          style={[
-            styles.modalCard,
-            {
-              borderColor: ORANGE.border,
-              backgroundColor: ORANGE.bg,
-              paddingTop: 18,
-              paddingBottom: 14,
-              maxWidth: 480,
-            },
-          ]}
-        >
-          {/* Header: Icon + Title */}
-          <V row alignItems="center" style={{ marginBottom: 10 }}>
-            <V
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 999,
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginRight: 10,
-                backgroundColor: '#FED7AA',
-                borderWidth: 1,
-                borderColor: '#FDBA74',
-              }}
-            >
-              <Text text="⚠️" style={{ fontSize: 18 }} />
-            </V>
-            <Text
-              text={title}
-              variant="h3"
-              weight="bold"
-              style={{ color: ORANGE.text }}
-            />
-          </V>
-
-          {/* Lead (câu mở đầu) */}
-          {lead ? (
-            <Text
-              text={lead}
-              style={{
-                color: ORANGE.text,
-                marginBottom: 8,
-                lineHeight: 22,
-                fontWeight: '600',
-              }}
-            />
-          ) : null}
-
-          {/* Nội dung cuộn được + gạch đầu dòng */}
-          {bullets.length > 0 && (
-            <RNView
-              style={{
-                maxHeight: 220,
-                borderWidth: 1,
-                borderColor: ORANGE.border,
-                borderRadius: 12,
-                backgroundColor: '#FFF9F3',
-                padding: 10,
-                marginBottom: 12,
-              }}
-            >
-              <FlatList
-                data={bullets}
-                keyExtractor={(t, i) => t + i}
-                renderItem={({ item }) => (
-                  <V row style={{ marginBottom: 6 }}>
-                    <Text
-                      text="•"
-                      style={{
-                        color: ORANGE.text,
-                        marginRight: 8,
-                        lineHeight: 22,
-                        fontSize: 16,
-                      }}
-                    />
-                    <Text
-                      text={item}
-                      style={{ color: ORANGE.text, lineHeight: 22 }}
-                    />
-                  </V>
-                )}
-              />
-            </RNView>
-          )}
-
-          {/* Button */}
-          <Pressable
-            onPress={onClose}
-            style={[
-              styles.actionBtn,
-              { backgroundColor: ORANGE.solid, borderColor: ORANGE.solid },
-            ]}
-          >
-            <Text text="OK" weight="bold" color={colors.onPrimary} />
-          </Pressable>
-        </V>
-      </Pressable>
-    </Modal>
-  );
-};
-
-const ConfirmSheet = ({
-  visible,
-  title,
-  message,
-  confirmLabel = 'Xóa',
-  cancelLabel = 'Hủy',
-  onConfirm,
-  onCancel,
-}: {
-  visible: boolean;
-  title: string;
-  message: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) => (
-  <Modal
-    visible={visible}
-    transparent
-    animationType="fade"
-    statusBarTranslucent
-    onRequestClose={onCancel}
-  >
-    <Pressable style={styles.modalBackdrop} onPress={onCancel}>
-      <V variant="card" style={styles.modalCard}>
-        <Text text={title} variant="h3" align="center" />
-        <Text
-          text={message}
-          tone="muted"
-          align="center"
-          style={{ marginTop: 6, marginBottom: 10 }}
-        />
-        <V row gap={10}>
-          <Pressable
-            style={[
-              styles.actionBtn,
-              { backgroundColor: '#f1f5f9', borderColor: '#e2e8f0', flex: 1 },
-            ]}
-            onPress={onCancel}
-          >
-            <Text text={cancelLabel} weight="bold" color={colors.text} />
-          </Pressable>
-          <Pressable
-            style={[
-              styles.actionBtn,
-              { backgroundColor: colors.red, borderColor: '#fca5a5', flex: 1 },
-            ]}
-            onPress={onConfirm}
-          >
-            <Text text={confirmLabel} weight="bold" color={colors.onPrimary} />
-          </Pressable>
-        </V>
-      </V>
-    </Pressable>
-  </Modal>
-);
-
 /* ===== Tiny UI helpers for new Scan tab ===== */
 const Row = ({ label, value }: { label: string; value: string }) => (
   <V row between style={styles.nutRow}>
@@ -389,8 +121,7 @@ const Row = ({ label, value }: { label: string; value: string }) => (
   </V>
 );
 
-function ScanAIResult(props: FoodAnalyzeResponse) {
-  const { name, servingGram, nutrition, ingredients, confidence } = props;
+function ScanAIResult(audit: NutritionAudit) {
   return (
     <V variant="card" style={[styles.nutTable, { marginTop: 12, padding: 14 }]}>
       <Text
@@ -399,44 +130,9 @@ function ScanAIResult(props: FoodAnalyzeResponse) {
         align="center"
         style={{ marginBottom: 8 }}
       />
-      <Row label="Tên" value={name || '—'} />
-      {typeof servingGram === 'number' && (
-        <Row label="Khối lượng" value={`${fmt(servingGram, 0)} g`} />
-      )}
-      <Row label="Calo" value={`${fmt(nutrition?.kcal, 0)} kcal`} />
-      <V style={{ marginTop: 4 }}>
-        <Row label="Protein" value={`${fmt(nutrition?.proteinG)} g`} />
-        <Row label="Carbs" value={`${fmt(nutrition?.carbG)} g`} />
-        <Row label="Fat" value={`${fmt(nutrition?.fatG)} g`} />
-        <Row label="Chất xơ" value={`${fmt(nutrition?.fiberG)} g`} />
-        <Row label="Natri" value={`${fmt(nutrition?.sodiumMg, 0)} mg`} />
-        <Row label="Đường" value={`${fmt(nutrition?.sugarMg, 0)} mg`} />
-      </V>
-
-      {!!ingredients?.length && (
-        <>
-          <Text
-            text="Nguyên liệu"
-            weight="semibold"
-            style={{ marginTop: 12 }}
-          />
-          <V row wrap gap={8} center style={{ marginTop: 4 }}>
-            {ingredients.map((ing, idx) => (
-              <V key={`${ing}-${idx}`} style={styles.scanChipBox}>
-                <Text text={ing} weight="semibold" />
-              </V>
-            ))}
-          </V>
-        </>
-      )}
-
-      {typeof confidence === 'number' && (
-        <Text
-          text={`Mức tự tin: ${Math.round(confidence * 100)}%`}
-          tone="muted"
-          align="center"
-          style={{ marginTop: 10 }}
-        />
+      <Row label="Tên" value={audit.dishName || '—'} />
+      {typeof audit.servingGram === 'number' && (
+        <Row label="Khối lượng" value={`${fmt(audit.servingGram, 0)} g `} />
       )}
     </V>
   );
@@ -448,7 +144,6 @@ export default function Track() {
   const listRef = useRef<FlatList<any>>(null);
   const keyboardH = useKeyboardHeight();
   const [warnAlert, setWarnAlert] = useState<string | null>(null);
-  // Date pickers
   const [date, setDate] = useState(new Date());
   const [openDateSheet, setOpenDateSheet] = useState(false);
   const [tab, setTab] = useState<TabKey>('manual');
@@ -466,9 +161,7 @@ export default function Track() {
   >();
   const [isScanning, setIsScanning] = useState(false);
   const [showScanResult, setShowScanResult] = useState(false);
-  const [scanResult, setScanResult] = useState<FoodAnalyzeResponse | null>(
-    null,
-  );
+  const [scanResult, setScanResult] = useState<NutritionAudit | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const scanControllerRef = useRef<AbortController | null>(null);
   const [scanChoiceOpen, setScanChoiceOpen] = useState(false);
@@ -481,6 +174,35 @@ export default function Track() {
     setToast({ msg, tone });
 
   const [confirm, setConfirm] = useState<{ id?: string } | null>(null);
+
+  // ===== Scan form states (independent from manual) =====
+  const [scanMealType, setScanMealType] = useState<MealSlot>('BREAKFAST');
+  const [scanConsumedServings, setScanConsumedServings] = useState<string>('1');
+  const scanConsumedNum = useMemo(() => {
+    const n = Number(scanConsumedServings);
+    return Number.isFinite(n) && n > 0 ? n : 1;
+  }, [scanConsumedServings]);
+
+  // ingredient picker target: 'manual' | 'scan'
+  const [ingTarget, setIngTarget] = useState<'manual' | 'scan'>('manual');
+
+  // Ingredients for Scan tab (each qty is gram)
+  const [scanIngredients, setScanIngredients] = useState<
+    (IngredientResponse & { qty: string })[]
+  >([]);
+
+  // ➕ Reset Scan về trạng thái ban đầu
+  const resetScan = useCallback(() => {
+    scanControllerRef.current?.abort?.();
+    setIsScanning(false);
+    setShowScanResult(false);
+    setScanResult(null);
+    setScanError(null);
+    setScanIngredients([]);
+    setScanConsumedServings('1');
+    setScanMealType('BREAKFAST');
+    setSelectedImageUri(undefined);
+  }, []);
 
   const beginScan = useCallback(
     async (asset: { uri: string; type?: string; fileName?: string }) => {
@@ -507,20 +229,30 @@ export default function Track() {
       } catch {
         // fallback dùng ảnh gốc
       }
-
       setIsScanning(true);
       setShowScanResult(false);
       setScanError(null);
       setScanResult(null);
 
       try {
-        const data = await saveAILog(asset);
+        const data = await analyzeNutritionFromImage(asset, {
+          signal: ac.signal,
+        });
+        console.log('AI scan result:', data);
         setScanResult(data ?? null);
         setShowScanResult(true);
+        if (data?.items?.length) {
+          const picked = data.items
+            .filter((x: any) => x && x.missing === false && x.ingredientId)
+            .map(toUIIngredientFromAI);
+          setScanIngredients(picked);
+          setScanMealType('BREAKFAST');
+          setScanConsumedServings('1');
+        }
       } catch (e: any) {
         if (e?.name !== 'AbortError') {
           setScanError(
-            e?.message || 'Không thể phân tích hình ảnh. Vui lòng thử lại.',
+            'AI hiện đang quá tải. Vui lòng đợi ít phút hãy thử lại.',
           );
           setShowScanResult(false);
         }
@@ -551,7 +283,7 @@ export default function Track() {
           fileName: asset.fileName,
         });
       }
-    } catch { }
+    } catch {}
   };
 
   const handleScanFromLibrary = async () => {
@@ -573,7 +305,7 @@ export default function Track() {
           fileName: asset.fileName,
         });
       }
-    } catch { }
+    } catch {}
   };
 
   useEffect(() => () => scanControllerRef.current?.abort?.(), []);
@@ -602,7 +334,6 @@ export default function Track() {
 
   // Meal type
   const [mealTypeManual, setMealTypeManual] = useState<MealSlot>('BREAKFAST');
-  const [openMealDropdown, setOpenMealDropdown] = useState(false);
   const [submittingAdd, setSubmittingAdd] = useState(false);
   const [submittingUpdate, setSubmittingUpdate] = useState(false);
 
@@ -620,9 +351,6 @@ export default function Track() {
     (IngredientResponse & { qty: string })[]
   >([]);
   const [openIngSheet, setOpenIngSheet] = useState(false);
-  const [ingQuery, setIngQuery] = useState('');
-  const [ingLoading, setIngLoading] = useState(false);
-  const [ingResults, setIngResults] = useState<IngredientResponse[]>([]);
 
   // Khẩu phần đã ăn
   const [consumedServings, setConsumedServings] = useState<string>('1');
@@ -790,6 +518,33 @@ export default function Track() {
     };
   };
 
+  const toUIIngredientFromAI = (
+    it: any,
+  ): IngredientResponse & { qty: string } => {
+    const name = String(it.matchedName || it.requestedName || 'Nguyên liệu');
+    const per100 = {
+      kcal: safeNum(it?.per100?.kcal),
+      proteinG: safeNum(it?.per100?.proteinG),
+      carbG: safeNum(it?.per100?.carbG),
+      fatG: safeNum(it?.per100?.fatG),
+      fiberG: safeNum(it?.per100?.fiberG),
+      sodiumMg: safeNum(it?.per100?.sodiumMg),
+      sugarMg: safeNum(it?.per100?.sugarMg),
+    };
+    return {
+      id: String(it.ingredientId || ''),
+      name,
+      unit: 'G',
+      per100,
+      imageUrl: it.imageUrl || undefined,
+      aliases: [],
+      servingName: '',
+      servingSizeGram: 0,
+      tags: [],
+      qty: String(Number(it.gram) || 0),
+    };
+  };
+
   const fillManualFromLog = useCallback(
     (m: LogResponse) => {
       skipAcRef.current = true;
@@ -893,6 +648,33 @@ export default function Track() {
     return Number.isFinite(n) && n > 0 ? n : 1;
   }, [qtyManual]);
 
+  // ===== Totals for Scan tab =====
+  const scanIngredientsTotal = useNutritionTotals(scanIngredients);
+
+  const scanTotalNutrition = useMemo(
+    () => scanIngredientsTotal,
+    [scanIngredientsTotal],
+  );
+
+  const scanEatenNutrition = useMemo(
+    () => ({
+      kcal: scanTotalNutrition.kcal * scanConsumedNum,
+      proteinG: scanTotalNutrition.proteinG * scanConsumedNum,
+      carbG: scanTotalNutrition.carbG * scanConsumedNum,
+      fatG: scanTotalNutrition.fatG * scanConsumedNum,
+      fiberG: scanTotalNutrition.fiberG * scanConsumedNum,
+      sodiumMg: scanTotalNutrition.sodiumMg * scanConsumedNum,
+      sugarMg: scanTotalNutrition.sugarMg * scanConsumedNum,
+    }),
+    [scanTotalNutrition, scanConsumedNum],
+  );
+
+  const canSubmitScan = useMemo(
+    () => Math.round(scanEatenNutrition.kcal) > 0,
+    [scanEatenNutrition.kcal],
+  );
+  const [submittingAddScan, setSubmittingAddScan] = useState(false);
+
   const foodTotal = useMemo(() => {
     if (!macrosLocked) {
       return {
@@ -926,29 +708,7 @@ export default function Track() {
     qtyNum,
   ]);
 
-  const ingredientsTotal = useMemo(() => {
-    const sum = {
-      kcal: 0,
-      proteinG: 0,
-      carbG: 0,
-      fatG: 0,
-      fiberG: 0,
-      sodiumMg: 0,
-      sugarMg: 0,
-    };
-    for (const ing of ingredients) {
-      const qty = Number(ing.qty);
-      const ratio = Number.isFinite(qty) && qty > 0 ? qty / 100 : 0;
-      sum.kcal += safeNum(ing.per100?.kcal) * ratio;
-      sum.proteinG += safeNum(ing.per100?.proteinG) * ratio;
-      sum.carbG += safeNum(ing.per100?.carbG) * ratio;
-      sum.fatG += safeNum(ing.per100?.fatG) * ratio;
-      sum.fiberG += safeNum(ing.per100?.fiberG) * ratio;
-      sum.sodiumMg += safeNum(ing.per100?.sodiumMg) * ratio;
-      sum.sugarMg += safeNum(ing.per100?.sugarMg) * ratio;
-    }
-    return sum;
-  }, [ingredients]);
+  const ingredientsTotal = useNutritionTotals(ingredients);
 
   const totalNutrition = useMemo(
     () => ({
@@ -983,31 +743,6 @@ export default function Track() {
 
   const isAddDisabled = submittingAdd || !canSubmitAdd;
 
-  // Ingredient sheet search
-  useEffect(() => {
-    if (!openIngSheet) return;
-    const q = ingQuery ?? '';
-    if (isBlank(q)) {
-      setIngResults([]);
-      setIngLoading(false);
-      return;
-    }
-    const ac = new AbortController();
-    setIngLoading(true);
-    const t = setTimeout(async () => {
-      try {
-        const list = await autocompleteIngredients(q.trim(), 20, ac.signal);
-        setIngResults(Array.isArray(list) ? list : []);
-      } finally {
-        setIngLoading(false);
-      }
-    }, 220);
-    return () => {
-      clearTimeout(t);
-      ac.abort();
-    };
-  }, [openIngSheet, ingQuery]);
-
   /* ===== Handlers: Save/Update with modern toast ===== */
   const resetManualForm = useCallback(() => {
     setEditingLogId(null);
@@ -1026,7 +761,6 @@ export default function Track() {
     setMealTypeManual('BREAKFAST');
     setIngredients([]);
     setConsumedServings('1');
-    setOpenMealDropdown(false);
     cancelAutocomplete();
   }, [cancelAutocomplete]);
 
@@ -1064,8 +798,6 @@ export default function Track() {
       };
       const slotName = slotLabel[warn.mealSlot] ?? warn.mealSlot;
       const d = Math.round(Math.abs(warn.diff));
-
-      // Luôn dùng AlertSheet, không dùng notify nữa
       let msg = '';
       if (warn.status === 'OVER') {
         msg =
@@ -1117,6 +849,82 @@ export default function Track() {
     resetManualForm,
   ]);
 
+  const handleAddMealFromScan = useCallback(async () => {
+    try {
+      setSubmittingAddScan(true);
+      const now = new Date();
+      const todayYmd = toYMDLocal(now);
+
+      const payload: PlanLogScanRequest = {
+        date: todayYmd,
+        mealSlot: scanMealType,
+        nameFood: scanResult?.dishName?.trim() || 'Món từ AI',
+        consumedServings: Number(scanConsumedServings) || 1,
+        totalNutrition: {
+          kcal: Math.round(scanEatenNutrition.kcal),
+          proteinG: Number(fmtNum(scanEatenNutrition.proteinG)),
+          carbG: Number(fmtNum(scanEatenNutrition.carbG)),
+          fatG: Number(fmtNum(scanEatenNutrition.fatG)),
+          fiberG: Number(fmtNum(scanEatenNutrition.fiberG)),
+          sodiumMg: Math.round(scanEatenNutrition.sodiumMg),
+          sugarMg: Math.round(scanEatenNutrition.sugarMg),
+        },
+        ingredients: scanIngredients.map(it => ({
+          id: String(it.id),
+          qty: Number(it.qty) || 0,
+        })),
+      };
+
+      const ac = new AbortController();
+      const warn: KcalWarningResponse = await saveScanLog(payload, ac.signal);
+
+      const slotLabel: Record<string, string> = {
+        BREAKFAST: 'Sáng',
+        LUNCH: 'Trưa',
+        DINNER: 'Chiều',
+        SNACK: 'Phụ',
+      };
+      const slotName = slotLabel[warn.mealSlot] ?? warn.mealSlot;
+      const d = Math.round(Math.abs(warn.diff));
+
+      let msg = '';
+      if (warn.status === 'OVER') {
+        msg = `Đã lưu bữa ${slotName}.\nBạn vượt mục tiêu ~${d} kcal.\nMục tiêu ${Math.round(
+          warn.targetKcal,
+        )} · Thực tế ${Math.round(
+          warn.actualKcal,
+        )} kcal.\n\nHệ thống đã tinh chỉnh các bữa còn lại trong ngày.\nBạn hãy cố gắng tuân theo kế hoạch đã điều chỉnh để đảm bảo mục tiêu hôm nay nhé.`;
+      } else if (warn.status === 'UNDER') {
+        msg = `Đã lưu bữa ${slotName}.\nBạn còn thiếu ~${d} kcal.\nMục tiêu ${Math.round(
+          warn.targetKcal,
+        )} · Thực tế ${Math.round(
+          warn.actualKcal,
+        )} kcal.\n\nHệ thống đã tinh chỉnh các bữa còn lại trong ngày.\nBạn hãy cố gắng tuân theo kế hoạch đã điều chỉnh để đảm bảo mục tiêu hôm nay nhé.`;
+      } else {
+        msg = `Đã lưu bữa ${slotName}.\nBạn đang bám sát mục tiêu!\n${Math.round(
+          warn.actualKcal,
+        )} / ${Math.round(
+          warn.targetKcal,
+        )} kcal.\nTiếp tục tuân theo kế hoạch hiện tại để duy trì nhịp độ nhé.`;
+      }
+      setWarnAlert(msg);
+      setTab('history');
+      setDate(now);
+      await loadHistory(now);
+    } catch (err: any) {
+      notify(err?.message || 'Không thể lưu bữa (Scan)', 'danger');
+    } finally {
+      setSubmittingAddScan(false);
+    }
+  }, [
+    scanMealType,
+    scanConsumedServings,
+    scanEatenNutrition,
+    scanIngredients,
+    scanResult,
+    loadHistory,
+  ]);
+
   const handleUpdateMeal = useCallback(async () => {
     if (!editingLogId) return;
     try {
@@ -1143,7 +951,6 @@ export default function Track() {
       };
 
       const ac = new AbortController();
-      // ⬇️ API giờ trả về KcalWarningResponse
       const warn: KcalWarningResponse = await updatePlanLog(
         editingLogId,
         payload,
@@ -1159,7 +966,6 @@ export default function Track() {
       const slotName = slotLabel[warn.mealSlot] ?? warn.mealSlot;
       const d = Math.round(Math.abs(warn.diff));
 
-      // ⬇️ Hiển thị giống phần thêm bữa
       let msg = '';
       if (warn.status === 'OVER') {
         msg =
@@ -1211,6 +1017,7 @@ export default function Track() {
     date,
     resetManualForm,
   ]);
+
   /* ===== UI ===== */
   return (
     <KeyboardAvoidingView
@@ -1300,7 +1107,7 @@ export default function Track() {
                     <V alignItems="center" style={styles.scanningBox}>
                       <ActivityIndicator />
                       <Text
-                        text="Đang phân tích hình ảnh..."
+                        text="Việc phân tích có thể mất một chút thời gian..."
                         tone="muted"
                         style={{ marginTop: 6 }}
                       />
@@ -1314,7 +1121,180 @@ export default function Track() {
                   )}
 
                   {showScanResult && !isScanning && scanResult && (
-                    <ScanAIResult {...scanResult} />
+                    <>
+                      <ScanAIResult {...scanResult} />
+
+                      {/* Chọn bữa cho Scan */}
+                      <V style={{ marginTop: 10 }}>
+                        <Text
+                          text="Loại bữa"
+                          weight="semibold"
+                          style={styles.blockLabel}
+                        />
+                        <MealTypePicker
+                          value={scanMealType}
+                          onChange={setScanMealType}
+                        />
+                      </V>
+
+                      {/* Nguyên liệu từ AI + thêm mới */}
+                      <V style={{ marginTop: 10 }}>
+                        <Text
+                          text="Nguyên liệu (AI đã nhận diện)"
+                          weight="semibold"
+                          style={styles.blockLabel}
+                        />
+                        {scanIngredients.length === 0 ? (
+                          <Text
+                            text="Chưa có nguyên liệu. Hãy thêm thủ công."
+                            tone="muted"
+                            style={{ marginBottom: 8 }}
+                          />
+                        ) : (
+                          scanIngredients.map((it, idx) => (
+                            <IngredientRow
+                              key={it.id + idx}
+                              name={it.name}
+                              imageUrl={getThumb(it)}
+                              unit="G"
+                              qty={it.qty}
+                              onChangeQty={t =>
+                                setScanIngredients(prev =>
+                                  prev.map((x, i) =>
+                                    i === idx ? { ...x, qty: t } : x,
+                                  ),
+                                )
+                              }
+                              onRemove={() =>
+                                setScanIngredients(prev =>
+                                  prev.filter((_, i) => i !== idx),
+                                )
+                              }
+                            />
+                          ))
+                        )}
+
+                        <Pressable
+                          onPress={() => {
+                            setIngTarget('scan');
+                            setOpenIngSheet(true);
+                          }}
+                          style={[
+                            styles.actionBtn,
+                            {
+                              height: 42,
+                              backgroundColor: '#e0f2fe',
+                              borderColor: '#7dd3fc',
+                              marginTop: 4,
+                            },
+                          ]}
+                        >
+                          <Text
+                            text="+ Thêm nguyên liệu"
+                            weight="bold"
+                            color="#0c4a6e"
+                          />
+                        </Pressable>
+                      </V>
+
+                      {/* Khẩu phần đã ăn */}
+                      <Text
+                        text="Bạn đã dùng bao nhiêu?"
+                        weight="semibold"
+                        style={[styles.blockLabel, { marginTop: 10 }]}
+                      />
+                      <V row alignItems="center">
+                        <TextInput
+                          placeholder="1 (có thể 0.5, 2...)"
+                          keyboardType="numeric"
+                          style={[styles.input, styles.flex1]}
+                          placeholderTextColor={PLACEHOLDER_COLOR}
+                          selectionColor={colors.primary}
+                          value={scanConsumedServings}
+                          onChangeText={t => setScanConsumedServings(t)}
+                        />
+                        <Text
+                          text={scanResult?.servingName || 'khẩu phần'}
+                          color={colors.text}
+                          style={{ fontSize: 16, marginLeft: 16 }}
+                        />
+                      </V>
+
+                      {/* Dinh dưỡng (Scan) */}
+                      <Text
+                        text="Dinh dưỡng"
+                        weight="semibold"
+                        style={[styles.blockLabel, { marginTop: 10 }]}
+                      />
+                      <NutritionTable
+                        title="Tổng cho món (chưa nhân khẩu phần đã ăn)"
+                        data={scanTotalNutrition}
+                      />
+                      <NutritionTable
+                        title={`Tổng dinh dưỡng bạn đã ăn (x${fmtNum(
+                          scanConsumedNum,
+                          2,
+                        )})`}
+                        data={scanEatenNutrition}
+                      />
+
+                      {/* Nút hành động Scan: Lưu + Hủy */}
+                      <V row gap={10} style={{ marginTop: 14 }}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityState={{
+                            disabled: submittingAddScan || !canSubmitScan,
+                          }}
+                          onPress={
+                            submittingAddScan || !canSubmitScan
+                              ? undefined
+                              : handleAddMealFromScan
+                          }
+                          disabled={submittingAddScan || !canSubmitScan}
+                          android_ripple={
+                            submittingAddScan || !canSubmitScan
+                              ? undefined
+                              : { borderless: false }
+                          }
+                          style={[
+                            styles.actionBtn,
+                            { flex: 2 },
+                            submittingAddScan || !canSubmitScan
+                              ? styles.actionBtnDisabled
+                              : styles.actionBtnEnabled,
+                          ]}
+                        >
+                          {submittingAddScan ? (
+                            <ActivityIndicator />
+                          ) : (
+                            <Text
+                              text="Lưu bữa từ Scan"
+                              weight="bold"
+                              color={
+                                submittingAddScan || !canSubmitScan
+                                  ? '#64748b'
+                                  : '#0b2149'
+                              }
+                            />
+                          )}
+                        </Pressable>
+
+                        {/* ➕ Nút Hủy: reset về trạng thái ban đầu để quét lại */}
+                        <Pressable
+                          onPress={resetScan}
+                          style={[
+                            styles.actionBtn,
+                            {
+                              flex: 1,
+                              backgroundColor: '#f1f5f9',
+                              borderColor: '#e2e8f0',
+                            },
+                          ]}
+                        >
+                          <Text text="Hủy" weight="bold" color={colors.text} />
+                        </Pressable>
+                      </V>
+                    </>
                   )}
                 </V>
               )}
@@ -1360,69 +1340,69 @@ export default function Track() {
 
                     {(autoLoading ||
                       (!isBlank(mealName) && autoItems.length > 0)) && (
-                        <V
-                          style={[
-                            styles.dropdownPanel,
-                            {
-                              top: 52,
-                              height: AC_ITEM_HEIGHT * AC_VISIBLE_ROWS + 2,
-                              paddingVertical: 6,
-                              overflow: 'hidden',
-                            },
-                          ]}
-                        >
-                          {autoLoading && autoItems.length === 0 ? (
-                            <V alignItems="center" style={{ paddingVertical: 8 }}>
-                              <ActivityIndicator />
-                            </V>
-                          ) : (
-                            <FlatList
-                              keyboardShouldPersistTaps="always"
-                              style={{ flexGrow: 0 }}
-                              data={autoItems}
-                              keyExtractor={(it: FoodResponse) => String(it.id)}
-                              renderItem={({ item }: { item: FoodResponse }) => (
-                                <Pressable
-                                  onPress={() => onSelectFood(item)}
-                                  style={styles.acItem}
+                      <V
+                        style={[
+                          styles.dropdownPanel,
+                          {
+                            top: 52,
+                            height: AC_ITEM_HEIGHT * AC_VISIBLE_ROWS + 2,
+                            paddingVertical: 6,
+                            overflow: 'hidden',
+                          },
+                        ]}
+                      >
+                        {autoLoading && autoItems.length === 0 ? (
+                          <V alignItems="center" style={{ paddingVertical: 8 }}>
+                            <ActivityIndicator />
+                          </V>
+                        ) : (
+                          <FlatList
+                            keyboardShouldPersistTaps="always"
+                            style={{ flexGrow: 0 }}
+                            data={autoItems}
+                            keyExtractor={(it: FoodResponse) => String(it.id)}
+                            renderItem={({ item }: { item: FoodResponse }) => (
+                              <Pressable
+                                onPress={() => onSelectFood(item)}
+                                style={styles.acItem}
+                              >
+                                <Image
+                                  source={{ uri: getThumb(item) }}
+                                  style={styles.acThumb}
+                                />
+                                <Text
+                                  text={item.name}
+                                  weight="semibold"
+                                  style={styles.acName as any}
+                                />
+                              </Pressable>
+                            )}
+                            ItemSeparatorComponent={() => (
+                              <RNView style={styles.acSep} />
+                            )}
+                            onEndReachedThreshold={0.3}
+                            onEndReached={loadMoreAuto}
+                            ListFooterComponent={
+                              acHasMore ? (
+                                <V
+                                  alignItems="center"
+                                  style={{ paddingVertical: 8 }}
                                 >
-                                  <Image
-                                    source={{ uri: getThumb(item) }}
-                                    style={styles.acThumb}
-                                  />
-                                  <Text
-                                    text={item.name}
-                                    weight="semibold"
-                                    style={styles.acName as any}
-                                  />
-                                </Pressable>
-                              )}
-                              ItemSeparatorComponent={() => (
-                                <RNView style={styles.acSep} />
-                              )}
-                              onEndReachedThreshold={0.3}
-                              onEndReached={loadMoreAuto}
-                              ListFooterComponent={
-                                acHasMore ? (
-                                  <V
-                                    alignItems="center"
-                                    style={{ paddingVertical: 8 }}
-                                  >
-                                    {acLoadingMore ? (
-                                      <ActivityIndicator />
-                                    ) : (
-                                      <Text
-                                        text="Kéo để tải thêm…"
-                                        tone="muted"
-                                      />
-                                    )}
-                                  </V>
-                                ) : null
-                              }
-                            />
-                          )}
-                        </V>
-                      )}
+                                  {acLoadingMore ? (
+                                    <ActivityIndicator />
+                                  ) : (
+                                    <Text
+                                      text="Kéo để tải thêm…"
+                                      tone="muted"
+                                    />
+                                  )}
+                                </V>
+                              ) : null
+                            }
+                          />
+                        )}
+                      </V>
+                    )}
                   </RNView>
 
                   {/* Combobox chọn bữa */}
@@ -1432,70 +1412,10 @@ export default function Track() {
                       weight="semibold"
                       style={styles.blockLabel}
                     />
-                    <RNView style={{ position: 'relative' }}>
-                      <Pressable
-                        onPress={() => setOpenMealDropdown(v => !v)}
-                        style={[styles.input, { justifyContent: 'center' }]}
-                      >
-                        <Text
-                          text={
-                            mealTypeManual === 'BREAKFAST'
-                              ? 'Sáng'
-                              : mealTypeManual === 'LUNCH'
-                                ? 'Trưa'
-                                : mealTypeManual === 'DINNER'
-                                  ? 'Chiều'
-                                  : 'Phụ'
-                          }
-                          color={INPUT_TEXT_COLOR}
-                          style={{ fontSize: 16 }}
-                        />
-                        <Text
-                          text="▾"
-                          tone="muted"
-                          style={styles.dropdownCaret}
-                        />
-                      </Pressable>
-
-                      {openMealDropdown && (
-                        <V
-                          style={[
-                            styles.dropdownPanel,
-                            { top: 52, paddingVertical: 4 },
-                          ]}
-                        >
-                          {(
-                            [
-                              { k: 'BREAKFAST', label: 'Sáng' },
-                              { k: 'LUNCH', label: 'Trưa' },
-                              { k: 'DINNER', label: 'Chiều' },
-                              { k: 'SNACK', label: 'Phụ' },
-                            ] as { k: MealSlot; label: string }[]
-                          ).map(opt => {
-                            const active = mealTypeManual === opt.k;
-                            return (
-                              <Pressable
-                                key={opt.k}
-                                onPress={() => {
-                                  setMealTypeManual(opt.k);
-                                  setOpenMealDropdown(false);
-                                }}
-                                style={[
-                                  styles.acItem,
-                                  { height: 44, gap: 0, paddingHorizontal: 12 },
-                                ]}
-                              >
-                                <Text
-                                  text={opt.label}
-                                  weight={active ? 'bold' : 'semibold'}
-                                  color={active ? colors.primary : colors.text}
-                                />
-                              </Pressable>
-                            );
-                          })}
-                        </V>
-                      )}
-                    </RNView>
+                    <MealTypePicker
+                      value={mealTypeManual}
+                      onChange={setMealTypeManual}
+                    />
                   </V>
 
                   {/* Nguyên liệu */}
@@ -1513,66 +1433,32 @@ export default function Track() {
                       />
                     ) : (
                       ingredients.map((it, idx) => (
-                        <V
+                        <IngredientRow
                           key={it.id + idx}
-                          row
-                          alignItems="center"
-                          style={{ marginBottom: 6 }}
-                        >
-                          <Image
-                            source={{ uri: getThumb(it) }}
-                            style={[styles.acThumb, { marginRight: 8 }]}
-                          />
-                          <Text
-                            text={it.name}
-                            weight="semibold"
-                            style={{ flex: 1 }}
-                          />
-                          <TextInput
-                            style={[
-                              styles.input,
-                              { width: 80, marginRight: 4 },
-                            ]}
-                            keyboardType="numeric"
-                            value={it.qty}
-                            onChangeText={t =>
-                              setIngredients(prev =>
-                                prev.map((x, i) =>
-                                  i === idx ? { ...x, qty: t } : x,
-                                ),
-                              )
-                            }
-                          />
-                          <V style={styles.unitWrap}>
-                            <Text text={it.unit} weight="semibold" />
-                          </V>
-                          <Pressable
-                            onPress={() =>
-                              setIngredients(prev =>
-                                prev.filter((_, i) => i !== idx),
-                              )
-                            }
-                            style={({ pressed }) => [
-                              styles.delBtnSimple,
-                              pressed && { opacity: 0.85 },
-                            ]}
-                            hitSlop={10}
-                          >
-                            <Text
-                              text="Xóa"
-                              color={colors.onPrimary}
-                              weight="bold"
-                            />
-                          </Pressable>
-                        </V>
+                          name={it.name}
+                          imageUrl={getThumb(it)}
+                          unit={it.unit}
+                          qty={it.qty}
+                          onChangeQty={t =>
+                            setIngredients(prev =>
+                              prev.map((x, i) =>
+                                i === idx ? { ...x, qty: t } : x,
+                              ),
+                            )
+                          }
+                          onRemove={() =>
+                            setIngredients(prev =>
+                              prev.filter((_, i) => i !== idx),
+                            )
+                          }
+                        />
                       ))
                     )}
 
                     <Pressable
                       onPress={() => {
+                        setIngTarget('manual');
                         setOpenIngSheet(true);
-                        setIngQuery('');
-                        setIngResults([]);
                       }}
                       style={[
                         styles.actionBtn,
@@ -1622,82 +1508,17 @@ export default function Track() {
                     style={[styles.blockLabel, { marginTop: 10 }]}
                   />
 
-                  {/* Tổng món (chưa nhân) */}
-                  <V variant="card" style={styles.nutTable}>
-                    <Text
-                      text="Tổng cho món (chưa nhân khẩu phần đã ăn)"
-                      weight="bold"
-                      style={{ marginBottom: 4 }}
-                    />
-                    <Row
-                      label="Calo"
-                      value={`${fmtNum(totalNutrition.kcal, 0)} kcal`}
-                    />
-                    <Row
-                      label="Protein"
-                      value={`${fmtNum(totalNutrition.proteinG)} g`}
-                    />
-                    <Row
-                      label="Carbs"
-                      value={`${fmtNum(totalNutrition.carbG)} g`}
-                    />
-                    <Row
-                      label="Fat"
-                      value={`${fmtNum(totalNutrition.fatG)} g`}
-                    />
-                    <Row
-                      label="Chất xơ"
-                      value={`${fmtNum(totalNutrition.fiberG)} g`}
-                    />
-                    <Row
-                      label="Natri"
-                      value={`${fmtNum(totalNutrition.sodiumMg, 0)} mg`}
-                    />
-                    <Row
-                      label="Đường"
-                      value={`${fmtNum(totalNutrition.sugarMg, 0)} mg`}
-                    />
-                  </V>
-
-                  {/* Tổng ĐÃ ĂN */}
-                  <V variant="card" style={[styles.nutTable, { marginTop: 6 }]}>
-                    <Text
-                      text={`Tổng dinh dưỡng bạn đã ăn (x${fmtNum(
-                        consumedNum,
-                        2,
-                      )})`}
-                      weight="bold"
-                      style={{ marginBottom: 4 }}
-                    />
-                    <Row
-                      label="Calo"
-                      value={`${fmtNum(eatenNutrition.kcal, 0)} kcal`}
-                    />
-                    <Row
-                      label="Protein"
-                      value={`${fmtNum(eatenNutrition.proteinG)} g`}
-                    />
-                    <Row
-                      label="Carbs"
-                      value={`${fmtNum(eatenNutrition.carbG)} g`}
-                    />
-                    <Row
-                      label="Fat"
-                      value={`${fmtNum(eatenNutrition.fatG)} g`}
-                    />
-                    <Row
-                      label="Chất xơ"
-                      value={`${fmtNum(eatenNutrition.fiberG)} g`}
-                    />
-                    <Row
-                      label="Natri"
-                      value={`${fmtNum(eatenNutrition.sodiumMg, 0)} mg`}
-                    />
-                    <Row
-                      label="Đường"
-                      value={`${fmtNum(eatenNutrition.sugarMg, 0)} mg`}
-                    />
-                  </V>
+                  <NutritionTable
+                    title="Tổng cho món (chưa nhân khẩu phần đã ăn)"
+                    data={totalNutrition}
+                  />
+                  <NutritionTable
+                    title={`Tổng dinh dưỡng bạn đã ăn (x${fmtNum(
+                      consumedNum,
+                      2,
+                    )})`}
+                    data={eatenNutrition}
+                  />
 
                   {/* Nút hành động */}
                   {!editingLogId ? (
@@ -1840,8 +1661,9 @@ export default function Track() {
                                 )}
                                 {(p != null || c != null || f != null) && (
                                   <Text
-                                    text={`Protein: ${p ?? '-'} g, Carbs: ${c ?? '-'
-                                      } g, Fat: ${f ?? '-'} g`}
+                                    text={`Protein: ${p ?? '-'} g, Carbs: ${
+                                      c ?? '-'
+                                    } g, Fat: ${f ?? '-'} g`}
                                   />
                                 )}
                                 <V row gap={8} style={styles.rowBtns}>
@@ -1901,7 +1723,7 @@ export default function Track() {
             Platform.OS === 'ios' ? 'interactive' : 'on-drag'
           }
           nestedScrollEnabled
-          onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => { }}
+          onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {}}
           scrollEventThrottle={16}
           refreshControl={
             tab === 'history' ? (
@@ -1958,109 +1780,21 @@ export default function Track() {
           </Pressable>
         </Modal>
 
-        {/* Modal chọn nguyên liệu */}
-        <Modal
+        {/* IngredientPickerSheet (mới) */}
+        <IngredientPickerSheet
           visible={openIngSheet}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setOpenIngSheet(false)}
-          statusBarTranslucent
-        >
-          <RNView style={styles.modalRoot}>
-            <Pressable
-              style={styles.backdrop}
-              onPress={() => setOpenIngSheet(false)}
-            />
-            <RNView style={styles.sheetWrap}>
-              <V
-                style={[
-                  styles.sheet,
-                  { paddingBottom: 12 + insets.bottom + keyboardH },
-                ]}
-              >
-                <V row between alignItems="center" style={styles.sheetHeader}>
-                  <Text text="Chọn nguyên liệu" variant="h3" />
-                  <Pressable
-                    onPress={() => setOpenIngSheet(false)}
-                    hitSlop={10}
-                  >
-                    <Text text="Đóng" color={colors.primary} weight="bold" />
-                  </Pressable>
-                </V>
-
-                <TextInput
-                  placeholder="Nhập tên nguyên liệu"
-                  style={styles.input}
-                  placeholderTextColor={PLACEHOLDER_COLOR}
-                  value={ingQuery}
-                  onChangeText={setIngQuery}
-                  autoFocus
-                />
-
-                {ingLoading ? (
-                  <ActivityIndicator />
-                ) : (
-                  <FlatList
-                    keyboardShouldPersistTaps="handled"
-                    data={ingResults}
-                    keyExtractor={(it: IngredientResponse) => String(it.id)}
-                    renderItem={({ item }) => (
-                      <Pressable
-                        onPress={() => {
-                          setIngredients(prev => [
-                            ...prev,
-                            { ...item, qty: '100' },
-                          ]);
-                          setOpenIngSheet(false);
-                          setIngQuery('');
-                          setIngResults([]);
-                        }}
-                        style={styles.acItem}
-                      >
-                        <Image
-                          source={{ uri: getThumb(item) }}
-                          style={styles.acThumb}
-                        />
-                        <V style={{ flex: 1 }}>
-                          <Text
-                            text={item.name}
-                            weight="semibold"
-                            numberOfLines={1}
-                          />
-                          <Text
-                            text={`${item.unit} • per 100: ${fmtNum(
-                              safeNum(item.per100?.kcal),
-                              0,
-                            )} kcal`}
-                            tone="muted"
-                            variant="caption"
-                          />
-                        </V>
-                      </Pressable>
-                    )}
-                    ItemSeparatorComponent={() => (
-                      <RNView style={styles.acSep} />
-                    )}
-                  />
-                )}
-
-                <Pressable
-                  onPress={() => setOpenIngSheet(false)}
-                  style={[
-                    styles.actionBtn,
-                    {
-                      marginTop: 10,
-                      backgroundColor: '#f1f5f9',
-                      borderColor: '#e2e8f0',
-                    },
-                  ]}
-                >
-                  <Text text="Hủy" weight="bold" color={colors.text} />
-                </Pressable>
-              </V>
-            </RNView>
-          </RNView>
-        </Modal>
+          onClose={() => setOpenIngSheet(false)}
+          insetsBottom={insets.bottom}
+          keyboardH={keyboardH}
+          onPick={item => {
+            if (ingTarget === 'scan') {
+              setScanIngredients(prev => [...prev, { ...item, qty: '100' }]);
+            } else {
+              setIngredients(prev => [...prev, { ...item, qty: '100' }]);
+            }
+            setOpenIngSheet(false);
+          }}
+        />
 
         {/* Confirm delete */}
         <ConfirmSheet
@@ -2328,17 +2062,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   scanningBox: { marginTop: 12, alignItems: 'center' },
-  scanChipBox: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  summaryBar: { marginTop: 6, marginBottom: 8 },
-
-  dropdownCaret: { position: 'absolute', right: 12, top: 10, fontSize: 20 },
 
   // Generic modal styling
   modalBackdrop: {
@@ -2376,38 +2099,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.red,
     marginTop: 12,
-  },
-
-  // Ingredient sheet
-  modalRoot: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.25)',
-  },
-  sheetWrap: { flex: 1, justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: colors.white,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 12,
-    maxHeight: '80%',
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-
-  // Delete chip
-  delBtnSimple: {
-    marginLeft: 20,
-    paddingHorizontal: 14,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: colors.red,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 
   // Toast

@@ -18,8 +18,46 @@ interface Props extends Omit<TextProps, 'style' | 'children'> {
   tone?: Tone;
   style?: StyleProp<TextStyle>;
   flexFill?: boolean;
+  autoTypography?: boolean;
 }
 
+/* ====== Typography helpers (1 nơi xử lý cho toàn app) ====== */
+const NBSP = '\u00A0';
+const NNBSP = '\u202F';
+
+function joinNumberAndUnit(input: string): string {
+  const unitShort = /(kcal|cal|g|mg|kg|µg|mcg|ml|l|L|%|°C|°F|℃|℉)\b/iu;
+
+  const unitWord = /(\p{L}{1,10})\b/iu;
+
+  const num = /(\d+(?:[.,]\d+)?)/u;
+
+  let s = input.replace(
+    new RegExp(`${num.source}\\s+${unitShort.source}`, 'giu'),
+    (_m, n, u) => `${n}${NNBSP}${u}`,
+  );
+
+  s = s.replace(
+    new RegExp(`${num.source}\\s+${unitWord.source}`, 'giu'),
+    (_m, n, u) => `${n}${NNBSP}${u}`,
+  );
+
+  return s;
+}
+
+function avoidWidow(input: string): string {
+  return input.replace(/\s+([^\s]+)$/u, `${NBSP}$1`);
+}
+
+function fixTypography(input: string): string {
+  if (!input) return input;
+  let s = input;
+  s = joinNumberAndUnit(s);
+  s = avoidWidow(s);
+  return s;
+}
+
+/* ====== Mapping style ====== */
 const WEIGHT_TO_FAMILY: Partial<Record<Weight, string>> = {
   regular: fontFamilies.regular,
   medium: (fontFamilies as any).medium,
@@ -59,6 +97,7 @@ const TextComponent = memo(
     allowFontScaling = true,
     flexFill = false,
     style,
+    autoTypography = true,
     ...rest
   }: Props) => {
     const preset = VARIANT[variant];
@@ -67,6 +106,8 @@ const TextComponent = memo(
     const finalColor = color ?? TONE[tone] ?? colors.text;
     const lineHeight = Math.round(finalSize * preset.lh);
     const family = WEIGHT_TO_FAMILY[finalWeight] || fontFamilies.regular;
+
+    const displayText = autoTypography ? fixTypography(text) : text;
 
     return (
       <Text
@@ -86,7 +127,7 @@ const TextComponent = memo(
           style,
         ]}
       >
-        {text}
+        {displayText}
       </Text>
     );
   },
