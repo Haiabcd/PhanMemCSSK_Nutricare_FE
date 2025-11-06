@@ -9,11 +9,29 @@ export default function OAuthError() {
   const { reason } = route.params ?? {};
 
   useEffect(() => {
+    // Nếu có reason => đưa về Home/Profile và truyền notice
+    if (reason) {
+      navigation.reset({
+        index: 0,
+        routes: [
+          {
+            name: 'Home',
+            params: {
+              screen: 'ProfileNavigator',
+              params: { screen: 'Profile', params: { notice: reason } },
+            },
+          },
+        ],
+      });
+      return;
+    }
+
+    // Không có reason: auto về Welcome sau 3s như cũ
     const timer = setTimeout(() => {
       navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
     }, 3000);
     return () => clearTimeout(timer);
-  }, [navigation]);
+  }, [navigation, reason]);
 
   return (
     <ViewComponent center style={{ flex: 1 }}>

@@ -17,7 +17,11 @@ import Container from '../components/Container';
 import TextComponent from '../components/TextComponent';
 import ViewComponent from '../components/ViewComponent';
 import { colors as C } from '../constants/colors';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import {
+  useNavigation,
+  useFocusEffect,
+  useRoute,
+} from '@react-navigation/native';
 import type {
   Allergy,
   Condition,
@@ -59,6 +63,7 @@ import { getOrCreateDeviceId } from '../config/deviceId';
 import { useHeader } from '../context/HeaderProvider';
 import { getTokenSecure, removeTokenSecure } from '../config/secureToken';
 import { resetTo } from '../navigation/RootNavigation';
+import { api } from '../config/api';
 
 type PickerType = 'condition' | 'allergy';
 
@@ -158,6 +163,9 @@ function validatePlan(
 /* ====================== Screen ====================== */
 export default function ProfileScreen() {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const notice: string | undefined = route.params?.notice;
+  const noticeShownRef = React.useRef(false);
   const { width } = useWindowDimensions();
   const isSmall = width < 370;
 
@@ -227,6 +235,35 @@ export default function ProfileScreen() {
   }, []);
 
   useEffect(() => {
+    if (!notice || noticeShownRef.current) return;
+    noticeShownRef.current = true;
+
+    Alert.alert(
+      'Tài khoản này đã được dùng',
+      notice || 'Tài khoản Google này đã liên kết với user khác.',
+      [
+        {
+          text: 'Hủy',
+          style: 'cancel',
+          onPress: () => {
+            navigation.setParams?.({ notice: undefined });
+            noticeShownRef.current = false;
+          },
+        },
+        {
+          text: 'Về Welcome để đăng nhập',
+          onPress: () => {
+            navigation.setParams?.({ notice: undefined });
+            noticeShownRef.current = false;
+            resetTo('Welcome');
+          },
+        },
+      ],
+      { cancelable: true },
+    );
+  }, [notice, navigation]);
+
+  useEffect(() => {
     const ac = new AbortController();
     fetchData(ac.signal);
     return () => ac.abort();
@@ -284,7 +321,7 @@ export default function ProfileScreen() {
         try {
           setOauthStarting(true);
           const deviceId = await getOrCreateDeviceId();
-          const res = await startGoogleOAuth(deviceId);
+          const res = await startGoogleOAuth(deviceId, true);
           const url = res?.data?.authorizeUrl;
           if (!url) {
             Alert.alert('Lỗi', 'Không nhận được liên kết đăng nhập Google.');
@@ -301,24 +338,35 @@ export default function ProfileScreen() {
         }
         return;
       }
-      // navigation.navigate('Login', { provider: 'facebook' });
     },
     [navigation],
   );
 
   const doLogout = async () => {
+    if (loggingOut) return;
     setLoggingOut(true);
     try {
       const cur = await getTokenSecure();
       const refreshToken = cur?.refreshToken;
-      if (refreshToken) await logoutApi({ refreshToken });
-    } catch {
-      await removeTokenSecure();
-      resetHeader?.();
+      if (refreshToken) {
+        try {
+          await logoutApi({ refreshToken });
+        } catch (e) {
+          console.warn('logoutApi failed:', e);
+        }
+      }
     } finally {
+      try {
+        await removeTokenSecure();
+      } catch (e) {
+        console.warn('removeTokenSecure failed:', e);
+      }
+      try {
+        (api.defaults.headers.common as any).Authorization = undefined;
+      } catch {}
       resetHeader?.();
-      setLoggingOut(false);
       setShowLogoutModal(false);
+      setLoggingOut(false);
       resetTo('Welcome');
     }
   };
@@ -326,7 +374,6 @@ export default function ProfileScreen() {
   const onLogout = () => {
     setShowLogoutModal(true);
   };
-
   /* ================== Dirty check ================== */
   const isDirty = useMemo(() => {
     if (!data || !editData || !myInfo || !editInfo) return false;

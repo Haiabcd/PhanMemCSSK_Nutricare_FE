@@ -23,7 +23,7 @@ const Welcome = () => {
     try {
       setLoadingGoogle(true);
       const deviceId = await getOrCreateDeviceId();
-      const res = await startGoogleOAuth(deviceId);
+      const res = await startGoogleOAuth(deviceId, false);
       const url = res?.data?.authorizeUrl;
 
       if (!url) {

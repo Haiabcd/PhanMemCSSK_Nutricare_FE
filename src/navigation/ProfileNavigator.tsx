@@ -4,7 +4,7 @@ import Profile from '../screens/Profile';
 import NotificationScreen from '../screens/Notifications';
 
 export type ProfileStackParamList = {
-  Profile: undefined;
+  Profile: { notice?: string } | undefined;
   Notification: undefined;
 };
 

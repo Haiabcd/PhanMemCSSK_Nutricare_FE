@@ -60,18 +60,21 @@ export async function refreshWithStoredToken(): Promise<ApiResponse<TokenPairRes
 
 export async function startGoogleOAuth(
   device?: string,
+  upgrade?: boolean,      
   signal?: AbortSignal
 ): Promise<ApiResponse<GoogleStartData>> {
+  const params: Record<string, any> = {};
+  if (device) params.device = device;
+  if (typeof upgrade === 'boolean') params.upgrade = upgrade;
+
   const res = await api.post<ApiResponse<GoogleStartData>>(
     '/auths/google/start',
     null,
-    {
-      params: device ? { device } : undefined,
-      signal,
-    }
+    { params, signal }
   );
   return res.data;
 }
+
 
 // Đăng xuất (truyền refreshToken)
 export async function logout(

@@ -12,7 +12,6 @@ import {
 } from './src/config/secureToken';
 import { refreshWithStoredToken } from './src/services/auth.service';
 import { HeaderProvider } from './src/context/HeaderProvider';
-
 // Ăn
 import {
   schedulePrePostRange,
@@ -20,7 +19,6 @@ import {
   registerBackgroundHandler,
   ensureNotificationReady,
 } from './src/notifications/notifeeClient';
-
 // Uống
 import {
   registerHydrationForeground,
@@ -106,7 +104,7 @@ function App() {
     config: {
       screens: {
         OAuthReturn: {
-          path: 'oauth/:kind', // first | upgrade | returning
+          path: 'oauth/:kind',
         },
         OAuthError: 'oauth/error',
       },

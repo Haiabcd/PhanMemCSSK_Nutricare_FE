@@ -55,6 +55,7 @@ function shouldSkipRefresh(url?: string) {
   return AUTH_WHITELIST.some(p => url.includes(p));
 }
 
+
 api.interceptors.response.use(
   res => res,
   async error => {
@@ -73,7 +74,6 @@ api.interceptors.response.use(
         message: error?.message, // "Network Error" / "timeout exceeded"...
       }
     );
-
 
     // Không refresh cho endpoint public hoặc không phải 401
     if (status !== 401 || shouldSkipRefresh(reqUrl)) {
