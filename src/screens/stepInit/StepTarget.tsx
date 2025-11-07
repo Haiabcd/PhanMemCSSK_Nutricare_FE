@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { StyleSheet, Pressable, Platform } from 'react-native';
 import WizardFrame from '../../components/WizardFrame';
 import { useWizard } from '../../context/WizardContext';
@@ -10,6 +10,40 @@ export type TargetType = 'lose' | 'maintain' | 'gain';
 
 const StepTargetScreen: React.FC = () => {
   const { form, updateForm } = useWizard();
+
+  // ======== BMI + PHÂN LOẠI + GỢI Ý MỤC TIÊU ========
+  const heightM = form.heightCm / 100;
+  const bmi = form.weightKg / (heightM * heightM);
+
+  const bmiCategory =
+    bmi < 18.5
+      ? 'Thiếu cân'
+      : bmi < 25
+      ? 'Bình thường'
+      : bmi < 30
+      ? 'Thừa cân'
+      : 'Béo phì';
+
+  // Đề xuất mục tiêu dựa theo BMI
+  const recommended: TargetType =
+    bmi < 18.5 ? 'gain' : bmi < 25 ? 'maintain' : 'lose';
+
+  const recommendationText =
+    recommended === 'gain'
+      ? 'Bạn đang thiếu cân, ưu tiên nên TĂNG CÂN.'
+      : recommended === 'maintain'
+      ? 'BMI của bạn bình thường, phù hợp nhất là DUY TRÌ CÂN NẶNG.'
+      : 'Bạn đang thừa cân, nên tập trung GIẢM CÂN.';
+
+  // ✅ Tự động tick chọn mục tiêu được đề xuất ngay khi vào màn
+  // (Nếu bạn muốn chỉ đặt một lần đầu, có thể thêm điều kiện !form.target)
+  useEffect(() => {
+    if (form.target !== recommended) {
+      updateForm({ target: recommended });
+    }
+  }, [recommended]);
+
+  // ================================================
 
   const options = React.useMemo(
     () => [
@@ -44,6 +78,42 @@ const StepTargetScreen: React.FC = () => {
       title="Mục Tiêu Của Bạn?"
       subtitle="Chọn mục tiêu chính để chúng tôi đề xuất kế hoạch phù hợp"
     >
+      {/* ==== GỢI Ý TỪ BMI ==== */}
+      {/* ==== GỢI Ý TỪ BMI ==== */}
+      <ViewComponent
+        p={16}
+        radius={16}
+        style={{
+          backgroundColor: '#FFF7ED', // amber50
+          borderWidth: 1.5,
+          borderColor: '#FDBA74', // amber300
+          marginBottom: 24,
+          shadowColor: '#F97316', // amber500
+          shadowOpacity: 0.15,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 4 },
+          elevation: 4,
+        }}
+        gap={10}
+      >
+        <TextComponent
+          text={`📊 BMI của bạn: ${bmi.toFixed(1)} (${bmiCategory})`}
+          size={15}
+          weight="semibold"
+          color="#EA580C" // amber600
+        />
+
+        <ViewComponent row gap={8} alignItems="flex-start">
+          <TextComponent
+            text={recommendationText}
+            size={14}
+            color="#C2410C"
+            style={{ flex: 1 }}
+          />
+        </ViewComponent>
+      </ViewComponent>
+
+      {/* ==== CÁC LỰA CHỌN MỤC TIÊU ==== */}
       <ViewComponent style={styles.group} gap={12}>
         {options.map(opt => {
           const selected = form.target === opt.key;
@@ -69,9 +139,6 @@ const StepTargetScreen: React.FC = () => {
                   selected && {
                     borderColor: colors.primary,
                     backgroundColor: colors.primarySurface,
-                    shadowColor: colors.primary,
-                    shadowOpacity: 0.1,
-                    elevation: 4,
                   },
                 ]}
               >
@@ -81,14 +148,12 @@ const StepTargetScreen: React.FC = () => {
                   <ViewComponent flex={1} gap={4}>
                     <TextComponent
                       text={opt.title}
-                      variant="subtitle"
                       size={16}
                       color={selected ? colors.emerald800 : colors.slate800}
                       weight={selected ? 'bold' : 'semibold'}
                     />
                     <TextComponent
                       text={opt.desc}
-                      variant="body"
                       size={13.5}
                       color={selected ? colors.emerald700 : colors.slate500}
                     />

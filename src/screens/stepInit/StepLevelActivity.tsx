@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable } from 'react-native';
+import { Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import WizardFrame from '../../components/WizardFrame';
 import { useWizard } from '../../context/WizardContext';
 import { colors } from '../../constants/colors';
@@ -15,6 +15,21 @@ type ActivityLevel =
 
 const StepLevelActivityScreen = () => {
   const { form, updateForm } = useWizard();
+  const { height, width } = useWindowDimensions();
+
+  // Màn nhỏ thì giảm padding/size nhẹ để bớt tràn
+  const isVerySmall = width < 360;
+  const cardPad = isVerySmall ? 12 : 16;
+  const iconSize = isVerySmall ? 20 : 24;
+  const titleSize = isVerySmall ? 15 : 16;
+  const descSize = isVerySmall ? 12.5 : 13.5;
+  const descLineHeight = isVerySmall ? 17 : 18;
+
+  // Vùng options cuộn độc lập: giới hạn tối đa ~55–60% chiều cao màn
+  const optionsMaxHeight = Math.max(
+    260,
+    Math.floor(height * (isVerySmall ? 0.55 : 0.6)),
+  );
 
   const options = React.useMemo(
     () => [
@@ -53,7 +68,7 @@ const StepLevelActivityScreen = () => {
   );
 
   const onSelect = (key: ActivityLevel) => {
-    updateForm({ activityLevel: key as any }); // nếu form.activityLevel đang là kiểu cũ, cast tạm
+    updateForm({ activityLevel: key as any });
   };
 
   return (
@@ -61,7 +76,13 @@ const StepLevelActivityScreen = () => {
       title="Mức Độ Hoạt Động Của Bạn?"
       subtitle="Chia sẻ lối sống năng động của bạn để nhận kế hoạch dinh dưỡng được cá nhân hóa"
     >
-      <ViewComponent gap={12} style={{ width: '100%' }}>
+      {/* Chỉ khối options cuộn khi dài; layout dọc giữ nguyên */}
+      <ScrollView
+        style={{ width: '100%', maxHeight: optionsMaxHeight }}
+        contentContainerStyle={{ paddingBottom: 4, gap: 12 }}
+        showsVerticalScrollIndicator
+        keyboardShouldPersistTaps="handled"
+      >
         {options.map(opt => {
           const selected = form.activityLevel === opt.key;
           return (
@@ -77,10 +98,10 @@ const StepLevelActivityScreen = () => {
               <ViewComponent
                 variant="none"
                 backgroundColor={selected ? colors.emerald50 : colors.white}
-                border={true}
+                border
                 borderColor={selected ? colors.green : colors.slate100}
                 radius={16}
-                p={16}
+                p={cardPad}
                 style={{
                   borderWidth: 1.5,
                   shadowColor: selected ? colors.green : '#000',
@@ -90,34 +111,50 @@ const StepLevelActivityScreen = () => {
                   elevation: selected ? 4 : 3,
                 }}
               >
-                <ViewComponent row alignItems="flex-start" gap={12}>
+                <ViewComponent
+                  row
+                  alignItems="flex-start"
+                  gap={12}
+                  style={{ minWidth: 0 }}
+                >
                   <TextComponent
                     text={opt.icon}
-                    size={24}
-                    style={{ marginTop: 2 }}
+                    size={iconSize}
+                    style={{ marginTop: isVerySmall ? 1 : 2 }}
                   />
-                  <ViewComponent flex={1} gap={4}>
+
+                  <ViewComponent flex={1} gap={4} style={{ minWidth: 0 }}>
                     <TextComponent
                       text={opt.title}
-                      size={16}
+                      size={titleSize}
                       weight={selected ? 'bold' : 'semibold'}
                       color={selected ? colors.emerald800 : colors.slate800}
                       style={{ letterSpacing: 0.15 }}
+                      numberOfLines={2}
+                      ellipsizeMode="tail"
                     />
                     <TextComponent
                       text={opt.desc}
-                      size={13.5}
+                      size={descSize}
                       weight="regular"
                       color={selected ? colors.emerald800 : colors.slate500}
-                      style={{ lineHeight: 18 }}
+                      style={{ lineHeight: descLineHeight }}
+                      numberOfLines={3}
+                      ellipsizeMode="tail"
                     />
                   </ViewComponent>
+
                   {selected && (
                     <ViewComponent
                       backgroundColor={colors.green}
                       radius={12}
                       center
-                      style={{ width: 24, height: 24 }}
+                      style={{
+                        width: 24,
+                        height: 24,
+                        marginLeft: 6,
+                        flexShrink: 0,
+                      }}
                     >
                       <TextComponent
                         text="✓"
@@ -132,7 +169,7 @@ const StepLevelActivityScreen = () => {
             </Pressable>
           );
         })}
-      </ViewComponent>
+      </ScrollView>
     </WizardFrame>
   );
 };

@@ -77,7 +77,7 @@ const StepAgeScreen = () => {
               borderColor={colors.primaryBorder}
               radius={16}
               px={20}
-              py={20}
+              // py={20}
               alignItems="center"
               style={{ width: '100%' }}
             >
@@ -159,7 +159,13 @@ const StepAgeScreen = () => {
         )}
 
         {/* WheelPicker */}
-        <View flex={1} justifyContent="center" style={{ width: '100%' }} mb={8}>
+        <View
+          flex={1}
+          justifyContent="center"
+          style={{ width: '100%' }}
+          mb={15}
+          mt={15}
+        >
           <WheelPicker value={form.age} onChange={handleYearSelect} />
         </View>
 
@@ -173,7 +179,6 @@ const StepAgeScreen = () => {
           variant="body"
           tone="muted"
           align="center"
-          style={{ paddingHorizontal: 20 }}
         />
       </View>
     </WizardFrame>

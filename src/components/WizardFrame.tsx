@@ -5,6 +5,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   StyleSheet,
+  Keyboard,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import ProgressBar from '../components/ProgressBar';
@@ -65,17 +66,26 @@ export default function WizardFrame(props: WizardFrameProps) {
 
   const goNext = () => {
     if (!canProceed()) return;
-    let nextIndex = stepIndex + 1;
-    if (STEP_ROUTES[stepIndex] === 'StepTarget' && form.target === 'maintain') {
-      const planIdx = STEP_ROUTES.indexOf('StepTargetPlan');
-      if (planIdx !== -1) {
-        nextIndex = planIdx + 1; // bỏ qua StepTargetPlan
-      }
-    }
 
-    if (nextIndex < STEP_ROUTES.length) {
-      navigation.navigate(STEP_ROUTES[nextIndex] as never);
-    }
+    Keyboard.dismiss();
+
+    setTimeout(() => {
+      let nextIndex = stepIndex + 1;
+
+      if (
+        STEP_ROUTES[stepIndex] === 'StepTarget' &&
+        form.target === 'maintain'
+      ) {
+        const planIdx = STEP_ROUTES.indexOf('StepTargetPlan');
+        if (planIdx !== -1) {
+          nextIndex = planIdx + 1;
+        }
+      }
+
+      if (nextIndex < STEP_ROUTES.length) {
+        navigation.navigate(STEP_ROUTES[nextIndex] as never);
+      }
+    }, 100);
   };
 
   const canProceed = () => {
