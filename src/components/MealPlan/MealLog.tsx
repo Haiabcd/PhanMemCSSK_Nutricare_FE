@@ -608,7 +608,7 @@ const st = StyleSheet.create({
 
   mealThumbWrap: {
     width: '100%',
-    height: 360,
+    height: 260,
     position: 'relative',
     backgroundColor: C.slate100,
   },

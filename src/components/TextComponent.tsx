@@ -1,6 +1,6 @@
-// TextComponent.tsx
+// components/TextComponent.tsx
 import React, { memo } from 'react';
-import { Text, TextStyle, StyleProp, TextProps } from 'react-native';
+import { Text, TextStyle, StyleProp, TextProps, Platform } from 'react-native';
 import { fontFamilies } from '../constants/fontFamilies';
 import { colors } from '../constants/colors';
 
@@ -18,18 +18,24 @@ interface Props extends Omit<TextProps, 'style' | 'children'> {
   tone?: Tone;
   style?: StyleProp<TextStyle>;
   flexFill?: boolean;
+
+  /** Mặc định tắt: không tự sửa nội dung. Bật nếu muốn xử lý typography. */
   autoTypography?: boolean;
+
+  /** Mặc định tắt: không set lineHeight theo variant (để RN tự tính). */
+  useVariantLineHeight?: boolean;
+
+  /** Mặc định true: giúp Android không cắt glyph. Có thể tắt nếu bạn muốn giữ layout cực “chặt”. */
+  androidIncludeFontPadding?: boolean;
 }
 
-/* ====== Typography helpers (1 nơi xử lý cho toàn app) ====== */
-const NBSP = '\u00A0';
-const NNBSP = '\u202F';
+/* ====== Typography helpers (CHỈ dùng khi autoTypography = true) ====== */
+const NBSP = '\u00A0'; // dùng NBSP an toàn trên đa số máy
+const NNBSP = NBSP;
 
 function joinNumberAndUnit(input: string): string {
   const unitShort = /(kcal|cal|g|mg|kg|µg|mcg|ml|l|L|%|°C|°F|℃|℉)\b/iu;
-
   const unitWord = /(\p{L}{1,10})\b/iu;
-
   const num = /(\d+(?:[.,]\d+)?)/u;
 
   let s = input.replace(
@@ -97,16 +103,26 @@ const TextComponent = memo(
     allowFontScaling = true,
     flexFill = false,
     style,
-    autoTypography = true,
+
+    // MẶC ĐỊNH: in đúng y chuỗi truyền vào
+    autoTypography = false,
+    useVariantLineHeight = false,
+    androidIncludeFontPadding = true,
+
     ...rest
   }: Props) => {
     const preset = VARIANT[variant];
     const finalSize = size ?? preset.size;
     const finalWeight = weight ?? preset.weight;
     const finalColor = color ?? TONE[tone] ?? colors.text;
-    const lineHeight = Math.round(finalSize * preset.lh);
     const family = WEIGHT_TO_FAMILY[finalWeight] || fontFamilies.regular;
 
+    // KHÔNG set lineHeight nếu không yêu cầu (để RN tự tính, tránh cắt glyph “bí ẩn”)
+    const lineHeightStyle = useVariantLineHeight
+      ? { lineHeight: Math.round(finalSize * preset.lh) }
+      : null;
+
+    // In đúng y như input trừ khi bật autoTypography
     const displayText = autoTypography ? fixTypography(text) : text;
 
     return (
@@ -116,13 +132,15 @@ const TextComponent = memo(
         {...rest}
         style={[
           {
-            includeFontPadding: false,
+            // giúp Android đỡ cắt dấu. Nếu muốn “chặt” tuyệt đối, truyền androidIncludeFontPadding={false}
+            includeFontPadding:
+              Platform.OS === 'android' ? androidIncludeFontPadding : false,
             fontSize: finalSize,
-            lineHeight,
             color: finalColor,
             fontFamily: family,
             textAlign: align,
           },
+          lineHeightStyle,
           flexFill && { flex: 1, minWidth: 0 },
           style,
         ]}

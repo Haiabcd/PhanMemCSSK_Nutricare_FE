@@ -150,9 +150,8 @@ export default function ChatAI({ navigation }: { navigation?: any }) {
   }, []);
 
   const renderHeader = () => (
-    // ⬇️ BỌC header bằng View để đo chiều cao
     <View onLayout={e => setHeaderH(e.nativeEvent.layout.height)}>
-      <ViewComponent px={16} pt={12}>
+      <ViewComponent>
         <ViewComponent
           variant="card"
           radius={20}
@@ -197,7 +196,7 @@ export default function ChatAI({ navigation }: { navigation?: any }) {
   );
 
   const renderComposer = () => (
-    <ViewComponent px={16} pb={16 /* để mặc định, không cần lib safe-area */}>
+    <ViewComponent pb={16}>
       {!!attach && (
         <ViewComponent
           row
@@ -251,7 +250,6 @@ export default function ChatAI({ navigation }: { navigation?: any }) {
           onChangeText={setInput}
           style={s.textInput}
           multiline
-          // ⬇️ THÊM 2 FLAG GIÚP ỔN ĐỊNH
           blurOnSubmit={false}
           underlineColorAndroid="transparent"
         />
@@ -399,7 +397,7 @@ export default function ChatAI({ navigation }: { navigation?: any }) {
           android: 0,
         })}
       >
-        <ViewComponent flex={1} px={16} pb={8} pt={8}>
+        <ViewComponent flex={1} pb={8} pt={8}>
           <ViewComponent
             radius={20}
             border

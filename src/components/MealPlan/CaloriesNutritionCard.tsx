@@ -86,16 +86,34 @@ function MacroPill({
       backgroundColor={C.slate700}
       style={{ width: '24%' }}
     >
-      <ViewComponent row alignItems="center" gap={6} mb={6} flex={0}>
-        <TextComponent text={icon} size={12} />
+      {/* Header: icon + label (đồng hàng, không co chữ lệch cỡ) */}
+      <ViewComponent
+        row
+        alignItems="center"
+        gap={6}
+        mb={6}
+        flex={0}
+        style={{ minWidth: 0 }}
+      >
+        {/* Khung icon cố định để điểm bắt đầu label thẳng hàng */}
+        <View style={{ width: 16, alignItems: 'center' }}>
+          <TextComponent text={icon} size={12} />
+        </View>
+
+        {/* Giữ cùng cỡ font, nếu thiếu chỗ thì cắt đuôi */}
         <TextComponent
           text={label}
           color={C.textWhite}
           size={11}
           weight="bold"
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          style={{ flexShrink: 1, minWidth: 0 }}
         />
       </ViewComponent>
+
       <AnimatedProgress percent={pct} tint={tint} />
+
       <TextComponent
         text={`${cur}g / ${total}g`}
         color={C.textWhite}
@@ -297,21 +315,21 @@ export default function CaloriesNutritionCard({
         />
         <MacroPill
           icon="🥩"
-          label="Chất đạm"
+          label="Đạm"
           cur={macros.protein.cur}
           total={macros.protein.total}
           tint={C.violet500}
         />
         <MacroPill
           icon="🥑"
-          label="Chất béo"
+          label="Béo"
           cur={macros.fat.cur}
           total={macros.fat.total}
           tint={C.success}
         />
         <MacroPill
           icon="🥦"
-          label="Chất xơ "
+          label="Xơ "
           cur={macros.fiber.cur}
           total={macros.fiber.total}
           tint={C.success}

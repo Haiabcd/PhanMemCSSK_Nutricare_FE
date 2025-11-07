@@ -9,6 +9,7 @@ import {
   FlatList,
   StyleSheet,
   Image,
+  Dimensions,
 } from 'react-native';
 import V from '../ViewComponent';
 import Text from '../TextComponent';
@@ -18,6 +19,7 @@ import { autocompleteIngredients } from '../../services/food.service';
 import { safeNum } from '../../helpers/number.helper';
 
 const PLACEHOLDER_COLOR = '#94a3b8';
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function IngredientPickerSheet({
   visible,
@@ -71,6 +73,10 @@ export default function IngredientPickerSheet({
     f?.imageUrl ||
     'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=300&q=80';
 
+  // Tính toán chiều cao động dựa trên màn hình và bàn phím
+  const maxSheetHeight = SCREEN_HEIGHT * 0.85 - keyboardH;
+  const listMaxHeight = maxSheetHeight - 180; // Trừ đi header, input, button
+
   return (
     <Modal
       visible={visible}
@@ -85,7 +91,10 @@ export default function IngredientPickerSheet({
           <V
             style={[
               styles.sheet,
-              { paddingBottom: 12 + insetsBottom + keyboardH },
+              {
+                paddingBottom: 12 + insetsBottom + keyboardH,
+                maxHeight: maxSheetHeight,
+              },
             ]}
           >
             <V row between alignItems="center" style={styles.sheetHeader}>
@@ -105,44 +114,64 @@ export default function IngredientPickerSheet({
             />
 
             {loading ? (
-              <ActivityIndicator />
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator />
+              </View>
+            ) : results.length === 0 && query.trim() ? (
+              <View style={styles.emptyContainer}>
+                <Text text="Không tìm thấy nguyên liệu" tone="muted" />
+              </View>
             ) : (
-              <FlatList
-                keyboardShouldPersistTaps="handled"
-                data={results}
-                keyExtractor={(it: IngredientResponse) => String(it.id)}
-                ItemSeparatorComponent={() => <View style={styles.sep} />}
-                renderItem={({ item }) => (
-                  <Pressable
-                    onPress={() => {
-                      onPick(item);
-                      onClose();
-                    }}
-                    style={styles.item}
-                  >
-                    <V row alignItems="center" style={{ gap: 10 }}>
-                      <Image
-                        source={{ uri: getThumb(item) }}
-                        style={styles.thumb}
-                      />
-                      <V style={{ flex: 1 }}>
-                        <Text
-                          text={item.name}
-                          weight="semibold"
-                          numberOfLines={1}
+              <View style={{ flex: 1, minHeight: 200 }}>
+                <FlatList
+                  keyboardShouldPersistTaps="handled"
+                  data={results}
+                  keyExtractor={(it: IngredientResponse) => String(it.id)}
+                  ItemSeparatorComponent={() => <View style={styles.sep} />}
+                  style={{ maxHeight: listMaxHeight }}
+                  contentContainerStyle={{ flexGrow: 1 }}
+                  renderItem={({ item }) => (
+                    <Pressable
+                      onPress={() => {
+                        onPick(item);
+                        onClose();
+                      }}
+                      style={styles.item}
+                    >
+                      <V row alignItems="center" style={{ gap: 10 }}>
+                        <Image
+                          source={{ uri: getThumb(item) }}
+                          style={styles.thumb}
                         />
-                        <Text
-                          text={`${item.unit} • per 100: ${Math.round(
-                            safeNum(item.per100?.kcal),
-                          )} kcal`}
-                          tone="muted"
-                          variant="caption"
-                        />
+                        <V style={{ flex: 1 }}>
+                          <Text
+                            text={item.name}
+                            weight="semibold"
+                            numberOfLines={1}
+                          />
+                          <Text
+                            text={`${item.unit} • per 100: ${Math.round(
+                              safeNum(item.per100?.kcal),
+                            )} kcal`}
+                            tone="muted"
+                            variant="caption"
+                          />
+                        </V>
                       </V>
-                    </V>
-                  </Pressable>
-                )}
-              />
+                    </Pressable>
+                  )}
+                  ListEmptyComponent={
+                    !query.trim() ? (
+                      <View style={styles.emptyContainer}>
+                        <Text
+                          text="Nhập tên nguyên liệu để tìm kiếm"
+                          tone="muted"
+                        />
+                      </View>
+                    ) : null
+                  }
+                />
+              </View>
             )}
 
             <Pressable
@@ -173,7 +202,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 12,
-    maxHeight: '80%',
+    display: 'flex',
+    flexDirection: 'column',
   },
   sheetHeader: {
     flexDirection: 'row',
@@ -210,5 +240,18 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 8,
     backgroundColor: '#f1f5f9',
+  },
+  loadingContainer: {
+    flex: 1,
+    minHeight: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyContainer: {
+    flex: 1,
+    minHeight: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
   },
 });

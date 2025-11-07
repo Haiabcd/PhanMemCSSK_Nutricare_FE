@@ -161,6 +161,52 @@ function validatePlan(
 }
 
 /* ====================== Screen ====================== */
+function SkeletonRow() {
+  return (
+    <ViewComponent row wrap mt={20} mb={4} gap={0}>
+      {Array.from({ length: 8 }).map((_, i) => (
+        <ViewComponent
+          key={i}
+          style={{
+            width: '48%',
+            height: 64,
+            borderRadius: 14,
+            backgroundColor: '#F3F4F6',
+            margin: '1%',
+          }}
+        />
+      ))}
+    </ViewComponent>
+  );
+}
+
+function SkeletonCard() {
+  return (
+    <ViewComponent style={{ marginTop: 8, marginBottom: 12 }}>
+      <ViewComponent
+        style={{
+          height: 18,
+          width: 160,
+          borderRadius: 6,
+          backgroundColor: '#E5E7EB',
+          marginBottom: 10,
+        }}
+      />
+      {Array.from({ length: 3 }).map((_, i) => (
+        <ViewComponent
+          key={i}
+          style={{
+            height: 46,
+            borderRadius: 12,
+            backgroundColor: '#F3F4F6',
+            marginBottom: 8,
+          }}
+        />
+      ))}
+    </ViewComponent>
+  );
+}
+
 export default function ProfileScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -652,77 +698,98 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Grid info */}
-        <ViewComponent row wrap mt={20} mb={4} gap={0}>
-          {data && !showEdit ? (
-            <>
-              <InfoItem
-                icon="calendar"
-                label="Tuổi"
-                value={`${calcAge(data.birthYear)}`}
-              />
-              <InfoItem
-                icon="gender-male-female"
-                label="Giới tính"
-                value={displayGender(data.gender)}
-              />
-              <InfoItem
-                icon="human-male-height"
-                label="Chiều cao"
-                value={`${data.heightCm} cm`}
-              />
-              <InfoItem
-                icon="weight-kilogram"
-                label="Cân nặng"
-                value={`${data.weightKg} kg`}
-              />
-              <InfoItem
-                icon="bullseye-arrow"
-                label="Mục tiêu"
-                value={translateGoal(data.goal)}
-              />
-              <InfoItem
-                icon="run-fast"
-                label="Mức độ vận động"
-                value={translateActivityLevel(data.activityLevel)}
-              />
-              <InfoItem
-                icon="hospital-box-outline"
-                label="Bệnh nền"
-                value={`${getConditionNames(myInfo?.conditions ?? [])}`}
-              />
-              <InfoItem
-                icon="allergy"
-                label="Dị ứng"
-                value={`${getAllergyNames(myInfo?.allergies ?? [])}`}
-              />
+        {!data && loading ? (
+          <>
+            <SkeletonRow />
+            <SkeletonCard />
+          </>
+        ) : (
+          <ViewComponent row wrap mt={20} mb={4} gap={0}>
+            {data && !showEdit ? (
+              <>
+                <InfoItem
+                  icon="calendar"
+                  label="Tuổi"
+                  value={`${calcAge(data.birthYear)}`}
+                />
+                <InfoItem
+                  icon="gender-male-female"
+                  label="Giới tính"
+                  value={displayGender(data.gender)}
+                />
+                <InfoItem
+                  icon="human-male-height"
+                  label="Chiều cao"
+                  value={`${data.heightCm} cm`}
+                />
+                <InfoItem
+                  icon="weight-kilogram"
+                  label="Cân nặng"
+                  value={`${data.weightKg} kg`}
+                />
+                <InfoItem
+                  icon="bullseye-arrow"
+                  label="Mục tiêu"
+                  value={translateGoal(data.goal)}
+                />
+                <InfoItem
+                  icon="run-fast"
+                  label="Mức độ vận động"
+                  value={translateActivityLevel(data.activityLevel)}
+                />
+                <InfoItem
+                  icon="hospital-box-outline"
+                  label="Bệnh nền"
+                  value={`${getConditionNames(myInfo?.conditions ?? [])}`}
+                />
+                <InfoItem
+                  icon="allergy"
+                  label="Dị ứng"
+                  value={`${getAllergyNames(myInfo?.allergies ?? [])}`}
+                />
 
-              <TextComponent
-                text="Mục tiêu chi tiết"
-                variant="subtitle"
-                weight="bold"
-                style={{
-                  width: '100%',
-                  marginTop: 12,
-                  marginBottom: 16,
-                  marginLeft: 10,
-                }}
-              />
-              <InfoItem
-                icon="scale-bathroom"
-                label="Mức thay đổi cân nặng"
-                value={`${formatTargetDeltaForDisplay(
-                  data.goal as any,
-                  data.targetWeightDeltaKg,
-                )} kg`}
-              />
-              <InfoItem
-                icon="calendar-clock"
-                label="Thời gian đạt mục tiêu"
-                value={`${data.targetDurationWeeks} tuần`}
-              />
-            </>
-          ) : null}
-        </ViewComponent>
+                <TextComponent
+                  text="Mục tiêu chi tiết"
+                  variant="subtitle"
+                  weight="bold"
+                  style={{
+                    width: '100%',
+                    marginTop: 12,
+                    marginBottom: 16,
+                    marginLeft: 10,
+                  }}
+                />
+                <InfoItem
+                  icon="scale-bathroom"
+                  label="Mức thay đổi cân nặng"
+                  value={`${formatTargetDeltaForDisplay(
+                    data.goal as any,
+                    data.targetWeightDeltaKg,
+                  )} kg`}
+                />
+                <InfoItem
+                  icon="calendar-clock"
+                  label="Thời gian đạt mục tiêu"
+                  value={`${data.targetDurationWeeks} tuần`}
+                />
+              </>
+            ) : null}
+          </ViewComponent>
+        )}
+        {!showEdit && (
+          <ViewComponent
+            style={styles.tipCard}
+            row
+            alignItems="center"
+            gap={10}
+          >
+            <McIcon name="lightbulb-on-outline" size={18} color={C.info} />
+            <TextComponent
+              text="Nên cập nhật cân nặng mỗi tuần để kiểm tra tiến độ và tạo kế hoạch chính xác hơn."
+              style={{ flex: 1 }}
+            />
+          </ViewComponent>
+        )}
 
         {/* Form edit */}
         {showEdit && editData ? (
@@ -1315,5 +1382,14 @@ const styles = StyleSheet.create({
       },
       android: { elevation: 2 },
     }),
+  },
+  tipCard: {
+    borderWidth: 1,
+    borderColor: C.primaryBorder,
+    backgroundColor: C.primarySurface,
+    padding: 12,
+    borderRadius: 12,
+    marginTop: 8,
+    marginBottom: 4,
   },
 });
