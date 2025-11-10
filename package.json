@@ -11,7 +11,9 @@
     "test": "jest",
     "runstart": "npx react-native start",
     "actual": "npx react-native run-android --device=192.168.110.98:5555",
-    "tablet": "npm run android -- --deviceId 192.168.110.74:5555"
+    "tablet": "npm run android -- --deviceId 192.168.110.74:5555",
+    "buildaab": "npx react-native build-android --mode=release",
+    "buildapk": "npm run android -- --mode=\"release\""
   },
   "dependencies": {
     "@notifee/react-native": "^9.1.8",
