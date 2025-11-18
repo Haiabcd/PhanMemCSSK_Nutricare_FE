@@ -23,8 +23,6 @@ const StepTargetScreen: React.FC = () => {
       : bmi < 30
       ? 'Thừa cân'
       : 'Béo phì';
-
-  // Đề xuất mục tiêu dựa theo BMI
   const recommended: TargetType =
     bmi < 18.5 ? 'gain' : bmi < 25 ? 'maintain' : 'lose';
 
@@ -35,8 +33,6 @@ const StepTargetScreen: React.FC = () => {
       ? 'BMI của bạn bình thường, phù hợp nhất là DUY TRÌ CÂN NẶNG.'
       : 'Bạn đang thừa cân, nên tập trung GIẢM CÂN.';
 
-  // ✅ Tự động tick chọn mục tiêu được đề xuất ngay khi vào màn
-  // (Nếu bạn muốn chỉ đặt một lần đầu, có thể thêm điều kiện !form.target)
   useEffect(() => {
     if (form.target !== recommended) {
       updateForm({ target: recommended });

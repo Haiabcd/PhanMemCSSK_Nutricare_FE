@@ -34,6 +34,7 @@ import DatePickerSheet from '../components/Date/DatePickerSheet';
 import AppHeader from '../components/AppHeader';
 import LoadingOverlay from '../components/LoadingOverlay';
 import { useHeader } from '../context/HeaderProvider';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const MealPlan = () => {
   const [range, setRange] = useState<'day' | 'week'>('day');
@@ -53,6 +54,32 @@ const MealPlan = () => {
   const [weightSaving, setWeightSaving] = useState(false);
   const weightPromptCheckedRef = useRef(false);
   const inFlightKey = useRef<string | null>(null);
+  const [onboardingAt, setOnboardingAt] = useState<Date | null>(null);
+  const ONBOARDING_AT_KEY = 'app.onboardingAt';
+
+  useFocusEffect(
+    useCallback(() => {
+      let mounted = true;
+
+      (async () => {
+        try {
+          const stored = await AsyncStorage.getItem(ONBOARDING_AT_KEY);
+          if (!mounted) return;
+          if (stored) {
+            const d = new Date(stored);
+            d.setHours(0, 0, 0, 0);
+            setOnboardingAt(d);
+          }
+        } catch (e) {
+          console.warn('Load onboardingAt failed:', e);
+        }
+      })();
+
+      return () => {
+        mounted = false;
+      };
+    }, []),
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -323,6 +350,7 @@ const MealPlan = () => {
               }
               onLogEat={onLogEat}
               onAfterSwap={onAfterSwap}
+              onboardingAt={onboardingAt}
             />
           </ViewComponent>
         </ViewComponent>

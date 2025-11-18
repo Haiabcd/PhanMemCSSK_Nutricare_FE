@@ -244,8 +244,10 @@ export default function ProfileScreen() {
   const [planTouched, setPlanTouched] = useState(false);
   const [planCheck, setPlanCheck] = useState<PlanCheck>({ ok: true });
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const reloadAt: number | undefined = route.params?.reloadAt;
 
   // ===== Fetch
+
   const fetchData = useCallback(async (signal?: AbortSignal) => {
     try {
       setLoading(true);
@@ -275,6 +277,14 @@ export default function ProfileScreen() {
       setLoadingInfo(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!reloadAt) return;
+    const ac = new AbortController();
+    fetchData(ac.signal);
+    navigation.setParams?.({ reloadAt: undefined });
+    return () => ac.abort();
+  }, [reloadAt, fetchData, navigation]);
 
   useEffect(() => {
     if (!notice || noticeShownRef.current) return;
@@ -406,10 +416,14 @@ export default function ProfileScreen() {
       try {
         (api.defaults.headers.common as any).Authorization = undefined;
       } catch {}
+
       resetHeader?.();
       setShowLogoutModal(false);
       setLoggingOut(false);
-      resetTo('Welcome');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Welcome' }],
+      });
     }
   };
 

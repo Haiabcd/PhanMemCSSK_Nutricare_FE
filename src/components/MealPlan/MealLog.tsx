@@ -28,7 +28,7 @@ export type Section = {
 };
 
 export interface MealLogProps {
-  range?: Range; // 'day' | 'week'
+  range?: Range;
   items?: MealPlanItemResponse[];
   activeDate?: Date;
   onPickDate?: (d: Date) => void;
@@ -36,6 +36,7 @@ export interface MealLogProps {
   onViewDetail?: (foodId: string) => void;
   onLogEat?: (mealPlanItemId: string) => Promise<void> | void;
   onAfterSwap?: () => void;
+  onboardingAt?: Date | null;
 }
 
 /* ========= helpers ========= */
@@ -75,56 +76,11 @@ const MEAL_ORDER: Array<'BREAKFAST' | 'LUNCH' | 'SNACK' | 'DINNER'> = [
   'DINNER',
 ];
 const MEAL_VN: Record<(typeof MEAL_ORDER)[number], string> = {
-  BREAKFAST: 'Bữa sáng',
-  LUNCH: 'Bữa trưa',
+  BREAKFAST: 'Bữa sáng (6h - 8h)',
+  LUNCH: 'Bữa trưa (12h - 13h)',
   SNACK: 'Đồ ăn vặt ',
-  DINNER: 'Bữa chiều',
+  DINNER: 'Bữa chiều (17h - 19h)',
 };
-
-/* ========= stable comparator utils ========= */
-function toNum(x: any, def = Number.MAX_SAFE_INTEGER): number {
-  if (x == null) return def;
-  const n = Number(x);
-  return Number.isFinite(n) ? n : def;
-}
-function toTime(x: any, def = 9_223_372_036_854_775_807n): bigint {
-  try {
-    if (!x) return def;
-    if (typeof x === 'number') return BigInt(Math.floor(x));
-    if (typeof x === 'string') {
-      const t = Date.parse(x);
-      return Number.isFinite(t) ? BigInt(t) : def;
-    }
-    if (x instanceof Date) return BigInt(x.getTime());
-    return def;
-  } catch {
-    return def;
-  }
-}
-
-function mealItemComparator(
-  a: MealItem,
-  b: MealItem,
-  aOrig?: MealPlanItemResponse,
-  bOrig?: MealPlanItemResponse,
-) {
-  const ao = aOrig as any;
-  const bo = bOrig as any;
-
-  const aOrder = toNum(ao?.displayOrder ?? ao?.orderIndex ?? ao?.position);
-  const bOrder = toNum(bo?.displayOrder ?? bo?.orderIndex ?? bo?.position);
-  if (aOrder !== bOrder) return aOrder - bOrder;
-
-  const aTime = toTime(ao?.createdAt ?? ao?.updatedAt);
-  const bTime = toTime(bo?.createdAt ?? bo?.updatedAt);
-  if (aTime !== bTime) return aTime < bTime ? -1 : 1;
-
-  const aName = (a.title || '').toLowerCase();
-  const bName = (b.title || '').toLowerCase();
-  if (aName !== bName) return aName < bName ? -1 : 1;
-
-  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
-}
 
 /* ========= id -> original map ========= */
 const useIdMap = (items?: MealPlanItemResponse[]) =>
@@ -178,10 +134,6 @@ function mapItemsToSectionsStable(
     const itemsInSlot = grouped.get(slot);
     if (!itemsInSlot || itemsInSlot.length === 0) continue;
 
-    itemsInSlot.sort((a, b) =>
-      mealItemComparator(a, b, idMap.get(a.id), idMap.get(b.id)),
-    );
-
     const icon: Section['icon'] =
       slot === 'BREAKFAST'
         ? 'coffee'
@@ -198,6 +150,7 @@ function mapItemsToSectionsStable(
       items: itemsInSlot,
     });
   }
+
   return sections;
 }
 
@@ -381,13 +334,27 @@ function WeekStrip({
   activeDate,
   onPickDate,
   disabled,
+  minDate,
 }: {
   activeDate: Date;
   onPickDate?: (d: Date) => void;
   disabled?: boolean;
+  minDate?: Date | null;
 }) {
   const days = useMemo(() => getWeekDays(activeDate), [activeDate]);
   const baseISO = activeDate.toDateString();
+
+  const isBeforeMin = useCallback(
+    (d: Date) => {
+      if (!minDate) return false;
+      const dd = new Date(d);
+      const m = new Date(minDate);
+      dd.setHours(0, 0, 0, 0);
+      m.setHours(0, 0, 0, 0);
+      return dd.getTime() < m.getTime();
+    },
+    [minDate],
+  );
 
   return (
     <ScrollView
@@ -403,15 +370,17 @@ function WeekStrip({
       >
         {days.map(d => {
           const active = d.toDateString() === baseISO;
+          const locked = disabled || isBeforeMin(d);
+
           return (
             <Pressable
               key={d.toISOString()}
-              disabled={disabled}
-              onPress={() => onPickDate && onPickDate(d)}
+              disabled={locked}
+              onPress={() => !locked && onPickDate && onPickDate(d)}
               style={[
                 st.dayBox,
                 active && st.dayBoxActive,
-                disabled && { opacity: 0.6 },
+                locked && { opacity: 0.4 }, // cho nhạt đi
               ]}
             >
               <TextComponent
@@ -444,6 +413,7 @@ export default function MealLog({
   onViewDetail,
   onLogEat,
   onAfterSwap,
+  onboardingAt,
 }: MealLogProps) {
   // ✨ Chặn tick với ngày tương lai
   const isFutureDay = useMemo(() => {
@@ -451,8 +421,18 @@ export default function MealLog({
     const today = new Date();
     start.setHours(0, 0, 0, 0);
     today.setHours(0, 0, 0, 0);
-    return start.getTime() > today.getTime(); // lớn hơn hôm nay -> tương lai
+    return start.getTime() > today.getTime();
   }, [activeDate]);
+  const isBeforeOnboarding = useMemo(() => {
+    if (!onboardingAt) return false;
+    const d = new Date(activeDate);
+    d.setHours(0, 0, 0, 0);
+    const onboard = new Date(onboardingAt);
+    onboard.setHours(0, 0, 0, 0);
+    return d.getTime() < onboard.getTime();
+  }, [activeDate, onboardingAt]);
+
+  const isLockedDay = isFutureDay || isBeforeOnboarding;
 
   // 1) Lọc
   const visibleItems = useMemo(
@@ -474,12 +454,23 @@ export default function MealLog({
     setSelected(new Set());
   }, [visibleItems]);
 
-  // Tick: chỉ bật; thêm chặn khi là ngày tương lai
+  useEffect(() => {
+    if (!onboardingAt) return;
+    const d = new Date(activeDate);
+    const o = new Date(onboardingAt);
+    d.setHours(0, 0, 0, 0);
+    o.setHours(0, 0, 0, 0);
+    if (d.getTime() < o.getTime() && onPickDate) {
+      onPickDate(o);
+    }
+  }, [activeDate, onboardingAt, onPickDate]);
+
   const toggle = useCallback(
     async (id: string) => {
-      if (isFutureDay) {
-        // Có thể thay bằng Toast ở ngoài nếu muốn
-        console.log('Không thể ghi ăn cho ngày tương lai.');
+      if (isLockedDay) {
+        console.log(
+          'Không thể ghi ăn cho ngày này (tương lai hoặc trước ngày bạn bắt đầu dùng).',
+        );
         return;
       }
       if (selected.has(id)) return;
@@ -503,7 +494,7 @@ export default function MealLog({
         console.log('Toggle log thất bại:', e);
       }
     },
-    [selected, onLogEat, isFutureDay],
+    [selected, onLogEat, isLockedDay],
   );
 
   const handleChange = useCallback(
@@ -533,7 +524,11 @@ export default function MealLog({
     <ViewComponent>
       {range === 'week' && (
         <>
-          <WeekStrip activeDate={activeDate} onPickDate={onPickDate} />
+          <WeekStrip
+            activeDate={activeDate}
+            onPickDate={onPickDate}
+            minDate={onboardingAt}
+          />
           <ViewComponent style={{ height: 8 }} />
         </>
       )}
@@ -541,7 +536,7 @@ export default function MealLog({
       {!sections || sections.length === 0 ? (
         <ViewComponent mt={14} p={14} variant="card" center>
           <TextComponent
-            text="Ngày này vẫn chưa được lập kế hoạch."
+            text="Chúc mừng bạn đã hoàn thành kế hoạch."
             color={C.slate600}
           />
         </ViewComponent>
@@ -562,7 +557,7 @@ export default function MealLog({
                   onChange={() => original && handleChange(original)}
                   onDetail={() => it.foodId && onViewDetail?.(it.foodId)}
                   changing={changing}
-                  disabledToggle={isFutureDay} // ✨ khoá tick khi ngày tương lai
+                  disabledToggle={isLockedDay} // ✨ khoá tick khi ngày tương lai HOẶC trước onboarding
                 />
               );
             })}

@@ -373,12 +373,20 @@ export default function Track() {
 
   // Food autocomplete effect
   useEffect(() => {
+    if (macrosLocked) {
+      acRef.current?.abort?.();
+      setAutoItems([]);
+      setAutoLoading(false);
+      return;
+    }
+
     if (skipAcRef.current) {
       skipAcRef.current = false;
       setAutoItems([]);
       setAutoLoading(false);
       return;
     }
+
     const q = mealName ?? '';
     setAcPage(1);
     setAcHasMore(true);
@@ -411,7 +419,7 @@ export default function Track() {
       clearTimeout(t);
       ac.abort();
     };
-  }, [mealName]);
+  }, [mealName, macrosLocked]);
 
   const loadMoreAuto = useCallback(async () => {
     if (autoLoading || acLoadingMore || !acHasMore) return;
@@ -777,6 +785,9 @@ export default function Track() {
   }, [cancelAutocomplete]);
 
   const handleAddMeal = useCallback(async () => {
+    mealNameInputRef.current?.blur();
+    cancelAutocomplete();
+
     try {
       setSubmittingAdd(true);
       const payload = {
@@ -859,6 +870,7 @@ export default function Track() {
     tab,
     loadHistory,
     resetManualForm,
+    cancelAutocomplete,
   ]);
 
   const handleAddMealFromScan = useCallback(async () => {
@@ -919,7 +931,10 @@ export default function Track() {
           warn.targetKcal,
         )} kcal.\nTiếp tục tuân theo kế hoạch hiện tại để duy trì nhịp độ nhé.`;
       }
+
       setWarnAlert(msg);
+      resetScan();
+
       setTab('history');
       setDate(now);
       await loadHistory(now);
@@ -935,6 +950,7 @@ export default function Track() {
     scanIngredients,
     scanResult,
     loadHistory,
+    resetScan,
   ]);
 
   const handleUpdateMeal = useCallback(async () => {
@@ -1336,6 +1352,7 @@ export default function Track() {
                       placeholderTextColor={PLACEHOLDER_COLOR}
                       selectionColor={colors.primary}
                       value={mealName}
+                      editable={!submittingAdd && !submittingUpdate}
                       onChangeText={(t: string) => {
                         setMealName(t);
                         if (isBlank(t)) {
@@ -1350,71 +1367,79 @@ export default function Track() {
                       onBlur={cancelAutocomplete}
                     />
 
-                    {(autoLoading ||
-                      (!isBlank(mealName) && autoItems.length > 0)) && (
-                      <V
-                        style={[
-                          styles.dropdownPanel,
-                          {
-                            top: 52,
-                            height: AC_ITEM_HEIGHT * AC_VISIBLE_ROWS + 2,
-                            paddingVertical: 6,
-                            overflow: 'hidden',
-                          },
-                        ]}
-                      >
-                        {autoLoading && autoItems.length === 0 ? (
-                          <V alignItems="center" style={{ paddingVertical: 8 }}>
-                            <ActivityIndicator />
-                          </V>
-                        ) : (
-                          <FlatList
-                            keyboardShouldPersistTaps="always"
-                            style={{ flexGrow: 0 }}
-                            data={autoItems}
-                            keyExtractor={(it: FoodResponse) => String(it.id)}
-                            renderItem={({ item }: { item: FoodResponse }) => (
-                              <Pressable
-                                onPress={() => onSelectFood(item)}
-                                style={styles.acItem}
-                              >
-                                <Image
-                                  source={{ uri: getThumb(item) }}
-                                  style={styles.acThumb}
-                                />
-                                <Text
-                                  text={item.name}
-                                  weight="semibold"
-                                  style={styles.acName as any}
-                                />
-                              </Pressable>
-                            )}
-                            ItemSeparatorComponent={() => (
-                              <RNView style={styles.acSep} />
-                            )}
-                            onEndReachedThreshold={0.3}
-                            onEndReached={loadMoreAuto}
-                            ListFooterComponent={
-                              acHasMore ? (
-                                <V
-                                  alignItems="center"
-                                  style={{ paddingVertical: 8 }}
+                    {!macrosLocked &&
+                      (autoLoading ||
+                        (!isBlank(mealName) && autoItems.length > 0)) && (
+                        <V
+                          style={[
+                            styles.dropdownPanel,
+                            {
+                              top: 52,
+                              height: AC_ITEM_HEIGHT * AC_VISIBLE_ROWS + 2,
+                              paddingVertical: 6,
+                              overflow: 'hidden',
+                            },
+                          ]}
+                        >
+                          {autoLoading && autoItems.length === 0 ? (
+                            <V
+                              alignItems="center"
+                              style={{ paddingVertical: 8 }}
+                            >
+                              <ActivityIndicator />
+                            </V>
+                          ) : (
+                            <FlatList
+                              keyboardShouldPersistTaps="always"
+                              style={{ flexGrow: 0 }}
+                              data={autoItems}
+                              keyExtractor={(it: FoodResponse) => String(it.id)}
+                              renderItem={({
+                                item,
+                              }: {
+                                item: FoodResponse;
+                              }) => (
+                                <Pressable
+                                  onPress={() => onSelectFood(item)}
+                                  style={styles.acItem}
                                 >
-                                  {acLoadingMore ? (
-                                    <ActivityIndicator />
-                                  ) : (
-                                    <Text
-                                      text="Kéo để tải thêm…"
-                                      tone="muted"
-                                    />
-                                  )}
-                                </V>
-                              ) : null
-                            }
-                          />
-                        )}
-                      </V>
-                    )}
+                                  <Image
+                                    source={{ uri: getThumb(item) }}
+                                    style={styles.acThumb}
+                                  />
+                                  <Text
+                                    text={item.name}
+                                    weight="semibold"
+                                    style={styles.acName as any}
+                                  />
+                                </Pressable>
+                              )}
+                              ItemSeparatorComponent={() => (
+                                <RNView style={styles.acSep} />
+                              )}
+                              onEndReachedThreshold={0.3}
+                              onEndReached={loadMoreAuto}
+                              ListFooterComponent={
+                                acHasMore ? (
+                                  <V
+                                    alignItems="center"
+                                    style={{ paddingVertical: 8 }}
+                                  >
+                                    {acLoadingMore ? (
+                                      <ActivityIndicator />
+                                    ) : (
+                                      <Text
+                                        text="Kéo để tải thêm…"
+                                        tone="muted"
+                                      />
+                                    )}
+                                  </V>
+                                ) : null
+                              }
+                            />
+                          )}
+                        </V>
+                      )}
                   </RNView>
 
                   {/* Combobox chọn bữa */}

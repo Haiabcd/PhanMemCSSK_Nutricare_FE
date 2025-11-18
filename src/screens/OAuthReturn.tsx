@@ -44,7 +44,12 @@ export default function OAuthReturn() {
                 name: 'Home',
                 params: {
                   screen: 'ProfileNavigator',
-                  params: { screen: 'Profile' },
+                  params: {
+                    screen: 'Profile',
+                    params: {
+                      reloadAt: Date.now(),
+                    },
+                  },
                 },
               },
             ],

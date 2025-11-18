@@ -268,8 +268,8 @@ export default function Statistics() {
       const mealSlots = [
         { key: 'BREAKFAST', label: 'Sáng' },
         { key: 'LUNCH', label: 'Trưa' },
-        { key: 'DINNER', label: 'Tối' },
-        { key: 'SNACK', label: 'Snack' },
+        { key: 'DINNER', label: 'Chiều' },
+        { key: 'SNACK', label: 'Phụ' },
       ] as const;
 
       const mealProgress: MealProgressItem[] = mealSlots.map(s => {
@@ -327,8 +327,8 @@ export default function Statistics() {
       const mealSlots = [
         { key: 'BREAKFAST', label: 'Sáng' },
         { key: 'LUNCH', label: 'Trưa' },
-        { key: 'DINNER', label: 'Tối' },
-        { key: 'SNACK', label: 'Snack' },
+        { key: 'DINNER', label: 'Chiều' },
+        { key: 'SNACK', label: 'Phụ' },
       ] as const;
       const mealProgress: MealProgressItem[] = mealSlots.map(s => {
         const it = slot?.[s.key as keyof typeof slot];
@@ -390,6 +390,7 @@ export default function Statistics() {
     (ds.weightLabels?.length || 0) > 0 &&
     ds.weightLabels.length === (ds.weightData?.length || 0) &&
     ds.weightLabels.length >= 2;
+  const shouldShowWeightTrendCard = hasWeightData;
 
   return (
     <Container>
@@ -589,15 +590,15 @@ export default function Statistics() {
             </ViewComponent>
 
             {/* Weight trend */}
-            <ViewComponent variant="card" p={cardPad} mb={12} radius={20}>
-              <TextComponent
-                text={ds.titles.weight}
-                variant="h3"
-                weight="bold"
-                tone="primary"
-              />
+            {shouldShowWeightTrendCard && (
+              <ViewComponent variant="card" p={cardPad} mb={12} radius={20}>
+                <TextComponent
+                  text={ds.titles.weight}
+                  variant="h3"
+                  weight="bold"
+                  tone="primary"
+                />
 
-              {hasWeightData ? (
                 <ChartSizer>
                   {w => (
                     <LineChart
@@ -627,16 +628,8 @@ export default function Statistics() {
                     />
                   )}
                 </ChartSizer>
-              ) : (
-                <ViewComponent mt={10}>
-                  <TextComponent
-                    text="Chưa đủ dữ liệu cân nặng để hiển thị (cần ≥ 2 điểm)."
-                    tone="muted"
-                    align="center"
-                  />
-                </ViewComponent>
-              )}
-            </ViewComponent>
+              </ViewComponent>
+            )}
 
             {/* Top 5 foods */}
             <ViewComponent variant="card" p={cardPad} mb={12} radius={20}>
