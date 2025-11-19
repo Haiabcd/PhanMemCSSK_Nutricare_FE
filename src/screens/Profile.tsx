@@ -618,33 +618,20 @@ export default function ProfileScreen() {
     setLoading(true);
     const ac = new AbortController();
     try {
+      // 1) Gọi API update
       await updateProfile(payload, ac.signal);
 
-      setData(prev =>
-        prev
-          ? { ...prev, ...payload.profile }
-          : (payload.profile as ProfileDto),
-      );
-      setMyInfo(prev =>
-        prev
-          ? {
-              ...prev,
-              profileCreationResponse: {
-                ...(prev.profileCreationResponse ?? {}),
-                ...payload.profile,
-              } as ProfileDto,
-              conditions: editInfo.conditions ?? [],
-              allergies: editInfo.allergies ?? [],
-            }
-          : prev,
-      );
+      // 2) Lấy lại dữ liệu mới nhất từ backend (trong đó có goalReached mới)
+      await fetchData();
 
-      await refreshHeader();
+      // 3) Refresh header (nếu có)
+      await refreshHeader?.();
 
+      // 4) Toast + đóng form
       showToast(
         {
           title: 'Đã lưu thay đổi',
-          subtitle: 'Hồ sơ và tiêu đề đã được cập nhật.',
+          subtitle: 'Hồ sơ đã được cập nhật.',
         },
         () => setShowEdit(false),
       );
@@ -653,7 +640,7 @@ export default function ProfileScreen() {
     } finally {
       setLoading(false);
     }
-  }, [editData, editInfo, refreshHeader]);
+  }, [editData, editInfo, refreshHeader, fetchData]);
 
   const handleSave = useCallback(async () => {
     if (saveDisabled) return; // an toàn
