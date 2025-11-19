@@ -9,7 +9,11 @@ export type PlanStackParamList = {
   Plan: undefined;
   Notification: undefined;
   Statistics: undefined;
-  MealLogDetail: { id: string };
+  MealLogDetail: {
+    id: string;
+    suggestionDesc?: string;
+    suggestionSwapText?: string;
+  };
 };
 
 const Stack = createNativeStackNavigator<PlanStackParamList>();

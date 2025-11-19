@@ -130,7 +130,7 @@ function useMacroPercents(n?: FoodResponse['nutrition']) {
 export default function MealLogDetail({ onBack }: Props) {
   const navigation = useNavigation();
   const { params } = useRoute<MealLogDetailRoute>();
-  const { id } = params; // foodId
+  const { id, suggestionDesc, suggestionSwapText } = params;
 
   const [food, setFood] = useState<FoodResponse | null>(null);
 
@@ -218,12 +218,6 @@ export default function MealLogDetail({ onBack }: Props) {
   }, [food?.mealSlots]);
 
   const { carbPct, proteinPct, fatPct } = useMacroPercents(food?.nutrition);
-
-  // Chips điểm nổi bật
-  const highlightChips = useMemo(
-    () => getHighlights(food?.nutrition),
-    [food?.nutrition],
-  );
 
   // Vi chất (sodium/sugar/fiber) nếu có
   const micro = useMemo(() => {
@@ -336,60 +330,63 @@ export default function MealLogDetail({ onBack }: Props) {
           />
         </ViewComponent>
 
-        {/* Điểm nổi bật & phù hợp */}
-        {(highlightChips.length > 0 || mealChips.length > 0) && (
-          <ViewComponent p={14} radius={16} mb={14} style={s.card}>
+        {/* Gợi ý thay thế (chỉ hiện nếu có params từ Suggestion) */}
+        {(suggestionDesc || suggestionSwapText) && (
+          <ViewComponent p={16} radius={18} mb={16} style={s.card}>
             <TextComponent
-              text="Điểm nổi bật & phù hợp"
+              text="Gợi ý từ NutriCare"
               variant="h3"
               weight="semibold"
+              style={{ marginBottom: 8 }}
             />
-            <View style={{ height: 8 }} />
 
-            {highlightChips.length > 0 && (
-              <ViewComponent row wrap gap={8} mb={8}>
-                {highlightChips.map((t, i) => (
-                  <ViewComponent
-                    key={`hi-${i}`}
-                    px={10}
-                    py={6}
-                    radius={999}
-                    backgroundColor={C.primarySurface}
-                    border
-                    borderColor={C.primaryBorder}
-                  >
-                    <TextComponent
-                      text={t}
-                      size={12}
-                      weight="semibold"
-                      tone="primary"
-                    />
-                  </ViewComponent>
-                ))}
-              </ViewComponent>
+            {/* Lý do gợi ý */}
+            {suggestionDesc && (
+              <TextComponent
+                text={suggestionDesc}
+                variant="body"
+                numberOfLines={0}
+                style={{
+                  lineHeight: 18,
+                  textAlignVertical: 'top',
+                  marginBottom: 10,
+                }}
+              />
             )}
 
-            {mealChips.length > 0 && (
-              <ViewComponent row wrap gap={8}>
-                {mealChips.map((label, idx) => (
-                  <ViewComponent
-                    key={`slot-${idx}`}
-                    px={10}
-                    py={6}
-                    radius={999}
-                    backgroundColor={C.bg}
-                    border
-                    borderColor={C.border}
-                  >
-                    <TextComponent text={`Bữa ${label}`} size={12} />
-                  </ViewComponent>
-                ))}
+            {/* Box 'Thay cho: ...' */}
+            {suggestionSwapText && (
+              <ViewComponent
+                row
+                alignItems="flex-start"
+                gap={6}
+                style={{
+                  marginTop: 2,
+                  paddingHorizontal: 8,
+                  paddingVertical: 6,
+                  borderRadius: 8,
+                  backgroundColor: C.blueLight,
+                }}
+              >
+                <Entypo
+                  name="swap"
+                  size={14}
+                  color={C.primaryDark}
+                  style={{ marginTop: 1 }}
+                />
+                <TextComponent
+                  text={suggestionSwapText}
+                  variant="caption"
+                  tone="default"
+                  numberOfLines={0}
+                  style={{ flex: 1, fontWeight: '500', lineHeight: 16 }}
+                />
               </ViewComponent>
             )}
           </ViewComponent>
         )}
 
-        {/* Khẩu phần & dinh dưỡng (số liệu + 4 thẻ macro) */}
+        {/* Khẩu phần & dinh dưỡng (số liệu + 4 thẻ macro)*/}
         <ViewComponent p={16} radius={18} mb={16} style={s.card}>
           <ViewComponent row alignItems="center" style={{ gap: 10 }}>
             <View style={{ flex: 1, minWidth: 0 }}>

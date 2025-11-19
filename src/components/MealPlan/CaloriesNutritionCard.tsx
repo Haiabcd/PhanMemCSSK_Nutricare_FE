@@ -4,7 +4,35 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import ViewComponent from '../ViewComponent';
 import TextComponent from '../TextComponent';
 import { colors as C } from '../../constants/colors';
-/** ===== Types ===== */
+
+const KCAL_MIN_RATIO = 0.95;
+const KCAL_MAX_RATIO = 1.05;
+const CARB_MIN_RATIO = 0.85;
+const CARB_MAX_RATIO = 1.15;
+const FIBER_MIN_RATIO = 0.9;
+const FIBER_MAX_RATIO = 1.5;
+const PROT_MIN_RATIO = 0.9;
+const PROT_MAX_RATIO = 1.1;
+const FAT_MIN_RATIO = 0.8;
+const FAT_MAX_RATIO = 1.1;
+
+function normalizeWithTolerance(
+  cur: number,
+  total: number,
+  minRatio: number,
+  maxRatio: number,
+): number {
+  if (!total || total <= 0) return 0;
+  const ratio = cur / total;
+  if (ratio >= minRatio && ratio <= maxRatio) {
+    return 1;
+  }
+  if (ratio < minRatio) {
+    return Math.max(0, Math.min(1, ratio / minRatio));
+  }
+  return 1;
+}
+
 type Macro = { cur: number; total: number };
 
 export type CaloriesNutritionCardProps = {
@@ -20,6 +48,7 @@ export type CaloriesNutritionCardProps = {
   style?: any;
   titleStyle?: any;
   onPressStatistics?: () => void;
+  allLogged?: boolean;
 };
 
 /** ===== Animated horizontal progress ===== */
@@ -67,14 +96,26 @@ function MacroPill({
   cur,
   total,
   tint,
+  minRatio,
+  maxRatio,
+  allLogged,
 }: {
   icon: string;
   label: string;
   cur: number;
   total: number;
   tint: string;
+  minRatio: number;
+  maxRatio: number;
+  allLogged?: boolean;
 }) {
-  const pct = total ? (cur / total) * 100 : 0;
+  const norm = allLogged
+    ? 1
+    : total
+    ? normalizeWithTolerance(cur, total, minRatio, maxRatio)
+    : 0;
+
+  const pct = norm * 100;
 
   return (
     <ViewComponent
@@ -86,7 +127,6 @@ function MacroPill({
       backgroundColor={C.slate700}
       style={{ width: '24%' }}
     >
-      {/* Header: icon + label (đồng hàng, không co chữ lệch cỡ) */}
       <ViewComponent
         row
         alignItems="center"
@@ -95,12 +135,10 @@ function MacroPill({
         flex={0}
         style={{ minWidth: 0 }}
       >
-        {/* Khung icon cố định để điểm bắt đầu label thẳng hàng */}
         <View style={{ width: 16, alignItems: 'center' }}>
           <TextComponent text={icon} size={12} />
         </View>
 
-        {/* Giữ cùng cỡ font, nếu thiếu chỗ thì cắt đuôi */}
         <TextComponent
           text={label}
           color={C.textWhite}
@@ -129,14 +167,16 @@ function MacroPill({
 export default function CaloriesNutritionCard({
   target,
   eaten,
-  burned = 0,
   macros,
   style,
   titleStyle,
   onPressStatistics,
+  allLogged,
 }: CaloriesNutritionCardProps) {
   const remain = Math.max(0, target - eaten);
-  const eatenPct = target ? Math.max(0, Math.min(1, eaten / target)) : 0;
+  const eatenNorm = target
+    ? normalizeWithTolerance(eaten, target, KCAL_MIN_RATIO, KCAL_MAX_RATIO)
+    : 0;
 
   const targetStr = Number.isFinite(target) ? target.toFixed(2) : '0.00';
   const remainStr = Number.isFinite(remain) ? remain.toFixed(2) : '0.00';
@@ -147,12 +187,12 @@ export default function CaloriesNutritionCard({
 
   useEffect(() => {
     Animated.timing(appleAnim, {
-      toValue: eatenPct,
+      toValue: eatenNorm,
       duration: 850,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
-  }, [eatenPct, appleAnim]);
+  }, [eatenNorm, appleAnim]);
 
   const appleColor = appleAnim.interpolate({
     inputRange: [0, 1],
@@ -244,7 +284,7 @@ export default function CaloriesNutritionCard({
           />
 
           <ViewComponent mt={8} style={{ width: 140 }}>
-            <AnimatedProgress percent={eatenPct * 100} tint={C.blue} />
+            <AnimatedProgress percent={eatenNorm * 100} tint={C.blue} />
           </ViewComponent>
         </ViewComponent>
 
@@ -293,6 +333,9 @@ export default function CaloriesNutritionCard({
           cur={macros.carbs.cur}
           total={macros.carbs.total}
           tint={C.amber500}
+          minRatio={CARB_MIN_RATIO}
+          maxRatio={CARB_MAX_RATIO}
+          allLogged={allLogged}
         />
         <MacroPill
           icon="🥩"
@@ -300,6 +343,9 @@ export default function CaloriesNutritionCard({
           cur={macros.protein.cur}
           total={macros.protein.total}
           tint={C.violet500}
+          minRatio={PROT_MIN_RATIO}
+          maxRatio={PROT_MAX_RATIO}
+          allLogged={allLogged}
         />
         <MacroPill
           icon="🥑"
@@ -307,6 +353,9 @@ export default function CaloriesNutritionCard({
           cur={macros.fat.cur}
           total={macros.fat.total}
           tint={C.success}
+          minRatio={FAT_MIN_RATIO}
+          maxRatio={FAT_MAX_RATIO}
+          allLogged={allLogged}
         />
         <MacroPill
           icon="🥦"
@@ -314,6 +363,9 @@ export default function CaloriesNutritionCard({
           cur={macros.fiber.cur}
           total={macros.fiber.total}
           tint={C.success}
+          minRatio={FIBER_MIN_RATIO}
+          maxRatio={FIBER_MAX_RATIO}
+          allLogged={allLogged}
         />
       </ViewComponent>
     </ViewComponent>

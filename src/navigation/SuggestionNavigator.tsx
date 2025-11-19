@@ -6,7 +6,11 @@ import NotificationScreen from '../screens/Notifications';
 
 export type SuggestionStackParamList = {
   Suggest: undefined;
-  MealLogDetail: { id: string };
+  MealLogDetail: {
+    id: string;
+    suggestionDesc?: string;
+    suggestionSwapText?: string;
+  };
   Notification: undefined;
 };
 

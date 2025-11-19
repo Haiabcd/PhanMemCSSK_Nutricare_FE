@@ -521,19 +521,33 @@ export default function Suggestion() {
                     color={C.primaryDark}
                     style={s.swapIcon}
                   />
-                  <TextComponent
-                    text={`Thay cho: ${item.originalFoodName} (${item.slot}, ${originalPortionText})`}
-                    variant="caption"
-                    tone="default"
-                    numberOfLines={2}
-                    style={s.swapText}
-                  />
+
+                  <ViewComponent style={{ flex: 1 }}>
+                    <TextComponent
+                      text="Thay cho"
+                      variant="caption"
+                      tone="muted"
+                      style={{ marginBottom: 2 }}
+                      numberOfLines={1}
+                    />
+                    <TextComponent
+                      text={`${item.originalFoodName} (${item.slot}, ${originalPortionText})`}
+                      variant="caption"
+                      weight="bold"
+                      style={s.swapText}
+                      numberOfLines={2}
+                    />
+                  </ViewComponent>
                 </ViewComponent>
               </ViewComponent>
 
               <Pressable
                 onPress={() =>
-                  navigation.navigate('MealLogDetail', { id: item.foodId })
+                  navigation.navigate('MealLogDetail', {
+                    id: item.foodId,
+                    suggestionDesc: item?.desc || undefined,
+                    suggestionSwapText: `Thay cho: ${item.originalFoodName} (${item.slot}, ${originalPortionText})`,
+                  })
                 }
                 style={({ pressed }) => [
                   s.ctaBtn,
@@ -815,7 +829,6 @@ const s = StyleSheet.create({
   bodyTop: { flexShrink: 1 },
 
   swapBox: {
-    marginTop: 6,
     marginBottom: 13,
     paddingHorizontal: 8,
     paddingVertical: 6,
@@ -827,9 +840,9 @@ const s = StyleSheet.create({
   },
   swapText: {
     flex: 1,
-    fontWeight: '500',
+    fontWeight: '700',
     lineHeight: 16,
-    height: 32,
+    color: C.black,
   },
   ctaBtn: {
     alignSelf: 'flex-start',

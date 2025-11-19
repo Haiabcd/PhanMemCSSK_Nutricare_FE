@@ -189,6 +189,14 @@ const MealPlan = () => {
     [loading],
   );
 
+  const allLogged = useMemo(() => {
+    if (!data?.items) return false;
+    const total = data.items.length;
+    if (total === 0) return false;
+    const usedCount = data.items.filter(it => it.used === true).length;
+    return usedCount === total;
+  }, [data?.items]);
+
   const kcalTarget = useMemo(
     () => Number(data?.targetNutrition?.kcal ?? 0),
     [data?.targetNutrition?.kcal],
@@ -333,6 +341,7 @@ const MealPlan = () => {
             burned={0}
             macros={macrosFromTarget}
             onPressStatistics={() => navigation.navigate('Statistics')}
+            allLogged={allLogged}
           />
         </ViewComponent>
 
