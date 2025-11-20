@@ -4,12 +4,10 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Alert,
   ActivityIndicator,
   Linking,
   useWindowDimensions,
-  Platform,
   Image,
 } from 'react-native';
 import McIcon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -223,7 +221,6 @@ export default function ProfileScreen() {
   const [editInfo, setEditInfo] = useState<InfoResponse | null>(null);
 
   const [loadingInfo, setLoadingInfo] = useState(false);
-  const [allowNotif, setAllowNotif] = useState<boolean>(true);
   const [toast, setToast] = useState<{
     title: string;
     subtitle?: string;
@@ -261,7 +258,6 @@ export default function ProfileScreen() {
 
       setConditions(conditionRes);
       setAllergies(allergyRes);
-
       const info = myInfoRes.data as InfoResponse;
       setMyInfo(info);
       setData(info.profileCreationResponse);
@@ -479,22 +475,17 @@ export default function ProfileScreen() {
     const warns: string[] = [];
 
     if (!editData) return { blockingErrors: errs, warnings: warns };
-
     // Name
     if (isDirty) {
       const nameTrim = (editData.name ?? '').trim();
       if (!nameTrim) errs.push('Tên không được để trống.');
     }
-
     // Age
     if (isDirty && editData) {
-      // Ép birthYear về number
       const birthYearNum =
         typeof editData.birthYear === 'number'
           ? editData.birthYear
           : parseInt((editData.birthYear as unknown as string) || '0', 10);
-
-      // Nếu birthYear không hợp lệ => age = NaN
       const age = Number.isFinite(birthYearNum) ? calcAge(birthYearNum) : NaN;
 
       if (!Number.isFinite(age) || (age as number) < MIN_AGE) {
@@ -776,20 +767,63 @@ export default function ProfileScreen() {
             ) : null}
           </ViewComponent>
         )}
-        {!showEdit && (
-          <ViewComponent
-            style={styles.tipCard}
-            row
-            alignItems="center"
-            gap={10}
-          >
-            <McIcon name="lightbulb-on-outline" size={18} color={C.info} />
-            <TextComponent
-              text="Nên cập nhật cân nặng mỗi tuần để kiểm tra tiến độ và tạo kế hoạch chính xác hơn."
-              style={{ flex: 1 }}
-            />
-          </ViewComponent>
-        )}
+        {!showEdit &&
+          data &&
+          (() => {
+            const goalIsChange = data.goal === 'LOSE' || data.goal === 'GAIN';
+            const achieved = goalIsChange && data.goalReached === true;
+
+            return (
+              <ViewComponent
+                style={[
+                  styles.tipCard,
+                  achieved && {
+                    borderColor: C.success,
+                    backgroundColor: '#ECFDF5',
+                  },
+                ]}
+                row
+                alignItems="center"
+                gap={10}
+              >
+                <McIcon
+                  name={achieved ? 'party-popper' : 'lightbulb-on-outline'}
+                  size={18}
+                  color={achieved ? C.success : C.info}
+                />
+                <TextComponent
+                  text={
+                    achieved
+                      ? `🎉 Chúc mừng! Bạn đã đạt mục tiêu ${translateGoal(
+                          data.goal,
+                        )}. Hãy cập nhật mục tiêu mới (ví dụ: tiếp tục ${
+                          data.goal === 'LOSE' ? 'giảm' : 'tăng'
+                        } chậm hơn, hoặc chuyển sang DUY TRÌ) để giữ đà tiến bộ.`
+                      : 'Nên cập nhật cân nặng mỗi tuần để kiểm tra tiến độ và tạo kế hoạch chính xác hơn.'
+                  }
+                  style={{ flex: 1 }}
+                />
+                {achieved && (
+                  <Pressable
+                    onPress={() => setShowEdit(true)}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      backgroundColor: C.success,
+                      borderRadius: 999,
+                    }}
+                  >
+                    <TextComponent
+                      text="Cập nhật mục tiêu"
+                      tone="inverse"
+                      weight="bold"
+                      size={12}
+                    />
+                  </Pressable>
+                )}
+              </ViewComponent>
+            );
+          })()}
 
         {/* Form edit */}
         {showEdit && editData ? (
@@ -1158,43 +1192,6 @@ export default function ProfileScreen() {
             weight="bold"
             style={{ marginBottom: 12 }}
           />
-
-          <ViewComponent
-            row
-            alignItems="center"
-            justifyContent="space-between"
-            py={10}
-          >
-            <ViewComponent
-              row
-              alignItems="center"
-              gap={10}
-              style={{ flexShrink: 1 }}
-            >
-              <ViewComponent center style={styles.settingIcon}>
-                <McIcon name="bell-outline" size={16} color={C.success} />
-              </ViewComponent>
-              <ViewComponent>
-                <TextComponent
-                  text="Gửi thông báo"
-                  weight="semibold"
-                  style={{ marginBottom: 5 }}
-                />
-                <TextComponent
-                  text="Nhận nhắc nhở và cập nhật dinh dưỡng"
-                  variant="caption"
-                  tone="muted"
-                />
-              </ViewComponent>
-            </ViewComponent>
-            <Switch
-              value={allowNotif}
-              onValueChange={setAllowNotif}
-              thumbColor={C.white}
-              trackColor={{ false: C.slate200, true: C.greenBorder }}
-            />
-          </ViewComponent>
-
           {isGuest ? (
             <Pressable
               style={[styles.settingRowPress]}
@@ -1364,24 +1361,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: C.slate100,
-  },
-  googleBtn: {
-    backgroundColor: C.white,
-    borderWidth: 1.5,
-    borderColor: C.slate200,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    marginBottom: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOpacity: 0.05,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 3 },
-      },
-      android: { elevation: 2 },
-    }),
   },
   tipCard: {
     borderWidth: 1,

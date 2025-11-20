@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { IngredientResponse } from '../types/food.type';
 import { safeNum } from '../helpers/number.helper';
 
-export type Totals = {
+type Totals = {
   kcal: number;
   proteinG: number;
   carbG: number;

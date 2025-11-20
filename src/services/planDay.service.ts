@@ -1,7 +1,6 @@
 import { api } from '../config/api';
-import type { ApiResponse ,MealSlot} from '../types/types';
-import type { MealPlanResponse } from '../types/mealPlan.type';
-import type { FoodResponse } from '../types/food.type';
+import type { ApiResponse } from '../types/types';
+import type { MealPlanResponse, SwapSuggestion } from '../types/mealPlan.type';
 
 
 // Lấy meal plan theo ngày
@@ -16,7 +15,6 @@ export async function getMealPlanByDate(
   return res.data;
 }
 
-
 // Đổi kế hoạch
 export async function smartSwapMealItem(
   itemId: string,
@@ -30,20 +28,13 @@ export async function smartSwapMealItem(
   return res.data;
 }
 
-
-//Hàm đề xuất
-export async function suggestAllowedFoods(
-  opts: { slot?: MealSlot; limit?: number } = {},
+// Lấy danh sách gợi ý swap cho các item trong ngày
+export async function getSwapSuggestions(
   signal?: AbortSignal
-): Promise<ApiResponse<FoodResponse[]>> {
-  const { slot, limit } = opts;
-
-  const safeLimit =
-    typeof limit === 'number' ? Math.min(Math.max(limit, 1), 100) : undefined;
-
-  const res = await api.get<ApiResponse<FoodResponse[]>>('/meal-plans/suggest', {
-    params: { slot, limit: safeLimit },
-    signal,
-  });
+): Promise<ApiResponse<SwapSuggestion[]>> {
+  const res = await api.get<ApiResponse<SwapSuggestion[]>>(
+    '/meal-plans/suggest',
+    { signal }
+  );
   return res.data;
 }

@@ -3,12 +3,12 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   StyleSheet,
   TextInput,
   View,
+  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import Entypo from 'react-native-vector-icons/Entypo';
@@ -31,6 +31,7 @@ type ChatItem = {
   image?: RNAsset;
   status?: 'sending' | 'sent' | 'error';
   errorMsg?: string;
+  ts?: number;
 };
 
 export default function ChatAI({ navigation }: { navigation?: any }) {
@@ -40,16 +41,13 @@ export default function ChatAI({ navigation }: { navigation?: any }) {
   const [sending, setSending] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
-  // ⬇️ THÊM: đo chiều cao header để làm offset cho iOS
-  const [headerH, setHeaderH] = useState(0);
-
   const canSend = useMemo(
     () => (!!input.trim() || !!attach) && !sending,
     [input, attach, sending],
   );
 
   const addMessage = useCallback((msg: ChatItem) => {
-    setMessages(prev => [msg, ...prev]);
+    setMessages(prev => [...prev, msg]);
   }, []);
 
   const updateMessage = useCallback((id: string, patch: Partial<ChatItem>) => {
@@ -89,12 +87,14 @@ export default function ChatAI({ navigation }: { navigation?: any }) {
         text,
         image: file,
         status: 'sent',
+        ts: Date.now(),
       });
       addMessage({
         id: assistantId,
         role: 'assistant',
         text: 'Đang soạn trả lời…',
         status: 'sending',
+        ts: Date.now() + 1,
       });
 
       setInput('');
@@ -117,9 +117,7 @@ export default function ChatAI({ navigation }: { navigation?: any }) {
         updateMessage(assistantId, {
           text: 'Không gửi được.',
           status: 'error',
-          errorMsg:
-            err?.message ||
-            'Đã xảy ra lỗi khi kết nối. Hãy thử gửi lại bạn nhé.',
+          errorMsg: 'Không gửi được. Hãy đợi vài giây rồi thử nhắn tiếp nhé.',
         });
       } finally {
         setSending(false);
@@ -130,14 +128,11 @@ export default function ChatAI({ navigation }: { navigation?: any }) {
   );
 
   const onRetry = useCallback(
-    (failedMsg: ChatItem, prevUserMsg?: ChatItem) => {
-      const lastUser =
-        prevUserMsg ||
-        messages.find(
-          (m, idx, arr) =>
-            m.role === 'user' &&
-            idx > arr.findIndex(x => x.id === failedMsg.id),
-        );
+    (failedMsg: ChatItem) => {
+      const idx = messages.findIndex(x => x.id === failedMsg.id);
+      const lastUser = [...messages.slice(0, idx)]
+        .reverse()
+        .find(m => m.role === 'user');
       const text = lastUser?.text;
       const file = lastUser?.image;
       if (text || file) send({ text, file });
@@ -149,16 +144,11 @@ export default function ChatAI({ navigation }: { navigation?: any }) {
     abortRef.current?.abort();
   }, []);
 
+  // Header
   const renderHeader = () => (
-    <View onLayout={e => setHeaderH(e.nativeEvent.layout.height)}>
+    <View>
       <ViewComponent>
-        <ViewComponent
-          variant="card"
-          radius={20}
-          px={14}
-          py={12}
-          style={[s.headerCard, s.shadowMd]}
-        >
+        <ViewComponent>
           <ViewComponent row alignItems="center" gap={12}>
             <Pressable
               onPress={() => navigation?.goBack?.()}
@@ -171,11 +161,6 @@ export default function ChatAI({ navigation }: { navigation?: any }) {
             <View style={{ flex: 1 }}>
               <TextComponent
                 text="Trợ lý dinh dưỡng"
-                variant="caption"
-                tone="muted"
-              />
-              <TextComponent
-                text="AI Chat"
                 variant="h3"
                 weight="bold"
                 color={C.text}
@@ -195,6 +180,7 @@ export default function ChatAI({ navigation }: { navigation?: any }) {
     </View>
   );
 
+  // Composer
   const renderComposer = () => (
     <ViewComponent pb={16}>
       {!!attach && (
@@ -273,29 +259,10 @@ export default function ChatAI({ navigation }: { navigation?: any }) {
           </Pressable>
         )}
       </ViewComponent>
-
-      <View style={{ marginTop: 8, alignItems: 'center' }}>
-        {sending ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <ActivityIndicator size="small" color={C.primary} />
-            <View style={{ width: 8 }} />
-            <TextComponent
-              text="Đang gửi tới AI…"
-              variant="caption"
-              tone="muted"
-            />
-          </View>
-        ) : (
-          <TextComponent
-            text="Mẹo: Bạn có thể gửi ảnh bữa ăn để AI ước lượng dinh dưỡng."
-            variant="caption"
-            tone="muted"
-          />
-        )}
-      </View>
     </ViewComponent>
   );
 
+  // Item
   const renderItem = ({ item }: { item: ChatItem }) => {
     const isUser = item.role === 'user';
     return (
@@ -384,18 +351,26 @@ export default function ChatAI({ navigation }: { navigation?: any }) {
     );
   };
 
+  // Dữ liệu hiển thị theo thứ tự tự nhiên: cũ → mới
+  const dataForList = useMemo(
+    () => [...messages].sort((a, b) => (a.ts ?? 0) - (b.ts ?? 0)),
+    [messages],
+  );
+
+  // Auto scroll xuống cuối khi nội dung đổi
+  const listRef = useRef<FlatList<ChatItem>>(null);
+  const handleContentSizeChange = useCallback(() => {
+    listRef.current?.scrollToEnd({ animated: true });
+  }, []);
+
   return (
     <Container>
       {renderHeader()}
 
-      {/* ⬇️ CHỈNH KAV: iOS padding + offset theo header; Android height + offset=0 */}
       <KeyboardAvoidingView
-        behavior={Platform.select({ ios: 'padding', android: 'height' })}
         style={{ flex: 1 }}
-        keyboardVerticalOffset={Platform.select({
-          ios: Math.max(headerH + 8, 0),
-          android: 0,
-        })}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <ViewComponent flex={1} pb={8} pt={8}>
           <ViewComponent
@@ -405,12 +380,17 @@ export default function ChatAI({ navigation }: { navigation?: any }) {
             style={[s.chatShell, s.shadowMd]}
           >
             <FlatList
-              data={messages}
+              ref={listRef}
+              data={dataForList}
               keyExtractor={item => item.id}
               renderItem={renderItem}
-              inverted
-              contentContainerStyle={{ padding: 12 }}
+              onContentSizeChange={handleContentSizeChange}
+              contentContainerStyle={{
+                padding: 12,
+                flexGrow: 1,
+              }}
               keyboardShouldPersistTaps="handled"
+              removeClippedSubviews={false}
               ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
               ListEmptyComponent={
                 <View style={s.emptyWrap}>
@@ -445,10 +425,6 @@ export default function ChatAI({ navigation }: { navigation?: any }) {
 }
 
 const s = StyleSheet.create({
-  headerCard: {
-    backgroundColor: C.white,
-    borderColor: C.primarySurface,
-  },
   iconBtn: {
     width: 36,
     height: 36,
@@ -462,7 +438,6 @@ const s = StyleSheet.create({
   chatShell: {
     flex: 1,
     backgroundColor: C.white,
-    overflow: 'hidden',
   },
   textInput: {
     flex: 1,

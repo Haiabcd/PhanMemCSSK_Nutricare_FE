@@ -4,6 +4,10 @@ import {
   ScrollView,
   Pressable,
   RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
+  Modal,
+  TextInput,
 } from 'react-native';
 import Container from '../components/Container';
 import CaloriesNutritionCard from '../components/MealPlan/CaloriesNutritionCard';
@@ -18,7 +22,12 @@ import type { PlanStackParamList } from '../navigation/PlanNavigator';
 import type { NutritionResponse } from '../types/types';
 import type { MealPlanResponse } from '../types/mealPlan.type';
 import { getMealPlanByDate } from '../services/planDay.service';
-import { getDailyNutrition, savePlanLogById } from '../services/log.service';
+import { updateWeight } from '../services/user.service';
+import {
+  getDailyNutrition,
+  savePlanLogById,
+  needUpdateWeight,
+} from '../services/log.service';
 import { fmtVNFull, toISODateOnly } from '../helpers/mealPlan.helper';
 import DateButton from '../components/Date/DateButton';
 import DatePickerSheet from '../components/Date/DatePickerSheet';
@@ -36,10 +45,13 @@ const MealPlan = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
+  const [showWeightModal, setShowWeightModal] = useState(false);
+  const [weightInput, setWeightInput] = useState<string>('');
+  const [weightError, setWeightError] = useState<string>('');
   const { refresh } = useHeader();
   const didRefreshHeaderRef = useRef(false);
-
-  // Dedupe in-flight theo ngày để chặn gọi trùng
+  const [weightSaving, setWeightSaving] = useState(false);
+  const weightPromptCheckedRef = useRef(false);
   const inFlightKey = useRef<string | null>(null);
 
   useFocusEffect(
@@ -51,11 +63,18 @@ const MealPlan = () => {
     }, [refresh]),
   );
 
+  const validateWeight = useCallback((v: string) => {
+    const t = v.trim().replace(',', '.');
+    const num = Number(t);
+    if (!t || Number.isNaN(num)) return 'Vui lòng nhập số hợp lệ';
+    if (!Number.isFinite(num)) return 'Giá trị không hợp lệ';
+    if (num < 30 || num > 200) return 'Chỉ cho phép từ 30 đến 200 kg';
+    return '';
+  }, []);
+
   const fetchData = useCallback(
     async (d: Date, signal?: AbortSignal, opts?: { isRefresh?: boolean }) => {
       const key = toISODateOnly(d);
-
-      // Chặn gọi trùng (trừ khi là refresh)
       if (!opts?.isRefresh && inFlightKey.current === key) return;
       inFlightKey.current = key;
 
@@ -83,7 +102,27 @@ const MealPlan = () => {
     [],
   );
 
-  // Chỉ dùng MỘT nơi để fetch: useFocusEffect (bỏ useEffect để tránh double-call)
+  useFocusEffect(
+    useCallback(() => {
+      if (weightPromptCheckedRef.current) return;
+      const ac = new AbortController();
+      (async () => {
+        try {
+          const mustUpdate = await needUpdateWeight(ac.signal);
+          if (!ac.signal.aborted && mustUpdate) {
+            setShowWeightModal(true);
+          }
+        } catch (e) {
+          console.warn('needUpdateWeight failed:', e);
+        } finally {
+          weightPromptCheckedRef.current = true;
+        }
+      })();
+
+      return () => ac.abort();
+    }, []),
+  );
+
   useFocusEffect(
     useCallback(() => {
       const ac = new AbortController();
@@ -298,6 +337,163 @@ const MealPlan = () => {
           />
         </ViewComponent>
       </ScrollView>
+      {/* Modal nhắc cập nhật cân nặng */}
+      <Modal
+        visible={showWeightModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowWeightModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.35)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <ViewComponent
+            variant="card"
+            p={16}
+            radius={12}
+            gap={10}
+            style={{
+              width: '100%',
+              maxWidth: 420,
+              backgroundColor: C.bg,
+            }}
+          >
+            <TextComponent
+              text="Đã đến lúc cập nhật cân nặng 🎯"
+              variant="h3"
+              weight="bold"
+            />
+            <TextComponent
+              text="Đến kỳ nhắc cân nặng để theo dõi kế hoạch chính xác hơn. Vui lòng nhập cân nặng hiện tại của bạn."
+              size={14}
+              color={C.sub}
+            />
+
+            <TextComponent text="Cân nặng (kg)" size={13} />
+            <TextInput
+              value={weightInput}
+              onChangeText={t => {
+                setWeightInput(t.replace(',', '.'));
+                if (weightError) setWeightError('');
+              }}
+              keyboardType={Platform.OS === 'ios' ? 'decimal-pad' : 'numeric'}
+              inputMode="decimal"
+              placeholder="Ví dụ: 68.5"
+              autoFocus
+              maxLength={6}
+              onSubmitEditing={async () => {
+                const err = validateWeight(weightInput);
+                if (err) {
+                  setWeightError(err);
+                  return;
+                }
+                try {
+                  setWeightSaving(true);
+                  const ac = new AbortController();
+                  await updateWeight(
+                    { weightKg: Number(weightInput) },
+                    ac.signal,
+                  );
+
+                  setShowWeightModal(false);
+
+                  const refetch = new AbortController();
+                  await fetchData(date, refetch.signal, { isRefresh: true });
+                } catch (e) {
+                  setWeightError(
+                    'Cập nhật cân nặng thất bại, vui lòng thử lại.',
+                  );
+                } finally {
+                  setWeightSaving(false);
+                }
+              }}
+              style={{
+                borderWidth: 1,
+                borderColor: weightError ? C.red : C.primaryBorder,
+                borderRadius: 10,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                color: C.text,
+              }}
+            />
+            {weightError ? (
+              <TextComponent text={weightError} size={12} color={C.red} />
+            ) : null}
+
+            <ViewComponent row gap={8} mt={16} justifyContent="flex-end">
+              <Pressable
+                onPress={() => setShowWeightModal(false)}
+                disabled={weightSaving}
+                style={{
+                  minWidth: 110,
+                  height: 44,
+                  borderRadius: 999,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: C.primarySurface,
+                  borderWidth: 1,
+                  borderColor: C.primaryBorder,
+                  opacity: weightSaving ? 0.6 : 1,
+                }}
+              >
+                <TextComponent text="Để sau" weight="bold" />
+              </Pressable>
+
+              <Pressable
+                onPress={async () => {
+                  const err = validateWeight(weightInput);
+                  if (err) {
+                    setWeightError(err);
+                    return;
+                  }
+                  try {
+                    setWeightSaving(true);
+                    const ac = new AbortController();
+                    await updateWeight(
+                      { weightKg: Number(weightInput) },
+                      ac.signal,
+                    );
+
+                    setShowWeightModal(false);
+
+                    const refetch = new AbortController();
+                    await fetchData(date, refetch.signal, { isRefresh: true });
+                  } catch (e) {
+                    setWeightError(
+                      'Cập nhật cân nặng thất bại, vui lòng thử lại.',
+                    );
+                  } finally {
+                    setWeightSaving(false);
+                  }
+                }}
+                disabled={weightSaving}
+                style={{
+                  minWidth: 110,
+                  height: 44,
+                  borderRadius: 999,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: weightSaving ? C.primaryBorder : C.primary,
+                }}
+              >
+                <TextComponent
+                  text={weightSaving ? 'Đang lưu...' : 'Cập nhật'}
+                  weight="bold"
+                  color={C.onPrimary}
+                />
+              </Pressable>
+            </ViewComponent>
+          </ViewComponent>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <LoadingOverlay visible={loading && !refreshing} />
     </Container>
   );

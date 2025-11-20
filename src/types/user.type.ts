@@ -23,5 +23,8 @@ export interface ProfileUpdateRequest {
     goal : GoalType
     activityLevel : ActivityLevel
     name: string
+}
 
+export interface WeightUpdateRequest {
+    weightKg:number
 }

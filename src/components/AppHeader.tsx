@@ -53,7 +53,7 @@ const Avatar = React.memo(function Avatar({
 export default function AppHeader({
   loading,
   greetingText = 'Xin chào,',
-  onBellPress = () => { },
+  onBellPress = () => {},
 }: AppHeaderProps) {
   const { header, loading: headerLoading } = useHeader();
   const displayName = useMemo(

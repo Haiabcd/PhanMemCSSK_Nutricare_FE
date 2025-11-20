@@ -10,7 +10,7 @@ export interface DateButtonProps {
   label?: string;
   onPress?: () => void;
   iconSize?: number;
-  formatter?: (d: Date) => string; // tùy biến hiển thị
+  formatter?: (d: Date) => string;
 }
 
 const defaultFmt = (d: Date) =>

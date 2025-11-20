@@ -25,7 +25,10 @@ export interface DailyWaterTotalDto {
     date: string;        // ISO date (YYYY-MM-DD)
     totalMl: number;     // int
 }
-
+export interface DailyWeightDto{
+    date: string;        // ISO date (YYYY-MM-DD)
+    weightKg: number;    // float
+}
 export interface StatisticWeekResponse {
     weightKg: number;
     bmiClassification: string;
@@ -34,6 +37,7 @@ export interface StatisticWeekResponse {
     dailyNutrition: DailyNutritionDto[];
     mealSlotSummary: MealSlotSummary;
     dailyWaterTotals: DailyWaterTotalDto[];
+    weeklyWeightTrend:DailyWeightDto[];
     warnings: string[];
 }
 
@@ -66,5 +70,6 @@ export interface StatisticMonthResponse {
     weeklyNutrition: MonthlyWeeklyNutritionDto[];      // tổng theo tuần trong tháng
     mealSlotSummary: MealSlotSummary;
     weeklyWaterTotals: MonthlyWeeklyWaterTotalDto[];    // nước theo tuần
+    weeklyWeightTrend:DailyWeightDto[];
     warnings: string[];                                 // cảnh báo gọn theo tuần
 }

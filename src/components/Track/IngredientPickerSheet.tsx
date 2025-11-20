@@ -1,4 +1,3 @@
-// components/Track/IngredientPickerSheet.tsx
 import React, { useEffect, useState, useRef } from 'react';
 import {
   Modal,
@@ -73,9 +72,14 @@ export default function IngredientPickerSheet({
     f?.imageUrl ||
     'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=300&q=80';
 
-  // Tính toán chiều cao động dựa trên màn hình và bàn phím
-  const maxSheetHeight = SCREEN_HEIGHT * 0.85 - keyboardH;
-  const listMaxHeight = maxSheetHeight - 180; // Trừ đi header, input, button
+  // Tính toán chiều cao động dựa trên màn hình và bàn phím (responsive cho đa màn hình)
+  const maxSheetHeight = SCREEN_HEIGHT * 0.95 - keyboardH; // Tăng từ 0.9 lên 0.95 để sheet lớn hơn trên đa màn hình
+  const listMaxHeight = maxSheetHeight - 100; // Giảm từ 120 xuống 100 để dành nhiều không gian hơn cho danh sách
+  // Tính chiều cao danh sách: tối thiểu 300px (cho màn hình nhỏ), tối đa 50% màn hình trừ keyboard (cho màn hình lớn)
+  const listHeight = Math.max(
+    300,
+    Math.min(listMaxHeight, SCREEN_HEIGHT * 0.5 - keyboardH),
+  );
 
   return (
     <Modal
@@ -122,13 +126,13 @@ export default function IngredientPickerSheet({
                 <Text text="Không tìm thấy nguyên liệu" tone="muted" />
               </View>
             ) : (
-              <View style={{ flex: 1, minHeight: 200 }}>
+              <View style={{ height: listHeight }}>
                 <FlatList
                   keyboardShouldPersistTaps="handled"
                   data={results}
                   keyExtractor={(it: IngredientResponse) => String(it.id)}
                   ItemSeparatorComponent={() => <View style={styles.sep} />}
-                  style={{ maxHeight: listMaxHeight }}
+                  style={{ flex: 1, minHeight: 300 }} // Thêm minHeight để fallback
                   contentContainerStyle={{ flexGrow: 1 }}
                   renderItem={({ item }) => (
                     <Pressable

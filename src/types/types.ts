@@ -60,6 +60,7 @@ export interface ProfileDto {
   name: string;
   targetWeightDeltaKg: number;
   targetDurationWeeks: number;
+  goalReached:boolean;
   createdAt: string | null;
   updatedAt: string | null;
 }
@@ -120,33 +121,6 @@ export interface OnboardingRequest {
   conditions?: string[];
   allergies?: string[];
 }
-
-export interface UserDto {
-  id: string;
-  role: 'GUEST' | 'USER' | 'ADMIN' | string;
-  provider: 'NONE' | string;
-  deviceId: string;
-  status: 'ACTIVE' | 'INACTIVE' | string;
-}
-
-export interface NutritionDto {
-  kcal: number;
-  proteinG: number;
-  carbG: number;
-
-  fatG: number;
-  fiberG: number;
-  sodiumMg: number;
-  sugarMg: number;
-}
-
-export interface MealPlanDto {
-  id: string;
-  date: string;
-  targetNutrition: NutritionDto;
-  waterTargetMl: number;
-}
-
 
 export interface NutritionResponse {
   kcal: number;

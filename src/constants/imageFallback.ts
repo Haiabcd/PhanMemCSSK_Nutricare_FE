@@ -74,8 +74,3 @@ export function variedFallbackBy(title?: string, host?: string): string {
   return `${pool[idx]}?auto=format&fit=crop&w=1200&q=80&sig=${sig}`;
 }
 
-/** (tuỳ chọn) ảnh ngẫu nhiên theo keyword */
-export function unsplashByKeyword(keyword: string, w = 1200, h = 800) {
-  const q = encodeURIComponent(keyword);
-  return `https://source.unsplash.com/${w}x${h}/?${q}`;
-}

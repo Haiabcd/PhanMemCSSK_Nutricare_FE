@@ -1,4 +1,4 @@
-import { NutritionResponse } from './types';
+import { NutritionResponse, MealSlot } from './types';
 import { FoodResponse } from './food.type';
 
 export interface MealPlanItemResponse {
@@ -22,3 +22,20 @@ export interface MealPlanResponse {
    waterTargetMl: number;
    items: MealPlanItemResponse[];
 }
+
+export interface SwapCandidate {
+   foodId: string;
+   foodName: string;
+   portion: number; 
+   reason: string;
+   imageUrl: string;
+ }
+ 
+ export interface SwapSuggestion {
+   itemId: string;
+   slot: MealSlot | string; 
+   originalFoodId: string;
+   originalFoodName: string;
+   originalPortion: number;
+   candidates: SwapCandidate[]; 
+ }

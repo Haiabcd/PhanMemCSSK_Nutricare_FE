@@ -1,4 +1,11 @@
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, {
+  useMemo,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+} from 'react';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
   Image,
   Pressable,
@@ -11,12 +18,21 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import isEqual from 'fast-deep-equal/react';
+
 import Container from '../components/Container';
 import TextComponent from '../components/TextComponent';
 import ViewComponent from '../components/ViewComponent';
+import AppHeader from '../components/AppHeader';
+
 import { colors as C } from '../constants/colors';
+import { FALLBACK_IMAGES } from '../constants/fallbackImages';
+import { variedFallbackBy, DEFAULT_FALLBACK } from '../constants/imageFallback';
+
 import { getMyInfo } from '../services/user.service';
 import { findNewsfeedRecommendations } from '../services/recommendation.service';
+
 import type { RecommendationItemDto } from '../types/recommendation.type';
 import type {
   InfoResponse,
@@ -24,14 +40,10 @@ import type {
   UserAllergyResponse,
   UserConditionResponse,
 } from '../types/types';
-import AppHeader from '../components/AppHeader';
 import type { GuideStackParamList } from '../navigation/GuideNavigator';
-import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
 import Config from 'react-native-config';
-import { FALLBACK_IMAGES } from '../constants/fallbackImages';
-import { variedFallbackBy, DEFAULT_FALLBACK } from '../constants/imageFallback';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 /* ================== Cấu hình YouTube ================== */
 const YOUTUBE_API_KEY = Config.YOUTUBE_API_KEY!;
@@ -223,18 +235,9 @@ function Card({ item }: { item: Item }) {
 }
 
 /* ================== Helpers build query từ InfoResponse ================== */
-const ageFromBirthYear = (y?: number | null) =>
-  typeof y === 'number' ? new Date().getFullYear() - y : undefined;
-
 function buildQueryFromInfo(info?: InfoResponse | null, userText?: string) {
   const terms: string[] = [];
-  if (!info) {
-    const base =
-      userText?.trim() || 'dinh dưỡng món ăn công thức nấu ăn healthy recipes';
-    return `${base} tiếng Việt`;
-  }
-  const p: ProfileDto | undefined = info.profileCreationResponse;
-
+  const p: ProfileDto | undefined = info?.profileCreationResponse;
   if (userText?.trim()) terms.push(userText.trim());
 
   switch (p?.goal) {
@@ -254,34 +257,7 @@ function buildQueryFromInfo(info?: InfoResponse | null, userText?: string) {
       break;
   }
 
-  if (p?.gender === 'MALE') terms.push('dinh dưỡng cho nam');
-  else if (p?.gender === 'FEMALE') terms.push('dinh dưỡng cho nữ');
-
-  const age = ageFromBirthYear(p?.birthYear);
-  if (typeof age === 'number') {
-    if (age < 18) terms.push('dinh dưỡng vị thành niên');
-    else if (age < 30) terms.push('dinh dưỡng người trẻ');
-    else if (age < 50) terms.push('dinh dưỡng người trưởng thành');
-    else terms.push('dinh dưỡng người trung niên');
-  }
-
-  switch (p?.activityLevel) {
-    case 'SEDENTARY':
-      terms.push('ít vận động');
-      break;
-    case 'LIGHTLY_ACTIVE':
-      terms.push('bài tập nhẹ');
-      break;
-    case 'MODERATELY_ACTIVE':
-      terms.push('tập luyện vừa phải');
-      break;
-    case 'VERY_ACTIVE':
-    case 'EXTRA_ACTIVE':
-      terms.push('tập luyện cường độ cao');
-      break;
-  }
-
-  (info.conditions || []).forEach((c: UserConditionResponse) => {
+  (info?.conditions || []).forEach((c: UserConditionResponse) => {
     const name = (c?.name || '').toLowerCase();
     if (!name) return;
     if (
@@ -299,6 +275,7 @@ function buildQueryFromInfo(info?: InfoResponse | null, userText?: string) {
     }
   });
 
+  // Từ khoá nền
   terms.push(
     'dinh dưỡng',
     'món ăn',
@@ -313,19 +290,16 @@ function buildQueryFromInfo(info?: InfoResponse | null, userText?: string) {
     'tiếng Việt',
   );
 
-  const unique = Array.from(new Set(terms)).slice(0, 10).join(' | ');
-  return unique;
+  return Array.from(new Set(terms)).slice(0, 10).join(' | ');
 }
 
-// ===== Workout query (SAFE)
+// ===== Workout query (SAFE) — chỉ quan tâm goal + conditions (+ allergies dùng để lọc)
 function buildWorkoutQueryFromInfo(
   info?: InfoResponse | null,
   userText?: string,
 ) {
   const terms: string[] = [];
-  if (!info) return (userText?.trim() || 'bài tập tại nhà') + ' tiếng Việt';
-
-  const p = info.profileCreationResponse;
+  const p = info?.profileCreationResponse;
 
   if (userText?.trim()) terms.push(userText.trim());
 
@@ -341,34 +315,7 @@ function buildWorkoutQueryFromInfo(
       break;
   }
 
-  if (p?.gender === 'MALE') terms.push('bài tập cho nam');
-  if (p?.gender === 'FEMALE') terms.push('bài tập cho nữ');
-
-  const age = ageFromBirthYear(p?.birthYear);
-  if (typeof age === 'number') {
-    if (age < 18) terms.push('bài tập cho teen');
-    else if (age < 30) terms.push('workout người trẻ');
-    else if (age < 50) terms.push('workout người trưởng thành');
-    else terms.push('workout người trung niên low impact');
-  }
-
-  switch (p?.activityLevel) {
-    case 'SEDENTARY':
-      terms.push('beginner', 'low impact', 'bài tập nhẹ nhàng');
-      break;
-    case 'LIGHTLY_ACTIVE':
-      terms.push('beginner to intermediate');
-      break;
-    case 'MODERATELY_ACTIVE':
-      terms.push('intermediate', 'tập luyện vừa phải');
-      break;
-    case 'VERY_ACTIVE':
-    case 'EXTRA_ACTIVE':
-      terms.push('advanced', 'high intensity');
-      break;
-  }
-
-  (info.conditions || []).forEach(c => {
+  (info?.conditions || []).forEach(c => {
     const n = (c?.name || '').toLowerCase();
     if (!n) return;
     if (n.includes('tiểu đường') || n.includes('diabetes')) {
@@ -494,7 +441,7 @@ function isVietnameseItem(item: Item) {
   );
 }
 
-/* ====== NEW: Lọc theo mục tiêu tập luyện ====== */
+/* ====== Lọc theo mục tiêu tập luyện ====== */
 const LOSS_KEYWORDS = [
   'giảm mỡ',
   'giảm cân',
@@ -632,29 +579,72 @@ function interleave<T>(...lists: T[][]): T[] {
   return out;
 }
 
+/* ================== Mini profile & helpers để hạn chế fetch thừa ================== */
+type MiniProfile = {
+  goal?: ProfileDto['goal'];
+  conditions: string[];
+  allergies: string[];
+};
+
+function pickMini(info?: InfoResponse | null): MiniProfile {
+  const goal = info?.profileCreationResponse?.goal;
+  const conditions = (info?.conditions ?? []).map(
+    c => (c.id ?? c.name ?? '') + '',
+  );
+  const allergies = (info?.allergies ?? []).map(
+    a => (a.id ?? a.name ?? '') + '',
+  );
+  conditions.sort();
+  allergies.sort();
+  return { goal, conditions, allergies };
+}
+
 /* ================== Screen ================== */
 export default function NutritionGuide() {
   const [active, setActive] = useState<Kind>('all');
   const [q, setQ] = useState('');
-  const { width: screenW, height: screenH } = useWindowDimensions();
+  const { height: screenH } = useWindowDimensions();
   const [chipsLayoutW, setChipsLayoutW] = useState(0);
   const [chipsContentW, setChipsContentW] = useState(0);
   const canScroll = chipsContentW > chipsLayoutW + 1;
   const [myInfo, setMyInfo] = useState<InfoResponse | null>(null);
+  const navigation =
+    useNavigation<NativeStackNavigationProp<GuideStackParamList>>();
 
+  // Debounce input q để giảm reload khi gõ
+  const [qDebounced, setQDebounced] = useState(q);
   useEffect(() => {
-    const ac = new AbortController();
-    (async () => {
-      try {
-        const apiRes = await getMyInfo(ac.signal);
-        const info: any = (apiRes as any)?.data ?? apiRes;
-        setMyInfo(info as InfoResponse);
-      } catch (e) {
-        console.log('[NutritionGuide][my-info][error]', e);
-      }
-    })();
-    return () => ac.abort();
-  }, []);
+    const id = setTimeout(() => setQDebounced(q), 450);
+    return () => clearTimeout(id);
+  }, [q]);
+
+  // Lưu mini profile để so sánh
+  const prevMiniRef = useRef<MiniProfile | null>(null);
+
+  // Gọi getMyInfo khi vào màn, chỉ set khi mục tiêu/bệnh nền/dị ứng đổi
+  useFocusEffect(
+    useCallback(() => {
+      const ac = new AbortController();
+      (async () => {
+        try {
+          const apiRes = await getMyInfo(ac.signal);
+          const info: InfoResponse = (apiRes as any)?.data ?? apiRes;
+          const nextMini = pickMini(info);
+          const prevMini = prevMiniRef.current;
+
+          if (!prevMini || !isEqual(prevMini, nextMini)) {
+            prevMiniRef.current = nextMini;
+            setMyInfo(info); // -> sẽ kích hoạt tính lại query + reload YouTube
+          }
+          // nếu không đổi: bỏ qua, không set -> không reload YouTube
+        } catch (e) {
+          if (__DEV__)
+            console.log('[NutritionGuide][my-info][focus][error]', e);
+        }
+      })();
+      return () => ac.abort();
+    }, []),
+  );
 
   /* ====== BÀI BÁO ====== */
   const PAGE_SIZE = 9999;
@@ -663,8 +653,7 @@ export default function NutritionGuide() {
   const [loadingArticles, setLoadingArticles] = useState(false);
   const [loadingMoreArticles, setLoadingMoreArticles] = useState(false);
   const [hasMoreArticles, setHasMoreArticles] = useState(true);
-  const navigation =
-    useNavigation<NativeStackNavigationProp<GuideStackParamList>>();
+
   const mapArticles = useCallback((arr: RecommendationItemDto[]): Item[] => {
     const articlesOnly = (arr || []).filter(
       a => (a.type || 'article') === 'article',
@@ -692,9 +681,7 @@ export default function NutritionGuide() {
 
       const image =
         (a.imageUrl || '').trim() ||
-        // ƯU TIÊN đa dạng trước
         variedFallbackBy(seedTitle, host) ||
-        // Nếu host là news.google.com thì bỏ qua bySource để tránh trùng
         (host === 'news.google.com' ? undefined : bySource) ||
         DEFAULT_FALLBACK;
 
@@ -726,7 +713,7 @@ export default function NutritionGuide() {
       });
 
       setArticleItems(unique);
-      setHasMoreArticles(false); // không phân trang nữa
+      setHasMoreArticles(false);
     } catch (e) {
       console.log('[Articles][reload] error', e);
       setArticleItems([]);
@@ -773,7 +760,10 @@ export default function NutritionGuide() {
   }, [reloadArticles]);
 
   /* ====== VIDEO dinh dưỡng (tab "Video") ====== */
-  const videoQuery = useMemo(() => buildQueryFromInfo(myInfo, q), [myInfo, q]);
+  const videoQuery = useMemo(
+    () => buildQueryFromInfo(myInfo, qDebounced),
+    [myInfo, qDebounced],
+  );
   const [ytItems, setYtItems] = useState<Item[]>([]);
   const [nextToken, setNextToken] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
@@ -828,8 +818,8 @@ export default function NutritionGuide() {
 
   /* ====== VIDEO TẬP LUYỆN (tab "Tập luyện") ====== */
   const workoutQuery = useMemo(
-    () => buildWorkoutQueryFromInfo(myInfo, q),
-    [myInfo, q],
+    () => buildWorkoutQueryFromInfo(myInfo, qDebounced),
+    [myInfo, qDebounced],
   );
   const [workoutItems, setWorkoutItems] = useState<Item[]>([]);
   const [nextWorkoutToken, setNextWorkoutToken] = useState<
@@ -914,12 +904,21 @@ export default function NutritionGuide() {
     myInfo?.profileCreationResponse?.goal,
   ]);
 
+  // Chỉ reload khi query thật sự đổi (tránh reload trùng)
+  const lastVideoQueryRef = useRef<string>('');
+  const lastWorkoutQueryRef = useRef<string>('');
+
   useEffect(() => {
+    if (!videoQuery || lastVideoQueryRef.current === videoQuery) return;
+    lastVideoQueryRef.current = videoQuery;
     reload();
-  }, [reload]);
+  }, [videoQuery, reload]);
+
   useEffect(() => {
+    if (!workoutQuery || lastWorkoutQueryRef.current === workoutQuery) return;
+    lastWorkoutQueryRef.current = workoutQuery;
     reloadWorkout();
-  }, [reloadWorkout]);
+  }, [workoutQuery, reloadWorkout]);
 
   // ===== Hợp nhất hiển thị – trộn xen kẽ 3 phần
   const ALL_DATA: Item[] = useMemo(() => {
@@ -1194,7 +1193,7 @@ export default function NutritionGuide() {
   );
 }
 
-/* ================== Floating Chat Button (draggable) ================== */
+/* ================== Floating Chat Button ================== */
 function FloatingChat({
   navigation,
 }: {
@@ -1225,7 +1224,6 @@ function FloatingChat({
 
 /* ================== Styles ================== */
 const s = StyleSheet.create({
-  avatar: { width: 52, height: 52, borderRadius: 999 },
   searchInput: {
     flex: 1,
     color: C.text,
@@ -1264,18 +1262,6 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: C.border,
   },
-  chatBall: {
-    position: 'absolute',
-    zIndex: 20,
-    elevation: 12,
-    backgroundColor: C.primary,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    borderWidth: 2,
-    borderColor: C.primaryBorder,
-  },
   chatFab: {
     position: 'absolute',
     zIndex: 50, // iOS
@@ -1290,7 +1276,6 @@ const s = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
   },
-  chatInner: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   chipsRow: {
     alignItems: 'center',
     gap: 20,

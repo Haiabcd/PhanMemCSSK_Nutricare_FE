@@ -13,14 +13,13 @@ import { appendNotiHistory } from '../storage/notifications';
 // Khai báo kiểu data đi kèm notification
 type NotiData = {
     [key: string]: unknown;
-    kind?: string;                 // 'meal-pre' | 'meal-post' | ...
-    meal?: string;                 // 'breakfast' | 'lunch' | 'dinner'
-    date?: string;                 // 'yyyymmdd'
+    kind?: string;                
+    meal?: string;        
+    date?: string;    
 };
 
 type NotiKind = 'meal-pre' | 'meal-post' | 'other';
 
-/** ✅ Khởi tạo quyền + kênh, tự mở Settings nếu bị chặn hoặc giới hạn nền */
 export async function ensureNotificationReady() {
     await notifee.createChannel({
         id: 'meal',
@@ -66,7 +65,6 @@ export async function ensureNotificationReady() {
     }
 }
 
-/* ========= Định nghĩa chính ========= */
 type MealKey = 'breakfast' | 'lunch' | 'dinner';
 
 export const MEALS: Record<
@@ -214,11 +212,6 @@ export async function schedulePrePostRange(daysAhead = 7) {
         await scheduleMealDay('lunch', d);
         await scheduleMealDay('dinner', d);
     }
-}
-
-/** Gọi khi user tick “đã ăn” để huỷ post của ngày đó */
-export async function onMealLogged(meal: MealKey, date: Date) {
-    await cancelPostReminder(meal, date);
 }
 
 /** Foreground handler */

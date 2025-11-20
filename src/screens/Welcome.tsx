@@ -1,5 +1,13 @@
 import React from 'react';
-import { View, Image, StatusBar, Text, Alert, Linking } from 'react-native';
+import {
+  StatusBar,
+  Text,
+  Alert,
+  Linking,
+  ImageBackground,
+  StyleSheet,
+  View,
+} from 'react-native';
 import BounceButton from '../components/Welcome/BounceButton';
 import TextComponent from '../components/TextComponent';
 import ViewComponent from '../components/ViewComponent';
@@ -10,13 +18,11 @@ import { s } from '../styles/Welcome.styles';
 import { startGoogleOAuth } from '../services/auth.service';
 import { getOrCreateDeviceId } from '../config/deviceId';
 
-// ======= ẢNH NỀN DUY NHẤT =======
-const BG_IMAGE = require('../assets/images/Welcome/Welcome1.png');
+const BG_IMAGE = require('../assets/images/Welcome/NUTRICARE.png');
 
 const Welcome = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-
   const [loadingGoogle, setLoadingGoogle] = React.useState(false);
 
   const onPressGoogle = React.useCallback(async () => {
@@ -25,7 +31,6 @@ const Welcome = () => {
       const deviceId = await getOrCreateDeviceId();
       const res = await startGoogleOAuth(deviceId, false);
       const url = res?.data?.authorizeUrl;
-
       if (!url) {
         Alert.alert('Lỗi', 'Không nhận được liên kết đăng nhập Google.');
         return;
@@ -43,40 +48,22 @@ const Welcome = () => {
   }, []);
 
   return (
-    <View>
+    <View style={{ flex: 1, backgroundColor: 'white' }}>
       <StatusBar
         translucent
         backgroundColor="transparent"
         barStyle="light-content"
       />
 
-      {/* Ảnh nền tĩnh (không cuộn) */}
-      <Image source={BG_IMAGE} style={s.bgImage} resizeMode="cover" />
+      {/* Ảnh nền full-screen */}
+      <ImageBackground
+        source={BG_IMAGE}
+        style={StyleSheet.absoluteFillObject}
+        resizeMode="cover"
+      />
 
       {/* Overlay content */}
       <ViewComponent style={s.bgList} px={15} pt={50}>
-        {/* Top brand/title */}
-        <ViewComponent mt={StatusBar.currentHeight ?? 40}>
-          <TextComponent
-            text="Nutricare"
-            variant="h1"
-            size={36}
-            tone="primary"
-            align="center"
-          />
-          <ViewComponent style={s.subtitleWrap}>
-            <TextComponent
-              text="Hành trình sức khỏe của bạn bắt đầu từ đây"
-              variant="h2"
-              size={22}
-              tone="default"
-              style={[s.title, s.subtitleText]}
-              align="center"
-            />
-          </ViewComponent>
-        </ViewComponent>
-
-        {/* Bottom actions */}
         <ViewComponent style={s.bottom} gap={12}>
           <BounceButton
             label="Bắt đầu ngay"
@@ -85,15 +72,6 @@ const Welcome = () => {
             labelSize={18}
             onPress={() => navigation.navigate('Wizard')}
           />
-
-          <TextComponent
-            text="HOẶC"
-            variant="subtitle"
-            tone="inverse"
-            align="center"
-          />
-
-          {/* ✅ Gắn handler Google + khóa nút khi loading */}
           <BounceButton
             label={loadingGoogle ? 'Đang mở Google...' : 'Tiếp tục với Google'}
             icon="google"

@@ -13,9 +13,11 @@ import { colors as C } from '../constants/colors';
 import Entypo from 'react-native-vector-icons/Entypo';
 import { useNotifications } from '../hooks/useNotifications';
 import { clearNotiHistory } from '../storage/notifications';
+import { useNavigation } from '@react-navigation/native';
 
 export default function NotificationScreen() {
   const { loading, sections, refresh } = useNotifications();
+  const navigation = useNavigation();
 
   const onClear = async () => {
     await clearNotiHistory();
@@ -24,8 +26,23 @@ export default function NotificationScreen() {
   return (
     <Container>
       <ViewComponent row between alignItems="center" mb={16}>
+        {navigation.canGoBack() ? (
+          <Pressable
+            style={s.iconContainer}
+            onPress={() => navigation.goBack()}
+            hitSlop={10}
+          >
+            <Entypo name="chevron-left" size={20} color={C.primary} />
+          </Pressable>
+        ) : (
+          <View style={s.iconContainer} />
+        )}
+
+        {/* Tiêu đề */}
         <TextComponent text="Thông báo" variant="h2" weight="bold" />
-        <Pressable style={s.iconContainer} onPress={onClear}>
+
+        {/* Nút xóa */}
+        <Pressable style={s.iconContainer} onPress={onClear} hitSlop={10}>
           <Entypo name="trash" size={18} color={C.primary} />
         </Pressable>
       </ViewComponent>
@@ -62,10 +79,10 @@ export default function NotificationScreen() {
                   n.type === 'meal'
                     ? 'bowl'
                     : n.type === 'water'
-                      ? 'drop'
-                      : n.type === 'suggestion'
-                        ? 'light-bulb'
-                        : 'bell';
+                    ? 'drop'
+                    : n.type === 'suggestion'
+                    ? 'light-bulb'
+                    : 'bell';
 
                 return (
                   <ViewComponent

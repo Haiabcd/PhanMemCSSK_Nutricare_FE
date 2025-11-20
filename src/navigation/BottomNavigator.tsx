@@ -5,14 +5,14 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import PlanNavigator from './PlanNavigator';
 import SuggestionNavigator from './SuggestionNavigator';
 import ProfileNavigator from './ProfileNavigator';
-import Track from '../screens/Track';
+import TrackNavigator from './TrackNavigator';
 import { colors } from '../constants/colors';
 import GuideNavigator from './GuideNavigator';
 
 export type MainTabParamList = {
   MealPlan: undefined;
   SuggestionNavigator: undefined;
-  Track: undefined;
+  TrackNavigator: undefined;
   GuideNavigator: undefined;
   ProfileNavigator: undefined;
 };
@@ -48,7 +48,7 @@ export default function BottomTabsNavigator() {
             case 'ProfileNavigator':
               iconName = 'person';
               break;
-            case 'Track':
+            case 'TrackNavigator':
               iconName = 'center-focus-strong';
               break;
             default:
@@ -72,8 +72,8 @@ export default function BottomTabsNavigator() {
 
       {/* Nút giữa nổi bật */}
       <Tab.Screen
-        name="Track"
-        component={Track}
+        name="TrackNavigator"
+        component={TrackNavigator}
         options={{
           tabBarLabel: () => null, // ẩn label riêng tab giữa
           tabBarIcon: () => (

@@ -24,3 +24,18 @@ export async function getMonthlyStats(
     );
     return res.data;
 }
+
+export async function getRangeStats(
+    start: string,
+    end: string,  
+    signal?: AbortSignal
+  ): Promise<ApiResponse<StatisticWeekResponse>> {
+    const res = await api.get<ApiResponse<StatisticWeekResponse>>(
+      '/statistics/range',
+      {
+        params: { start, end },
+        signal,
+      }
+    );
+    return res.data;
+  }

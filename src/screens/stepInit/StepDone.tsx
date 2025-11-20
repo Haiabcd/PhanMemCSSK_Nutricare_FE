@@ -23,8 +23,10 @@ import { useWizard } from '../../context/WizardContext';
 import { onboarding } from '../../services/auth.service';
 import type { OnboardingRequest } from '../../types/types';
 import { getOrCreateDeviceId } from '../../config/deviceId';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const ONBOARDING_AT_KEY = 'app.onboardingAt';
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const TOP_INSET = Platform.select({
@@ -132,7 +134,8 @@ const StepDoneScreen = () => {
       try {
         const deviceId = await getOrCreateDeviceId();
         const payload = buildOnboardingPayload(form, deviceId);
-        const res = await onboarding(payload);
+        await onboarding(payload);
+        await AsyncStorage.setItem(ONBOARDING_AT_KEY, new Date().toISOString());
         if (!mounted) return;
         navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
       } catch (err: any) {

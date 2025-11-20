@@ -22,7 +22,7 @@ import {
   Keyboard,
 } from 'react-native';
 import Container from '../components/Container';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { colors } from '../constants/colors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateButton from '../components/Date/DateButton';
@@ -141,6 +141,7 @@ function ScanAIResult(audit: NutritionAudit) {
 /* =================== main screen =================== */
 export default function Track() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
   const listRef = useRef<FlatList<any>>(null);
   const keyboardH = useKeyboardHeight();
   const [warnAlert, setWarnAlert] = useState<string | null>(null);
@@ -165,15 +166,20 @@ export default function Track() {
   const [scanError, setScanError] = useState<string | null>(null);
   const scanControllerRef = useRef<AbortController | null>(null);
   const [scanChoiceOpen, setScanChoiceOpen] = useState(false);
-
-  // Toast + Confirm
+  const [confirm, setConfirm] = useState<{ id?: string } | null>(null);
   const [toast, setToast] = useState<{ msg: string; tone: NoticeTone } | null>(
     null,
   );
-  const notify = (msg: string, tone: NoticeTone = 'default') =>
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notify = (
+    msg: string,
+    tone: NoticeTone = 'default',
+    duration = 2000,
+  ) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast({ msg, tone });
-
-  const [confirm, setConfirm] = useState<{ id?: string } | null>(null);
+    toastTimerRef.current = setTimeout(() => setToast(null), duration);
+  };
 
   // ===== Scan form states (independent from manual) =====
   const [scanMealType, setScanMealType] = useState<MealSlot>('BREAKFAST');
@@ -309,6 +315,12 @@ export default function Track() {
   };
 
   useEffect(() => () => scanControllerRef.current?.abort?.(), []);
+  // dọn dẹp khi unmount để tránh memory leak
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
 
   // Manual
   const mealNameInputRef = useRef<TextInput>(null);
@@ -1027,7 +1039,7 @@ export default function Track() {
     >
       <Container>
         {/* Header */}
-        <AppHeader />
+        <AppHeader onBellPress={() => navigation.navigate('Notification')} />
         <RNView style={[s.line, styles.fullBleed]} />
 
         {/* Date line */}
@@ -1830,7 +1842,10 @@ export default function Track() {
           <ToastBar
             message={toast.msg}
             tone={toast.tone}
-            onClose={() => setToast(null)}
+            onClose={() => {
+              if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+              setToast(null);
+            }}
           />
         )}
       </Container>

@@ -138,6 +138,9 @@ export default function CaloriesNutritionCard({
   const remain = Math.max(0, target - eaten);
   const eatenPct = target ? Math.max(0, Math.min(1, eaten / target)) : 0;
 
+  const targetStr = Number.isFinite(target) ? target.toFixed(2) : '0.00';
+  const remainStr = Number.isFinite(remain) ? remain.toFixed(2) : '0.00';
+
   // Táo: xám -> đỏ theo tiến độ ăn
   const appleAnim = useRef(new Animated.Value(0)).current;
   const AnimatedIcon = Animated.createAnimatedComponent(MaterialCommunityIcons);
@@ -258,11 +261,7 @@ export default function CaloriesNutritionCard({
               color={C.textWhite}
               style={{ flex: 1, opacity: 0.9 }}
             />
-            <TextComponent
-              text={String(target)}
-              color={C.textWhite}
-              weight="bold"
-            />
+            <TextComponent text={targetStr} color={C.textWhite} weight="bold" />
           </ViewComponent>
 
           <ViewComponent row alignItems="center" gap={8} mb={8}>
@@ -276,26 +275,8 @@ export default function CaloriesNutritionCard({
               color={C.textWhite}
               style={{ flex: 1, opacity: 0.9 }}
             />
-            <TextComponent
-              text={String(remain)}
-              color={C.textWhite}
-              weight="bold"
-            />
+            <TextComponent text={remainStr} color={C.textWhite} weight="bold" />
           </ViewComponent>
-
-          {/* <ViewComponent row alignItems="center" gap={8}>
-            <MaterialCommunityIcons name="fire" size={18} color={C.red} />
-            <TextComponent
-              text="Tiêu hao"
-              color={C.textWhite}
-              style={{ flex: 1, opacity: 0.9 }}
-            />
-            <TextComponent
-              text={String(burned)}
-              color={C.textWhite}
-              weight="bold"
-            />
-          </ViewComponent> */}
         </ViewComponent>
       </ViewComponent>
 

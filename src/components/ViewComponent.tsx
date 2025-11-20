@@ -1,13 +1,11 @@
-// ViewComponent.tsx
 import React, { ReactNode, memo } from 'react';
-import { View, ViewStyle, StyleProp } from 'react-native';
+import { View, ViewStyle, StyleProp, ViewProps } from 'react-native';
 import { colors } from '../constants/colors';
 
 type Variant = 'none' | 'card' | 'surface';
 
-interface Props {
+interface CustomProps {
   children?: ReactNode;
-  // layout
   row?: boolean;
   flex?: number;
   gap?: number;
@@ -21,7 +19,7 @@ interface Props {
   justifyContent?: ViewStyle['justifyContent'];
   alignItems?: ViewStyle['alignItems'];
 
-  variant?: Variant; // 'card' | 'surface' | 'none'
+  variant?: Variant;
   backgroundColor?: string;
   radius?: number;
   border?: boolean;
@@ -29,7 +27,6 @@ interface Props {
 
   style?: StyleProp<ViewStyle>;
 
-  // spacing shorthands
   m?: number;
   mx?: number;
   my?: number;
@@ -45,9 +42,10 @@ interface Props {
   pb?: number;
   pl?: number;
 }
+type Props = CustomProps & ViewProps;
 
-const ViewComponent = memo(
-  ({
+const ViewComponent = memo((props: Props) => {
+  const {
     children,
     row,
     flex,
@@ -84,82 +82,85 @@ const ViewComponent = memo(
     pr,
     pb,
     pl,
-  }: Props) => {
-    const spacing: ViewStyle = {};
 
-    // margin
-    if (m !== undefined) spacing.margin = m;
-    if (mx !== undefined) spacing.marginHorizontal = mx;
-    if (my !== undefined) spacing.marginVertical = my;
-    if (mt !== undefined) spacing.marginTop = mt;
-    if (mr !== undefined) spacing.marginRight = mr;
-    if (mb !== undefined) spacing.marginBottom = mb;
-    if (ml !== undefined) spacing.marginLeft = ml;
+    ...rest
+  } = props;
 
-    // padding
-    if (p !== undefined) spacing.padding = p;
-    if (px !== undefined) spacing.paddingHorizontal = px;
-    if (py !== undefined) spacing.paddingVertical = py;
-    if (pt !== undefined) spacing.paddingTop = pt;
-    if (pr !== undefined) spacing.paddingRight = pr;
-    if (pb !== undefined) spacing.paddingBottom = pb;
-    if (pl !== undefined) spacing.paddingLeft = pl;
+  const spacing: ViewStyle = {};
 
-    // shortcuts
-    const jc: ViewStyle['justifyContent'] = center
-      ? 'center'
-      : between
-      ? 'space-between'
-      : around
-      ? 'space-around'
-      : evenly
-      ? 'space-evenly'
-      : justifyContent ?? 'flex-start';
+  // margin
+  if (m !== undefined) spacing.margin = m;
+  if (mx !== undefined) spacing.marginHorizontal = mx;
+  if (my !== undefined) spacing.marginVertical = my;
+  if (mt !== undefined) spacing.marginTop = mt;
+  if (mr !== undefined) spacing.marginRight = mr;
+  if (mb !== undefined) spacing.marginBottom = mb;
+  if (ml !== undefined) spacing.marginLeft = ml;
 
-    const ai: ViewStyle['alignItems'] = center
-      ? 'center'
-      : alignItems ?? 'stretch';
+  // padding
+  if (p !== undefined) spacing.padding = p;
+  if (px !== undefined) spacing.paddingHorizontal = px;
+  if (py !== undefined) spacing.paddingVertical = py;
+  if (pt !== undefined) spacing.paddingTop = pt;
+  if (pr !== undefined) spacing.paddingRight = pr;
+  if (pb !== undefined) spacing.paddingBottom = pb;
+  if (pl !== undefined) spacing.paddingLeft = pl;
 
-    // presets
-    const preset: ViewStyle | undefined =
-      variant === 'card'
-        ? {
-            backgroundColor: colors.white,
-            borderRadius: 14,
-            borderWidth: 2,
-            borderColor: colors.primarySurface,
-            shadowColor: '#000',
-            shadowOpacity: 0.06,
-            shadowRadius: 6,
-            shadowOffset: { width: 0, height: 3 },
-          }
-        : variant === 'surface'
-        ? { backgroundColor: colors.bg }
-        : undefined;
+  // shortcuts
+  const jc: ViewStyle['justifyContent'] = center
+    ? 'center'
+    : between
+    ? 'space-between'
+    : around
+    ? 'space-around'
+    : evenly
+    ? 'space-evenly'
+    : justifyContent ?? 'flex-start';
 
-    return (
-      <View
-        style={[
-          preset,
-          spacing,
-          {
-            flexDirection: row ? 'row' : 'column',
-            justifyContent: jc,
-            alignItems: ai,
-            gap,
-            flex,
-            flexWrap: wrap ? 'wrap' : 'nowrap',
-            backgroundColor, // cho phép override preset
-            borderRadius: radius ?? preset?.borderRadius,
-            ...(border ? { borderWidth: 1, borderColor } : null),
-          },
-          style,
-        ]}
-      >
-        {children}
-      </View>
-    );
-  },
-);
+  const ai: ViewStyle['alignItems'] = center
+    ? 'center'
+    : alignItems ?? 'stretch';
+
+  // presets
+  const preset: ViewStyle | undefined =
+    variant === 'card'
+      ? {
+          backgroundColor: colors.white,
+          borderRadius: 14,
+          borderWidth: 2,
+          borderColor: colors.primarySurface,
+          shadowColor: '#000',
+          shadowOpacity: 0.06,
+          shadowRadius: 6,
+          shadowOffset: { width: 0, height: 3 },
+        }
+      : variant === 'surface'
+      ? { backgroundColor: colors.bg }
+      : undefined;
+
+  return (
+    <View
+      {...rest} // 👈 forward toàn bộ ViewProps (onLayout, pointerEvents, ...)
+      style={[
+        preset,
+        spacing,
+        {
+          flexDirection: row ? 'row' : 'column',
+          justifyContent: jc,
+          alignItems: ai,
+          gap,
+          flex,
+          flexWrap: wrap ? 'wrap' : 'nowrap',
+          backgroundColor, // cho phép override preset
+          borderRadius: radius ?? preset?.borderRadius,
+          ...(border ? { borderWidth: 1, borderColor } : null),
+        },
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
+});
 
 export default ViewComponent;

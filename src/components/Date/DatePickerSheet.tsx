@@ -5,6 +5,7 @@ import DateTimePicker, {
 } from '@react-native-community/datetimepicker';
 import TextComponent from '../TextComponent';
 import { colors as C } from '../../constants/colors';
+import useOnboardingAt from '../../hooks/useOnboardingAt';
 
 export interface DatePickerSheetProps {
   visible: boolean;
@@ -12,7 +13,6 @@ export interface DatePickerSheetProps {
   mode?: 'date' | 'time';
   onClose: () => void;
   onChange: (date: Date) => void;
-  /** mới */
   minDate?: Date;
   maxDate?: Date;
 }
@@ -26,13 +26,19 @@ export default function DatePickerSheet({
   minDate,
   maxDate,
 }: DatePickerSheetProps) {
+  const { onboardingAt, loading: loadingOnbAt } = useOnboardingAt();
+  const effectiveMinDate: Date | undefined =
+    minDate ?? onboardingAt ?? undefined;
+  const effectiveMaxDate: Date | undefined = maxDate;
+
   // helper kẹp theo min/max
   const clampDate = (d: Date) => {
     let out = d;
-    if (minDate && out < minDate) out = minDate;
-    if (maxDate && out > maxDate) out = maxDate;
+    if (effectiveMinDate && out < effectiveMinDate) out = effectiveMinDate;
+    if (effectiveMaxDate && out > effectiveMaxDate) out = effectiveMaxDate;
     return out;
   };
+  const safeValue = clampDate(value);
 
   const handleChange = (event: DateTimePickerEvent, d?: Date) => {
     if (Platform.OS === 'android') {
@@ -48,13 +54,12 @@ export default function DatePickerSheet({
     return (
       <View style={{ width: 0, height: 0 }}>
         <DateTimePicker
-          value={value}
+          value={safeValue}
           mode={mode}
           display={mode === 'time' ? 'clock' : 'calendar'}
           onChange={handleChange}
-          /** mới: truyền min/max xuống picker */
-          minimumDate={minDate}
-          maximumDate={maxDate}
+          minimumDate={effectiveMinDate}
+          maximumDate={effectiveMaxDate}
         />
       </View>
     );
@@ -70,17 +75,20 @@ export default function DatePickerSheet({
       presentationStyle="overFullScreen"
     >
       <Pressable style={s.sheetBackdrop} onPress={onClose}>
-        <Pressable style={s.sheetBox} onPress={() => { }}>
+        <Pressable style={s.sheetBox} onPress={() => {}}>
           <DateTimePicker
-            value={value}
+            value={safeValue}
             mode={mode}
             display="inline"
             onChange={handleChange}
-            /** mới: truyền min/max xuống picker */
-            minimumDate={minDate}
-            maximumDate={maxDate}
+            minimumDate={effectiveMinDate}
+            maximumDate={effectiveMaxDate}
           />
-          <Pressable onPress={onClose} style={s.doneBtn} accessibilityRole="button">
+          <Pressable
+            onPress={onClose}
+            style={s.doneBtn}
+            accessibilityRole="button"
+          >
             <TextComponent text="Xong" weight="bold" color={C.onPrimary} />
           </Pressable>
         </Pressable>
@@ -88,7 +96,6 @@ export default function DatePickerSheet({
     </Modal>
   );
 }
-
 
 const s = StyleSheet.create({
   sheetBackdrop: {

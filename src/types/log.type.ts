@@ -104,3 +104,9 @@ export type NutritionAudit = {
   items: IngredientBreakdown[];       // bảng chi tiết từng nguyên liệu
   totalFromDB: NutritionResponse;     // tổng dinh dưỡng tính từ DB
 };
+
+export interface SaveSuggestion {
+  itemId : string;
+  newFoodId : string;
+  portion : number;
+}

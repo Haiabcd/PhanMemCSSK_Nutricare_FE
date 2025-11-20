@@ -7,7 +7,6 @@ import {
 import { refreshWithStoredToken } from '../services/auth.service';
 import Config from 'react-native-config';
 
-console.log('[CFG]', Config.API_URL);
 
 export const BASE_URL = Config.API_URL;
 

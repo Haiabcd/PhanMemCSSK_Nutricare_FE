@@ -2,7 +2,7 @@
 import { api } from '../config/api';
 import type { ApiResponse, NutritionResponse } from '../types/types';
 import axios from 'axios';
-import type { LogResponse, PlanLogManualRequest, PlanLogUpdateRequest, KcalWarningResponse, NutritionAudit,PlanLogScanRequest } from '../types/log.type';
+import type { LogResponse, PlanLogManualRequest, PlanLogUpdateRequest, KcalWarningResponse, NutritionAudit,PlanLogScanRequest,SaveSuggestion } from '../types/log.type';
 import type { MealSlot } from '../types/types';
 
 // Lưu log cho một mục trong meal plan
@@ -126,4 +126,39 @@ export async function updatePlanLog(
     { signal }
   );
   return res.data.data;
+}
+
+// Kiểm tra có cần cập nhật cân nặng không
+export async function needUpdateWeight(
+  signal?: AbortSignal
+): Promise<boolean> {
+  try {
+    const res = await api.get<ApiResponse<boolean>>('/logs/need-update-weight', {
+      signal,
+    });
+    const result = res.data;
+    if (result?.code === 1000) {
+      return Boolean(result.data);
+    }
+    return false;
+  } catch (error) {
+    if (axios.isCancel(error)) {
+      throw error;
+    }
+    console.error('Error calling needUpdateWeight:', error);
+    throw error;
+  }
+}
+
+// Ghi log theo đề xuất swap món (lưu lại món mới + khẩu phần được chọn)
+export async function saveSuggestionLog(
+  payload: SaveSuggestion,
+  signal?: AbortSignal
+): Promise<ApiResponse<void>> {
+  const res = await api.post<ApiResponse<void>>(
+    '/logs/suggestion',
+    payload,
+    { signal }
+  );
+  return res.data;
 }
