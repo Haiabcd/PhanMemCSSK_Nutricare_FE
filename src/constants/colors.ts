@@ -18,11 +18,7 @@ export const colors = {
   accentDark: "#0f766e",
   accentSurface: "#ccfbf1",
   accentBorder: "#5eead4",
-<<<<<<< HEAD
-  amber400:    "#FFCA28",
-=======
   amber400: "#FFCA28",
->>>>>>> aaac34e52c068f7b5be81df500d26397e51d8992
   success: "#16a34a",
   red: "#EF4444",
   info: "#3B82F6",
