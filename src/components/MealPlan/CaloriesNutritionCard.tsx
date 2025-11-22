@@ -112,8 +112,8 @@ function MacroPill({
   const norm = allLogged
     ? 1
     : total
-    ? normalizeWithTolerance(cur, total, minRatio, maxRatio)
-    : 0;
+      ? normalizeWithTolerance(cur, total, minRatio, maxRatio)
+      : 0;
 
   const pct = norm * 100;
 
