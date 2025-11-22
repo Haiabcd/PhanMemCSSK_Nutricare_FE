@@ -1,41 +1,28 @@
 export const colors = {
-  /* base */
   white: "#ffffff",
   black: "#000000",
-
-  /* text */
   text: "#0f172a",
   sub: "#6b7280",
   textBlack: "#010101",
   textWhite: "#F5FEF2",
-
-  /* surfaces */
   bg: "#f7faf8",
   border: "#e5efe8",
   chip: "#eafff3",
   inputBg: "#f9fffb",
-
-  /* brand (CHỦ ĐẠO = XANH LÁ) */
   primary: "#43B05C",
   primaryDark: "#047857",
   primarySurface: "#dcfce7",
   primaryBorder: "#86efac",
   onPrimary: "#ffffff",
-
-  /* accent (PHỤ = TEAL, giống MealLog) */
   accent: "#14b8a6",
   accentDark: "#0f766e",
   accentSurface: "#ccfbf1",
   accentBorder: "#5eead4",
-
-  /* feedback */
+  amber400: "#FFCA28",
   success: "#16a34a",
   red: "#EF4444",
-
   info: "#3B82F6",
   warning: "#f59e0b",
-
-  /* phần dưới đây giữ để không vỡ chỗ khác; nên hạn chế dùng trực tiếp */
   green: "#43B05C",
   greenLight: "#04B81B",
   greenLight2: "#BBF7D0",

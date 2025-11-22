@@ -1,4 +1,10 @@
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, {
+  useMemo,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+} from 'react';
 import { Image, Pressable, ScrollView, StyleSheet } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Entypo from 'react-native-vector-icons/Entypo';
@@ -138,10 +144,10 @@ function mapItemsToSectionsStable(
       slot === 'BREAKFAST'
         ? 'coffee'
         : slot === 'LUNCH'
-        ? 'silverware-fork-knife'
-        : slot === 'DINNER'
-        ? 'weather-night'
-        : 'leaf';
+          ? 'silverware-fork-knife'
+          : slot === 'DINNER'
+            ? 'weather-night'
+            : 'leaf';
 
     sections.push({
       id: slot,
@@ -415,7 +421,7 @@ export default function MealLog({
   onAfterSwap,
   onboardingAt,
 }: MealLogProps) {
-  // ✨ Chặn tick với ngày tương lai
+  const inFlightLogsRef = useRef<Set<string>>(new Set());
   const isFutureDay = useMemo(() => {
     const start = new Date(activeDate);
     const today = new Date();
@@ -473,8 +479,13 @@ export default function MealLog({
         );
         return;
       }
-      if (selected.has(id)) return;
-
+      if (inFlightLogsRef.current.has(id)) {
+        return;
+      }
+      if (selected.has(id)) {
+        return;
+      }
+      inFlightLogsRef.current.add(id);
       setSelected(prev => {
         const next = new Set(prev);
         next.add(id);
@@ -492,6 +503,8 @@ export default function MealLog({
           return rollback;
         });
         console.log('Toggle log thất bại:', e);
+      } finally {
+        inFlightLogsRef.current.delete(id);
       }
     },
     [selected, onLogEat, isLockedDay],
