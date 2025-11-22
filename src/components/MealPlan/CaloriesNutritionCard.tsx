@@ -9,7 +9,7 @@ const KCAL_MIN_RATIO = 0.95;
 const KCAL_MAX_RATIO = 1.05;
 const CARB_MIN_RATIO = 0.85;
 const CARB_MAX_RATIO = 1.15;
-const FIBER_MIN_RATIO = 0.9;
+const FIBER_MIN_RATIO = 0.95;
 const FIBER_MAX_RATIO = 1.5;
 const PROT_MIN_RATIO = 0.9;
 const PROT_MAX_RATIO = 1.1;
@@ -203,6 +203,67 @@ export default function CaloriesNutritionCard({
     outputRange: [0.15, 0.45],
   });
 
+  // ====== Tính thông điệp “thiếu nhẹ nhưng không sao” khi đã log đủ ======
+  let infoText: string | null = null;
+  if (allLogged) {
+    const missingBits: string[] = [];
+
+    // kcal: chỉ quan tâm thiếu, không báo dư
+    const kcalDiff = target - eaten; // > 0 là thiếu
+    if (kcalDiff > 10) {
+      missingBits.push(`${Math.round(kcalDiff)} kcal`);
+    }
+
+    const macroMissing = (
+      cur: number,
+      total: number,
+      minRatio: number,
+      label: string,
+    ) => {
+      if (!total || total <= 0) return null;
+      const needMin = total * minRatio;
+      if (cur >= needMin) return null; // trong/qua ngưỡng tối thiểu => không báo
+      const diff = Math.round(needMin - cur);
+      if (diff <= 0) return null;
+      return `${diff}g ${label}`;
+    };
+
+    const mCarb = macroMissing(
+      macros.carbs.cur,
+      macros.carbs.total,
+      CARB_MIN_RATIO,
+      'carb',
+    );
+    const mProt = macroMissing(
+      macros.protein.cur,
+      macros.protein.total,
+      PROT_MIN_RATIO,
+      'đạm',
+    );
+    const mFat = macroMissing(
+      macros.fat.cur,
+      macros.fat.total,
+      FAT_MIN_RATIO,
+      'béo',
+    );
+    const mFiber = macroMissing(
+      macros.fiber.cur,
+      macros.fiber.total,
+      FIBER_MIN_RATIO,
+      'chất xơ',
+    );
+
+    [mCarb, mProt, mFat, mFiber].forEach(m => {
+      if (m) missingBits.push(m);
+    });
+
+    if (missingBits.length > 0) {
+      infoText =
+        'Bạn đã ghi đầy đủ các bữa ăn hôm nay rồi. ' +
+        'Dinh dưỡng chỉ lệch nhẹ so với mục tiêu nên bạn cứ yên tâm ăn theo đúng kế hoạch nhé. 💚';
+    }
+  }
+
   return (
     <ViewComponent
       p={12}
@@ -368,6 +429,36 @@ export default function CaloriesNutritionCard({
           allLogged={allLogged}
         />
       </ViewComponent>
+
+      {/* Thông điệp tổng kết khi đã log hết bữa ăn */}
+      {infoText && (
+        <ViewComponent
+          mt={10}
+          px={10}
+          py={8}
+          radius={12}
+          backgroundColor="rgba(148,163,184,0.18)"
+          style={{
+            borderWidth: 1,
+            borderColor: 'rgba(148,163,184,0.6)',
+          }}
+        >
+          <ViewComponent row gap={8} alignItems="flex-start">
+            <MaterialCommunityIcons
+              name="emoticon-happy-outline"
+              size={18}
+              color={C.amber400}
+              style={{ marginTop: 2 }}
+            />
+            <TextComponent
+              text={infoText}
+              size={11}
+              color={C.slate50}
+              style={{ lineHeight: 16, flex: 1 }}
+            />
+          </ViewComponent>
+        </ViewComponent>
+      )}
     </ViewComponent>
   );
 }

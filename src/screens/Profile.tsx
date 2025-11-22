@@ -447,7 +447,6 @@ export default function ProfileScreen() {
     ];
 
     for (const k of fields) {
-      // so sánh đặc biệt cho delta: editData đang lưu số dương khi nhập
       if (k === 'targetWeightDeltaKg') {
         const dispOrig = formatTargetDeltaForDisplay(
           data.goal,

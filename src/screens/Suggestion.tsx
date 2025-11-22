@@ -187,7 +187,7 @@ export default function Suggestion() {
 
   // ====== Loading ======
   const [refreshing, setRefreshing] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
   // Avoid setState after unmount
   const mountedRef = useRef(true);
@@ -235,10 +235,10 @@ export default function Suggestion() {
 
   const fetchSuggestions = useCallback(async (signal?: AbortSignal) => {
     try {
-      setInitialLoading(true);
+      if (mountedRef.current) {
+        setLoadingSuggestions(true);
+      }
       const res = await getSwapSuggestions(signal);
-      console.log('[Suggestion] fetched swaps detail:', res);
-
       const data: SwapSuggestion[] = res?.data ?? [];
 
       const mapped: Recipe[] = data.flatMap(sug => {
@@ -270,7 +270,9 @@ export default function Suggestion() {
         console.error('[Suggestion] fetchSuggestions error:', e);
       }
     } finally {
-      if (mountedRef.current) setInitialLoading(false);
+      if (mountedRef.current) {
+        setLoadingSuggestions(false);
+      }
     }
   }, []);
 
@@ -575,8 +577,7 @@ export default function Suggestion() {
     [navigation, selected, toggleSelect, numColumns],
   );
 
-  const showInitialPlaceholder = initialLoading && recipes.length === 0;
-
+  const showInitialPlaceholder = loadingSuggestions && recipes.length === 0;
   return (
     <Container>
       <AppHeader
@@ -692,7 +693,7 @@ export default function Suggestion() {
                   />
                 }
                 ListFooterComponent={
-                  !initialLoading && !refreshing && filtered.length > 0 ? (
+                  !loadingSuggestions && !refreshing && filtered.length > 0 ? (
                     <ViewComponent center style={{ paddingVertical: 16 }}>
                       <ViewComponent
                         style={{
@@ -711,7 +712,7 @@ export default function Suggestion() {
                   ) : null
                 }
                 ListEmptyComponent={() =>
-                  initialLoading ? null : (
+                  loadingSuggestions ? null : (
                     <ViewComponent center style={{ flex: 1, padding: 24 }}>
                       <TextComponent
                         text="Không còn gợi ý món ăn"
