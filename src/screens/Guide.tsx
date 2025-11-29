@@ -16,23 +16,22 @@ import {
   Linking,
   View,
   ActivityIndicator,
+  Modal,
+  Animated
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import isEqual from 'fast-deep-equal/react';
-
 import Container from '../components/Container';
 import TextComponent from '../components/TextComponent';
 import ViewComponent from '../components/ViewComponent';
 import AppHeader from '../components/AppHeader';
-
 import { colors as C } from '../constants/colors';
 import { FALLBACK_IMAGES } from '../constants/fallbackImages';
 import { variedFallbackBy, DEFAULT_FALLBACK } from '../constants/imageFallback';
-
 import { getMyInfo } from '../services/user.service';
 import { findNewsfeedRecommendations } from '../services/recommendation.service';
-
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RecommendationItemDto } from '../types/recommendation.type';
 import type {
   InfoResponse,
@@ -42,7 +41,6 @@ import type {
 } from '../types/types';
 import type { GuideStackParamList } from '../navigation/GuideNavigator';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-
 import Config from 'react-native-config';
 
 /* ================== Cấu hình YouTube ================== */
@@ -50,6 +48,11 @@ const YOUTUBE_API_KEY = Config.YOUTUBE_API_KEY!;
 const REGION = Config.REGION || 'VN';
 const FALLBACK_THUMB =
   'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=800&auto=format&fit=crop';
+const FAB_SIZE = 56;
+const FAB_MARGIN_RIGHT = 16;
+const FAB_BOTTOM = 100;
+const PETAL1_OFFSET = { x: 0, y: -80 };
+const PETAL2_OFFSET = { x: -80, y: -20 };
 
 /* ================== Types & Data ================== */
 type Kind = 'all' | 'meal' | 'article' | 'video';
@@ -72,7 +75,6 @@ const CATS: Array<{ key: Kind; label: string; icon: string }> = [
   { key: 'article', label: 'Bài báo', icon: 'newspaper-outline' },
   { key: 'video', label: 'Video', icon: 'play-circle-outline' },
 ];
-
 /* ================== Helpers pick topic fallback ================== */
 function getHostFromUrl(raw?: string | null): string {
   if (!raw) return '';
@@ -95,8 +97,8 @@ function Card({ item }: { item: Item }) {
     item.kind === 'meal'
       ? 'Tập luyện'
       : item.kind === 'article'
-      ? 'Bài báo'
-      : 'Video';
+        ? 'Bài báo'
+        : 'Video';
 
   const [img, setImg] = useState(item.image || FALLBACK_THUMB);
   useEffect(() => {
@@ -119,7 +121,7 @@ function Card({ item }: { item: Item }) {
 
   const handlePress = () => {
     if (item.url) {
-      Linking.openURL(item.url).catch(() => {});
+      Linking.openURL(item.url).catch(() => { });
     }
   };
 
@@ -476,7 +478,7 @@ function textOf(item: Item) {
 function filterWorkoutByGoal(item: Item, goal?: ProfileDto['goal']) {
   const s = textOf(item);
   if (goal === 'GAIN') {
-    if (includesAny(s, LOSS_KEYWORDS)) return false; // chặn video giảm mỡ/giảm cân
+    if (includesAny(s, LOSS_KEYWORDS)) return false;
   }
   return true;
 }
@@ -608,6 +610,7 @@ export default function NutritionGuide() {
   const [chipsContentW, setChipsContentW] = useState(0);
   const canScroll = chipsContentW > chipsLayoutW + 1;
   const [myInfo, setMyInfo] = useState<InfoResponse | null>(null);
+  const [chatMenuVisible, setChatMenuVisible] = useState(false);
   const navigation =
     useNavigation<NativeStackNavigationProp<GuideStackParamList>>();
 
@@ -673,8 +676,8 @@ export default function NutritionGuide() {
 
       const bySource = host
         ? FALLBACK_IMAGES.bySource[
-            host as keyof typeof FALLBACK_IMAGES.bySource
-          ]
+        host as keyof typeof FALLBACK_IMAGES.bySource
+        ]
         : undefined;
 
       const seedTitle = `${a.title || ''} ${dateStr}`;
@@ -956,12 +959,12 @@ export default function NutritionGuide() {
     active === 'video'
       ? isVideoDone
       : active === 'meal'
-      ? isWorkoutDone
-      : active === 'article'
-      ? isArticleDone
-      : (isVideoDone || ytItems.length === 0) &&
-        (isWorkoutDone || workoutItems.length === 0) &&
-        (isArticleDone || articleItems.length === 0);
+        ? isWorkoutDone
+        : active === 'article'
+          ? isArticleDone
+          : (isVideoDone || ytItems.length === 0) &&
+          (isWorkoutDone || workoutItems.length === 0) &&
+          (isArticleDone || articleItems.length === 0);
 
   const CONTENT_MIN_HEIGHT = Math.max(420, Math.floor(screenH * 0.79));
 
@@ -1081,7 +1084,6 @@ export default function NutritionGuide() {
               } else if (active === 'article' && hasMoreArticles) {
                 loadMoreArticles();
               } else if (active === 'all') {
-                // Tất cả: gọi từng nguồn nếu vẫn còn trang
                 if (nextWorkoutToken) loadMoreWorkout();
                 if (nextToken) loadMore();
                 if (hasMoreArticles) loadMoreArticles();
@@ -1091,15 +1093,15 @@ export default function NutritionGuide() {
               active === 'article'
                 ? loadingArticles
                 : active === 'meal'
-                ? loadingWorkout
-                : loading
+                  ? loadingWorkout
+                  : loading
             }
             onRefresh={
               active === 'article'
                 ? reloadArticles
                 : active === 'meal'
-                ? reloadWorkout
-                : reload
+                  ? reloadWorkout
+                  : reload
             }
             ListFooterComponent={
               filtered.length > 0 ? (
@@ -1188,39 +1190,238 @@ export default function NutritionGuide() {
       </ViewComponent>
 
       {/* Chat nổi */}
-      <FloatingChat navigation={navigation} />
+      <FloatingChat onPress={() => setChatMenuVisible(true)} />
+
+      {/* Menu chọn chức năng khi bấm chat */}
+      <ChatQuickActions
+        visible={chatMenuVisible}
+        onClose={() => setChatMenuVisible(false)}
+        onChatAI={() => {
+          setChatMenuVisible(false);
+          navigation.navigate('ChatAI');
+        }}
+        onOpenGlossary={() => {
+          setChatMenuVisible(false);
+          navigation.navigate('NutritionGlossary' as any);
+        }}
+      />
+
+
     </Container>
   );
 }
 
 /* ================== Floating Chat Button ================== */
-function FloatingChat({
-  navigation,
-}: {
-  navigation: NativeStackNavigationProp<GuideStackParamList>;
-}) {
-  const SIZE = 56;
-  const MARGIN = 16;
+function FloatingChat({ onPress }: { onPress: () => void }) {
+  const insets = useSafeAreaInsets();
 
   return (
     <Pressable
-      onPress={() => navigation.navigate('ChatAI')}
+      onPress={onPress}
       style={[
         s.chatFab,
         {
-          width: SIZE,
-          height: SIZE,
-          borderRadius: SIZE / 2,
-          right: MARGIN,
-          bottom: 100,
+          width: FAB_SIZE,
+          height: FAB_SIZE,
+          borderRadius: FAB_SIZE / 2,
+          right: FAB_MARGIN_RIGHT,
+          bottom: FAB_BOTTOM + insets.bottom,
         },
       ]}
       hitSlop={10}
     >
-      <MaterialCommunityIcons name="robot" size={20} color={C.white} />
+      <MaterialCommunityIcons
+        name="message-text-outline"
+        size={26}
+        color={C.white}
+      />
     </Pressable>
   );
 }
+
+
+/* ================== ChatQuickActions ================== */
+type ChatQuickActionsProps = {
+  visible: boolean;
+  onClose: () => void;
+  onChatAI: () => void;
+  onOpenGlossary: () => void;
+};
+
+function ChatQuickActions({
+  visible,
+  onClose,
+  onChatAI,
+  onOpenGlossary,
+}: ChatQuickActionsProps) {
+  const petal1Anim = useRef(new Animated.Value(0)).current;
+  const petal2Anim = useRef(new Animated.Value(0)).current;
+  const insets = useSafeAreaInsets();
+  const { height, width } = useWindowDimensions();
+  const isSmallHeight = height < 700;
+  const isSmallWidth = width < 380;
+
+  const targetOffset1 = isSmallHeight
+    ? { x: 0, y: -64 }
+    : PETAL1_OFFSET;
+
+  const targetOffset2 = isSmallWidth
+    ? { x: -64, y: -10 }
+    : PETAL2_OFFSET;
+
+  useEffect(() => {
+    if (!visible) return;
+    petal1Anim.setValue(0);
+    petal2Anim.setValue(0);
+
+    Animated.stagger(70, [
+      Animated.spring(petal1Anim, {
+        toValue: 1,
+        useNativeDriver: true,
+        friction: 6,
+        tension: 60,
+      }),
+      Animated.spring(petal2Anim, {
+        toValue: 1,
+        useNativeDriver: true,
+        friction: 6,
+        tension: 60,
+      }),
+    ]).start();
+  }, [visible, petal1Anim, petal2Anim]);
+
+  if (!visible) return null;
+
+  const petal1Style = {
+    opacity: petal1Anim,
+    transform: [
+      {
+        translateX: petal1Anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, targetOffset1.x],
+        }),
+      },
+      {
+        translateY: petal1Anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, targetOffset1.y],
+        }),
+      },
+      {
+        scale: petal1Anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.6, 1],
+        }),
+      },
+    ],
+  };
+
+  const petal2Style = {
+    opacity: petal2Anim,
+    transform: [
+      {
+        translateX: petal2Anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, targetOffset2.x],
+        }),
+      },
+      {
+        translateY: petal2Anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, targetOffset2.y],
+        }),
+      },
+      {
+        scale: petal2Anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.6, 1],
+        }),
+      },
+    ],
+  };
+
+  const labelDynamicStyle = { maxWidth: Math.min(180, width * 0.55) };
+
+  return (
+    <Modal
+      transparent
+      visible={visible}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={s.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View
+          style={[
+            s.flowerRoot,
+            {
+              right: FAB_MARGIN_RIGHT + FAB_SIZE / 2,
+              bottom: FAB_BOTTOM + FAB_SIZE / 2 + insets.bottom,
+            },
+          ]}
+          pointerEvents="box-none"
+        >
+          {/* Cánh 1: Chat với AI */}
+          <Animated.View style={[s.flowerPetal, petal1Style]}>
+            <View style={[s.flowerLabel, labelDynamicStyle]}>
+              <TextComponent
+                text="Chat với AI"
+                variant="caption"
+                tone="inverse"
+                weight="bold"
+                numberOfLines={1}
+              />
+            </View>
+
+            <Pressable
+              onPress={onChatAI}
+              style={({ pressed }) => [
+                s.flowerButton,
+                pressed && { transform: [{ scale: 0.96 }] },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name="robot"
+                size={24}
+                color={C.primary}
+              />
+            </Pressable>
+          </Animated.View>
+
+          {/* Cánh 2: Từ điển dinh dưỡng */}
+          <Animated.View style={[s.flowerPetal, petal2Style]}>
+            <View style={[s.flowerLabel, labelDynamicStyle]}>
+              <TextComponent
+                text="Từ điển dinh dưỡng"
+                variant="caption"
+                tone="inverse"
+                weight="bold"
+                numberOfLines={2}
+              />
+            </View>
+
+            <Pressable
+              onPress={onOpenGlossary}
+              style={({ pressed }) => [
+                s.flowerButton,
+                pressed && { transform: [{ scale: 0.96 }] },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name="book-open-variant"
+                size={24}
+                color={C.primary}
+              />
+            </Pressable>
+          </Animated.View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+
+
 
 /* ================== Styles ================== */
 const s = StyleSheet.create({
@@ -1230,6 +1431,7 @@ const s = StyleSheet.create({
     paddingVertical: 8,
     fontFamily: 'System',
   },
+
   chipActiveShadow: {
     shadowColor: C.primary,
     shadowOpacity: 0.18,
@@ -1237,7 +1439,9 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
+
   cardWrap: { width: '48%', marginBottom: 12 },
+
   thumbWrap: {
     width: '100%',
     aspectRatio: 1.2,
@@ -1246,8 +1450,11 @@ const s = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
+
   thumb: { width: '100%', height: '100%' },
+
   badge: { position: 'absolute', top: 8, right: 8 },
+
   playOverlay: {
     position: 'absolute',
     bottom: 8,
@@ -1255,6 +1462,7 @@ const s = StyleSheet.create({
     width: 32,
     height: 32,
   },
+
   cardBody: {
     flex: 1,
     padding: 12,
@@ -1262,10 +1470,11 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: C.border,
   },
+
   chatFab: {
     position: 'absolute',
-    zIndex: 50, // iOS
-    elevation: 12, // Android
+    zIndex: 50,
+    elevation: 12,
     backgroundColor: C.primary,
     borderWidth: 2,
     borderColor: C.primaryBorder,
@@ -1276,14 +1485,17 @@ const s = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
   },
+
   chipsRow: {
     alignItems: 'center',
     gap: 20,
   },
+
   chip: {
     minWidth: 96,
     justifyContent: 'center',
   },
+
   chipInactiveShadow: {
     shadowColor: '#000',
     shadowOpacity: 0.05,
@@ -1291,4 +1503,50 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     elevation: 1,
   },
+
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+  },
+
+  flowerRoot: {
+    position: 'absolute',
+    width: 0,
+    height: 0,
+  },
+
+  flowerButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: C.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: C.primaryBorder,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+
+  flowerPetal: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  flowerLabel: {
+    marginRight: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(15,23,42,0.9)',
+    maxWidth: 180,
+  },
 });
+
+

@@ -5,7 +5,6 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
-  ActivityIndicator,
   Linking,
   useWindowDimensions,
   Image,
@@ -43,7 +42,6 @@ import {
   toYMDLocal,
 } from '../helpers/profile.helper';
 import MultiSelectModal from '../components/Profile/MultiSelectModal';
-import LoginChoiceModal from '../components/Profile/LoginModal';
 import InfoItem from '../components/Profile/InfoItem';
 import ToastCenter, { ToastKind } from '../components/Profile/ToastCenter';
 import FormField from '../components/Profile/FormField';
@@ -71,8 +69,8 @@ const SAFE = {
   GAIN: { MIN: 0.25, MAX: 0.5 }, // kg/tuần
 };
 
-const HEIGHT_RANGE = { MIN: 80, MAX: 250 }; // cm
-const WEIGHT_RANGE = { MIN: 20, MAX: 500 }; // kg
+const HEIGHT_RANGE = { MIN: 80, MAX: 250 };
+const WEIGHT_RANGE = { MIN: 20, MAX: 500 };
 const MIN_AGE = 13;
 
 const formatTargetDeltaForDisplay = (goal: string, delta: number) => {
@@ -90,12 +88,12 @@ const normalizeTargetDeltaForApi = (goal: string, delta: number) => {
 type PlanCheck =
   | { ok: true }
   | {
-      ok: false;
-      reason: 'invalid' | 'too_fast' | 'too_slow';
-      message: string;
-      subMessage?: string;
-      suggestWeeks?: number;
-    };
+    ok: false;
+    reason: 'invalid' | 'too_fast' | 'too_slow';
+    message: string;
+    subMessage?: string;
+    suggestWeeks?: number;
+  };
 
 function validatePlan(
   goal: 'LOSE' | 'GAIN',
@@ -125,12 +123,10 @@ function validatePlan(
       suggestWeeks: suggest,
       message:
         goal === 'LOSE'
-          ? `Tốc độ giảm ${rate.toFixed(2)} kg/tuần vượt mức an toàn (${
-              R.MAX
-            } kg/tuần).`
-          : `Tốc độ tăng ${rate.toFixed(2)} kg/tuần vượt mức an toàn (${
-              R.MAX
-            } kg/tuần).`,
+          ? `Tốc độ giảm ${rate.toFixed(2)} kg/tuần vượt mức an toàn (${R.MAX
+          } kg/tuần).`
+          : `Tốc độ tăng ${rate.toFixed(2)} kg/tuần vượt mức an toàn (${R.MAX
+          } kg/tuần).`,
       subMessage:
         goal === 'LOSE'
           ? 'Khuyến nghị giảm 0.5–1.0 kg/tuần để bền vững.'
@@ -144,12 +140,10 @@ function validatePlan(
       reason: 'too_slow',
       message:
         goal === 'LOSE'
-          ? `Tốc độ giảm ${rate.toFixed(2)} kg/tuần thấp hơn khuyến nghị (${
-              R.MIN
-            }–${R.MAX} kg/tuần).`
-          : `Tốc độ tăng ${rate.toFixed(2)} kg/tuần thấp hơn khuyến nghị (${
-              R.MIN
-            }–${R.MAX} kg/tuần).`,
+          ? `Tốc độ giảm ${rate.toFixed(2)} kg/tuần thấp hơn khuyến nghị (${R.MIN
+          }–${R.MAX} kg/tuần).`
+          : `Tốc độ tăng ${rate.toFixed(2)} kg/tuần thấp hơn khuyến nghị (${R.MIN
+          }–${R.MAX} kg/tuần).`,
       subMessage:
         'Bạn có thể tiếp tục (an toàn) hoặc điều chỉnh để nhanh hơn nếu muốn.',
     };
@@ -158,7 +152,7 @@ function validatePlan(
   return { ok: true };
 }
 
-/* ====================== Screen ====================== */
+/* ====================== Skeleton ====================== */
 function SkeletonRow() {
   return (
     <ViewComponent row wrap mt={20} mb={4} gap={0}>
@@ -205,6 +199,7 @@ function SkeletonCard() {
   );
 }
 
+/* ====================== Screen ====================== */
 export default function ProfileScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -234,7 +229,6 @@ export default function ProfileScreen() {
   const [allergies, setAllergies] = useState<Allergy[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const [loginChoiceOpen, setLoginChoiceOpen] = useState(false);
   const [oauthStarting, setOauthStarting] = useState(false);
 
   const { refresh: refreshHeader, reset: resetHeader } = useHeader();
@@ -246,8 +240,7 @@ export default function ProfileScreen() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const reloadAt: number | undefined = route.params?.reloadAt;
 
-  // ===== Fetch
-
+  /* ================== Fetch ================== */
   const fetchData = useCallback(async (signal?: AbortSignal) => {
     try {
       setLoading(true);
@@ -331,7 +324,7 @@ export default function ProfileScreen() {
     }, [fetchData, refreshHeader]),
   );
 
-  // ===== Helpers UI
+  /* ================== Helpers UI ================== */
   const showToast = (
     opts: {
       title: string;
@@ -362,37 +355,32 @@ export default function ProfileScreen() {
     setShowEdit(true);
   };
 
-  // ===== OAuth / Logout
+  /* ================== OAuth / Logout ================== */
   const provider = myInfo?.provider ?? 'NONE';
   const isGuest = provider === 'NONE';
 
-  const onLoginWith = useCallback(
-    async (providerPick: 'google' | 'facebook') => {
-      setLoginChoiceOpen(false);
-      if (providerPick === 'google') {
-        try {
-          setOauthStarting(true);
-          const deviceId = await getOrCreateDeviceId();
-          const res = await startGoogleOAuth(deviceId, true);
-          const url = res?.data?.authorizeUrl;
-          if (!url) {
-            Alert.alert('Lỗi', 'Không nhận được liên kết đăng nhập Google.');
-            return;
-          }
-          await Linking.openURL(url);
-        } catch (e) {
-          Alert.alert(
-            'Lỗi',
-            'Không thể bắt đầu đăng nhập Google. Vui lòng thử lại.',
-          );
-        } finally {
-          setOauthStarting(false);
+  const onLoginWith = useCallback(async (providerPick: 'google' | 'facebook') => {
+    if (providerPick === 'google') {
+      try {
+        setOauthStarting(true);
+        const deviceId = await getOrCreateDeviceId();
+        const res = await startGoogleOAuth(deviceId, true);
+        const url = res?.data?.authorizeUrl;
+        if (!url) {
+          Alert.alert('Lỗi', 'Không nhận được liên kết đăng nhập Google.');
+          return;
         }
-        return;
+        await Linking.openURL(url);
+      } catch (e) {
+        Alert.alert(
+          'Lỗi',
+          'Không thể bắt đầu đăng nhập Google. Vui lòng thử lại.',
+        );
+      } finally {
+        setOauthStarting(false);
       }
-    },
-    [navigation],
-  );
+    }
+  }, []);
 
   const doLogout = async () => {
     if (loggingOut) return;
@@ -415,7 +403,7 @@ export default function ProfileScreen() {
       }
       try {
         (api.defaults.headers.common as any).Authorization = undefined;
-      } catch {}
+      } catch { }
 
       resetHeader?.();
       setShowLogoutModal(false);
@@ -430,6 +418,7 @@ export default function ProfileScreen() {
   const onLogout = () => {
     setShowLogoutModal(true);
   };
+
   /* ================== Dirty check ================== */
   const isDirty = useMemo(() => {
     if (!data || !editData || !myInfo || !editInfo) return false;
@@ -463,19 +452,18 @@ export default function ProfileScreen() {
     }
 
     const origCondIds = (myInfo.conditions ?? [])
-      .map(c => c.id ?? c.id ?? c)
+      .map(c => (c as any).id ?? (c as any).conditionId ?? c)
       .sort();
     const editCondIds = (editInfo.conditions ?? [])
-      .map(c => c.id ?? c.id ?? c)
+      .map(c => (c as any).id ?? (c as any).conditionId ?? c)
       .sort();
-    if (JSON.stringify(origCondIds) !== JSON.stringify(editCondIds))
-      return true;
+    if (JSON.stringify(origCondIds) !== JSON.stringify(editCondIds)) return true;
 
     const origAlgIds = (myInfo.allergies ?? [])
-      .map(a => a.id ?? a.id ?? a)
+      .map(a => (a as any).id ?? (a as any).allergyId ?? a)
       .sort();
     const editAlgIds = (editInfo.allergies ?? [])
-      .map(a => a.id ?? a.id ?? a)
+      .map(a => (a as any).id ?? (a as any).allergyId ?? a)
       .sort();
     if (JSON.stringify(origAlgIds) !== JSON.stringify(editAlgIds)) return true;
 
@@ -488,36 +476,31 @@ export default function ProfileScreen() {
     const warns: string[] = [];
 
     if (!editData) return { blockingErrors: errs, warnings: warns };
-    // Name
+
     if (isDirty) {
+      // Name
       const nameTrim = (editData.name ?? '').trim();
       if (!nameTrim) errs.push('Tên không được để trống.');
-    }
-    // Age
-    if (isDirty && editData) {
+
+      // Age
       const birthYearNum =
         typeof editData.birthYear === 'number'
           ? editData.birthYear
           : parseInt((editData.birthYear as unknown as string) || '0', 10);
       const age = Number.isFinite(birthYearNum) ? calcAge(birthYearNum) : NaN;
-
       if (!Number.isFinite(age) || (age as number) < MIN_AGE) {
         errs.push(`Tuổi phải từ ${MIN_AGE} trở lên.`);
       }
-    }
 
-    // Height
-    if (isDirty) {
+      // Height
       const h = Number(editData.heightCm);
       if (!Number.isFinite(h) || h < HEIGHT_RANGE.MIN || h > HEIGHT_RANGE.MAX) {
         errs.push(
           `Chiều cao phải trong khoảng ${HEIGHT_RANGE.MIN}–${HEIGHT_RANGE.MAX} cm.`,
         );
       }
-    }
 
-    // Weight
-    if (isDirty) {
+      // Weight
       const w = Number(editData.weightKg);
       if (!Number.isFinite(w) || w < WEIGHT_RANGE.MIN || w > WEIGHT_RANGE.MAX) {
         errs.push(
@@ -550,11 +533,9 @@ export default function ProfileScreen() {
     return { blockingErrors: errs, warnings: warns };
   }, [editData, planTouched, isDirty]);
 
-  // hiển thị hint WHO khi hợp lệ và có kế hoạch giảm cân
   const showWhoHint =
     !!editData && editData.goal === 'LOSE' && blockingErrors.length === 0;
 
-  // Disable Lưu khi: chưa dirty OR có lỗi chặn
   const saveDisabled = !isDirty || blockingErrors.length > 0;
 
   /* ================== Realtime plan validate effect ================== */
@@ -571,7 +552,6 @@ export default function ProfileScreen() {
       weeks,
       planTouched,
     );
-
     setPlanCheck(v);
   }, [
     editData?.goal,
@@ -617,16 +597,10 @@ export default function ProfileScreen() {
     setLoading(true);
     const ac = new AbortController();
     try {
-      // 1) Gọi API update
       await updateProfile(payload, ac.signal);
-
-      // 2) Lấy lại dữ liệu mới nhất từ backend (trong đó có goalReached mới)
       await fetchData();
-
-      // 3) Refresh header (nếu có)
       await refreshHeader?.();
 
-      // 4) Toast + đóng form
       showToast(
         {
           title: 'Đã lưu thay đổi',
@@ -642,13 +616,12 @@ export default function ProfileScreen() {
   }, [editData, editInfo, refreshHeader, fetchData]);
 
   const handleSave = useCallback(async () => {
-    if (saveDisabled) return; // an toàn
-    // nếu quá chậm (warning) vẫn cho lưu
+    if (saveDisabled) return;
     if (!planCheck.ok && planCheck.reason === 'too_fast') {
       Alert.alert(
         'Điều chỉnh mục tiêu',
         planCheck.message +
-          (planCheck.subMessage ? `\n${planCheck.subMessage}` : ''),
+        (planCheck.subMessage ? `\n${planCheck.subMessage}` : ''),
       );
       return;
     }
@@ -658,16 +631,14 @@ export default function ProfileScreen() {
   /* ================== UI ================== */
   return (
     <Container>
-      {loading && <ActivityIndicator size="large" color="#22C55E" />}
-
       <LoadingOverlay
-        visible={loadingInfo || oauthStarting || loggingOut}
+        visible={loading || loadingInfo || oauthStarting || loggingOut}
         label={
           oauthStarting
             ? 'Đang mở Google...'
             : loggingOut
-            ? 'Đang đăng xuất...'
-            : 'Đang đồng bộ...'
+              ? 'Đang đăng xuất...'
+              : 'Đang đồng bộ...'
         }
       />
 
@@ -767,6 +738,7 @@ export default function ProfileScreen() {
             ) : null}
           </ViewComponent>
         )}
+
         {!showEdit &&
           data &&
           (() => {
@@ -795,10 +767,9 @@ export default function ProfileScreen() {
                   text={
                     achieved
                       ? `🎉 Chúc mừng! Bạn đã đạt mục tiêu ${translateGoal(
-                          data.goal,
-                        )}. Hãy cập nhật mục tiêu mới (ví dụ: tiếp tục ${
-                          data.goal === 'LOSE' ? 'giảm' : 'tăng'
-                        } chậm hơn, hoặc chuyển sang DUY TRÌ) để giữ đà tiến bộ.`
+                        data.goal,
+                      )}. Hãy cập nhật mục tiêu mới (ví dụ: tiếp tục ${data.goal === 'LOSE' ? 'giảm' : 'tăng'
+                      } chậm hơn, hoặc chuyển sang DUY TRÌ) để giữ đà tiến bộ.`
                       : 'Nên cập nhật cân nặng mỗi tuần để kiểm tra tiến độ và tạo kế hoạch chính xác hơn.'
                   }
                   style={{ flex: 1 }}
@@ -1059,11 +1030,11 @@ export default function ProfileScreen() {
                     <TextInput
                       value={
                         editData.targetWeightDeltaKg !== undefined &&
-                        editData.targetWeightDeltaKg !== null
+                          editData.targetWeightDeltaKg !== null
                           ? `${formatTargetDeltaForDisplay(
-                              editData.goal as any,
-                              Number(editData.targetWeightDeltaKg),
-                            )}`
+                            editData.goal as any,
+                            Number(editData.targetWeightDeltaKg),
+                          )}`
                           : ''
                       }
                       onChangeText={t => {
@@ -1093,7 +1064,9 @@ export default function ProfileScreen() {
                         setPlanTouched(true);
                         setEditData(prev => ({
                           ...prev!,
-                          targetDurationWeeks: Math.abs(parseFloat(t || '0')),
+                          targetDurationWeeks: Math.abs(
+                            parseFloat(t || '0'),
+                          ),
                         }));
                       }}
                       style={styles.input}
@@ -1102,7 +1075,6 @@ export default function ProfileScreen() {
                   </FormField>
                 </ViewComponent>
 
-                {/* Thông báo lỗi/cảnh báo tổng hợp */}
                 {(blockingErrors.length > 0 || warnings.length > 0) && (
                   <ViewComponent
                     style={{
@@ -1137,7 +1109,6 @@ export default function ProfileScreen() {
                   </ViewComponent>
                 )}
 
-                {/* Hint WHO/FAO khi hợp lệ */}
                 {showWhoHint && (
                   <TextComponent
                     variant="caption"
@@ -1209,7 +1180,7 @@ export default function ProfileScreen() {
                 >
                   <Image
                     source={require('../assets/images/common/gg.png')}
-                    style={[{ width: 24, height: 24 }]}
+                    style={{ width: 24, height: 24 }}
                     resizeMode="contain"
                     accessibilityLabel="Google logo"
                   />
@@ -1284,11 +1255,7 @@ export default function ProfileScreen() {
           }
         />
       )}
-      <LoginChoiceModal
-        visible={loginChoiceOpen}
-        onClose={() => setLoginChoiceOpen(false)}
-        onSelect={onLoginWith}
-      />
+
       {/* Modal xác nhận đăng xuất */}
       <ConfirmLogoutModal
         visible={showLogoutModal}

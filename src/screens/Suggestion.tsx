@@ -100,10 +100,11 @@ type Recipe = {
   slot: Slot;
   slots: Slot[];
   portion?: number;
-  originalItemId: string;
-  originalFoodId: string;
+  originalItemId: string | null;
+  originalFoodId: string | null;
   originalFoodName: string;
   originalPortion?: number;
+  isSnackFallback?: boolean;
 };
 
 const DEFAULT_FOOD_IMAGE =
@@ -241,25 +242,44 @@ export default function Suggestion() {
       const res = await getSwapSuggestions(signal);
       const data: SwapSuggestion[] = res?.data ?? [];
 
+
       const mapped: Recipe[] = data.flatMap(sug => {
         const slot = mapMealSlot(sug.slot);
+
         if (!sug.candidates || sug.candidates.length === 0) return [];
 
+        const isSnackFallback =
+          !sug.itemId || !sug.originalFoodId; // backend snack: itemId = null, originalFoodId = null
+
         return sug.candidates.map(c => ({
-          id: `${sug.itemId}-${c.foodId}`,
+          id: isSnackFallback ? `snack-${c.foodId}` : `${sug.itemId}-${c.foodId}`,
           foodId: c.foodId,
           title: c.foodName,
-          desc: c.reason,
+          desc:
+            c.reason ||
+            (isSnackFallback
+              ? 'Món ăn vặt gợi ý thêm, bạn có thể ăn linh hoạt ngoài kế hoạch chính.'
+              : ''),
           image: c.imageUrl || DEFAULT_FOOD_IMAGE,
-          slot,
-          slots: [slot],
-          portion: Number(c.portion),
-          originalItemId: sug.itemId,
-          originalFoodId: sug.originalFoodId,
-          originalFoodName: sug.originalFoodName,
-          originalPortion: Number(sug.originalPortion),
+          slot: isSnackFallback ? 'Bữa phụ' : slot, // snack → hiển thị là Bữa phụ
+          slots: [isSnackFallback ? 'Bữa phụ' : slot],
+
+          portion: Number(c.portion) || 1,
+
+          originalItemId: (sug.itemId as string | null) ?? null,
+          originalFoodId: (sug.originalFoodId as string | null) ?? null,
+          originalFoodName:
+            sug.originalFoodName ||
+            (isSnackFallback ? 'Món ăn vặt gợi ý' : 'Món trong kế hoạch'),
+          originalPortion:
+            typeof sug.originalPortion === 'number'
+              ? Number(sug.originalPortion)
+              : undefined,
+
+          isSnackFallback,
         }));
       });
+
 
       if (mountedRef.current) {
         setRecipes(mapped);
@@ -315,9 +335,28 @@ export default function Suggestion() {
     );
   }, [recipes, debouncedQuery, cat]);
 
-  // Gọi API log khi user chọn 1 món suggestion
+  const isShowingOnlySnackFallbacks = useMemo(
+    () => filtered.length > 0 && filtered.every(r => r.isSnackFallback),
+    [filtered],
+  );
+
   const handleSaveSuggestion = useCallback(
     async (item: Recipe) => {
+      // Snack fallback: không swap, chỉ mở chi tiết
+      if (item.isSnackFallback) {
+        navigation.navigate('MealLogDetail', {
+          id: item.foodId,
+          suggestionDesc: item?.desc || undefined,
+          suggestionSwapText: 'Món ăn vặt gợi ý thêm.',
+        });
+        return;
+      }
+
+      // Không có originalItemId thì không gọi log
+      if (!item.originalItemId) {
+        return;
+      }
+
       try {
         await saveSuggestionLog({
           itemId: item.originalItemId,
@@ -327,12 +366,12 @@ export default function Suggestion() {
 
         if (!mountedRef.current) return;
 
-        // 1. Ẩn ngay tất cả suggestion thuộc cùng originalItemId
+        // 1. Ẩn mọi card thuộc originalItemId này
         setRecipes(prev =>
           prev.filter(r => r.originalItemId !== item.originalItemId),
         );
 
-        // 2. Xoá tick các card cùng originalItemId
+        // 2. Xoá tick của các card cùng originalItemId
         setSelected(prev => {
           const next = new Set(prev);
           Array.from(next).forEach(id => {
@@ -343,13 +382,13 @@ export default function Suggestion() {
           return next;
         });
 
-        // 3. Chuyển về tab "Tất cả" để user thấy toàn bộ gợi ý còn lại
+        // 3. Reset category
         setCat('Tất cả');
 
-        // 4. Reload lại suggestion từ server (đồng bộ cache)
+        // 4. Reload suggestion từ server
         fetchSuggestions();
 
-        // 5. Toast báo thành công
+        // 5. Toast
         notify('Đã cập nhật món trong kế hoạch của bạn.', 'success');
       } catch (e) {
         if (!isAbortError(e)) {
@@ -358,11 +397,19 @@ export default function Suggestion() {
         }
       }
     },
-    [fetchSuggestions, notify],
+    [fetchSuggestions, notify, navigation],
   );
+
+
 
   const toggleSelect = useCallback(
     (item: Recipe) => {
+      // Snack: trigger luôn hành động, không cần toggle tick
+      if (item.isSnackFallback) {
+        handleSaveSuggestion(item);
+        return;
+      }
+
       setSelected(prev => {
         const next = new Set(prev);
         const wasSelected = next.has(item.id);
@@ -380,6 +427,8 @@ export default function Suggestion() {
     [handleSaveSuggestion],
   );
 
+
+
   const renderRecipe = useCallback(
     ({ item }: { item: Recipe }) => {
       const checked = selected.has(item.id);
@@ -388,6 +437,8 @@ export default function Suggestion() {
         typeof item.originalPortion === 'number'
           ? `${item.originalPortion} khẩu phần`
           : '1 khẩu phần';
+      const isSnackFallback = item.isSnackFallback;
+
 
       return (
         <ViewComponent
@@ -441,31 +492,34 @@ export default function Suggestion() {
                 })}
               </ViewComponent>
 
-              {/* Tick góc phải */}
-              <Pressable
-                onPress={() => toggleSelect(item)}
-                style={s.tickWrap}
-                hitSlop={8}
-              >
-                <ViewComponent
-                  center
-                  radius={999}
-                  border
-                  style={[
-                    s.tickCircle,
-                    {
-                      borderColor: checked ? C.primary : C.primary,
-                      backgroundColor: checked ? C.primary : C.white,
-                    },
-                  ]}
+              {/* Tick góc phải – KHÔNG hiện cho snack fallback */}
+              {!isSnackFallback && (
+                <Pressable
+                  onPress={() => toggleSelect(item)}
+                  style={s.tickWrap}
+                  hitSlop={8}
                 >
-                  <Ionicons
-                    name={checked ? 'checkmark' : 'add'}
-                    size={16}
-                    color={checked ? C.onPrimary : C.primary}
-                  />
-                </ViewComponent>
-              </Pressable>
+                  <ViewComponent
+                    center
+                    radius={999}
+                    border
+                    style={[
+                      s.tickCircle,
+                      {
+                        borderColor: checked ? C.primary : C.primary,
+                        backgroundColor: checked ? C.primary : C.white,
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={checked ? 'checkmark' : 'add'}
+                      size={16}
+                      color={checked ? C.onPrimary : C.primary}
+                    />
+                  </ViewComponent>
+                </Pressable>
+              )}
+
 
               {/* Portion badge */}
               {typeof item.portion === 'number' && (
@@ -510,7 +564,7 @@ export default function Suggestion() {
                   }}
                 />
 
-                {/* Box thể hiện món gốc */}
+                {/* Box thể hiện món gốc / hoặc snack info */}
                 <ViewComponent
                   row
                   alignItems="flex-start"
@@ -525,22 +579,44 @@ export default function Suggestion() {
                   />
 
                   <ViewComponent style={{ flex: 1 }}>
-                    <TextComponent
-                      text="Thay cho"
-                      variant="caption"
-                      tone="muted"
-                      style={{ marginBottom: 2 }}
-                      numberOfLines={1}
-                    />
-                    <TextComponent
-                      text={`${item.originalFoodName} (${item.slot}, ${originalPortionText})`}
-                      variant="caption"
-                      weight="bold"
-                      style={s.swapText}
-                      numberOfLines={2}
-                    />
+                    {isSnackFallback ? (
+                      <>
+                        <TextComponent
+                          text="Ăn vặt thêm"
+                          variant="caption"
+                          tone="muted"
+                          style={{ marginBottom: 2 }}
+                          numberOfLines={1}
+                        />
+                        <TextComponent
+                          text="Món ăn vặt gợi ý thêm, không thay thế món nào trong kế hoạch."
+                          variant="caption"
+                          weight="bold"
+                          style={s.swapText}
+                          numberOfLines={2}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <TextComponent
+                          text="Thay cho"
+                          variant="caption"
+                          tone="muted"
+                          style={{ marginBottom: 2 }}
+                          numberOfLines={1}
+                        />
+                        <TextComponent
+                          text={`${item.originalFoodName} (${item.slot}, ${originalPortionText})`}
+                          variant="caption"
+                          weight="bold"
+                          style={s.swapText}
+                          numberOfLines={2}
+                        />
+                      </>
+                    )}
                   </ViewComponent>
                 </ViewComponent>
+
               </ViewComponent>
 
               <Pressable
@@ -548,7 +624,9 @@ export default function Suggestion() {
                   navigation.navigate('MealLogDetail', {
                     id: item.foodId,
                     suggestionDesc: item?.desc || undefined,
-                    suggestionSwapText: `Thay cho: ${item.originalFoodName} (${item.slot}, ${originalPortionText})`,
+                    suggestionSwapText: isSnackFallback
+                      ? 'Món ăn vặt gợi ý thêm.'
+                      : `Thay cho: ${item.originalFoodName} (${item.slot}, ${originalPortionText})`,
                   })
                 }
                 style={({ pressed }) => [
@@ -669,6 +747,53 @@ export default function Suggestion() {
                 );
               }}
             />
+
+            {/* Thông báo khi chỉ có danh sách món ăn vặt */}
+            {isShowingOnlySnackFallbacks && (
+              <ViewComponent style={{ marginTop: 10 }}>
+                <ViewComponent
+                  radius={14}
+                  border
+                  px={12}
+                  py={10}
+                  backgroundColor={C.blueLight}
+                  borderColor={C.primaryBorder}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'flex-start',
+                  }}
+                >
+                  <ViewComponent
+                    center
+                    radius={999}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      marginRight: 10,
+                      backgroundColor: C.primary,
+                    }}
+                  >
+                    <Ionicons name="information" size={16} color={C.onPrimary} />
+                  </ViewComponent>
+
+                  <ViewComponent style={{ flex: 1 }}>
+                    <TextComponent
+                      text="Gợi ý ăn vặt linh hoạt"
+                      variant="caption"
+                      weight="bold"
+                      style={{ marginBottom: 4, letterSpacing: 0.2 }}
+                    />
+                    <TextComponent
+                      text="Hôm nay bạn đã bám khá sát kế hoạch rồi. NutriCare gợi ý thêm một vài món ăn vặt nhẹ – đây là những lựa chọn linh hoạt, không làm lệch kế hoạch chính. Bạn có thể ăn thêm khi hơi đói hoặc cần nạp năng lượng giữa các bữa."
+                      variant="caption"
+                      tone="default"
+                      style={{ lineHeight: 16 }}
+                    />
+                  </ViewComponent>
+                </ViewComponent>
+              </ViewComponent>
+            )}
+
 
             {/* List */}
             <ViewComponent style={{ flex: 1, minHeight: 0 }}>

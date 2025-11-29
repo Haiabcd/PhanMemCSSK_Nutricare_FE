@@ -6,6 +6,7 @@ import MealLogDetail from '../screens/MealLogDetail';
 import Video from '../screens/Video';
 import Newspaper from '../screens/Newspaper';
 import NotificationScreen from '../screens/Notifications';
+import NutritionGlossary from '../screens/NutritionGlossary';
 
 export type GuideStackParamList = {
   Guide: undefined;
@@ -14,6 +15,7 @@ export type GuideStackParamList = {
   MealLogDetail: undefined;
   Newspaper: undefined;
   Notification: undefined;
+  NutritionGlossary: undefined;
 };
 
 const Stack = createNativeStackNavigator<GuideStackParamList>();
@@ -30,6 +32,7 @@ export default function GuideNavigator() {
       <Stack.Screen name="Video" component={Video} />
       <Stack.Screen name="Newspaper" component={Newspaper} />
       <Stack.Screen name="Notification" component={NotificationScreen} />
+      <Stack.Screen name="NutritionGlossary" component={NutritionGlossary} />
     </Stack.Navigator>
   );
 }

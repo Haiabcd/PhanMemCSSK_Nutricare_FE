@@ -68,25 +68,6 @@ const MEAL_SLOT_VN: Record<string, string> = {
   SNACK: 'Phụ',
 };
 
-// ===== Helpers =====
-// Tạo chips "điểm nổi bật" từ nutrition hiện có
-function getHighlights(n?: FoodResponse['nutrition']): string[] {
-  if (!n) return [];
-  const protein = Number(n.proteinG ?? 0);
-  const fat = Number(n.fatG ?? 0);
-  const fiber = Number(n.fiberG ?? 0);
-  const sugar = Number(n.sugarMg ?? 0) / 1000; // mg -> g
-  const sodium = Number(n.sodiumMg ?? 0);
-
-  const tags: string[] = [];
-  if (protein >= 20) tags.push('Đạm cao');
-  if (fiber >= 5) tags.push('Giàu xơ');
-  if (fat <= 10) tags.push('Ít béo');
-  if (sugar <= 5) tags.push('Ít đường');
-  if (sodium >= 600) tags.push('Natri cao');
-  return tags;
-}
-
 // Tính khẩu phần nhanh theo multiplier
 function scalePortion(
   n?: FoodResponse['nutrition'],
@@ -347,7 +328,7 @@ export default function MealLogDetail({ onBack }: Props) {
                 variant="body"
                 numberOfLines={0}
                 style={{
-                  lineHeight: 18,
+                  lineHeight: 20,
                   textAlignVertical: 'top',
                   marginBottom: 10,
                 }}
@@ -531,7 +512,8 @@ export default function MealLogDetail({ onBack }: Props) {
             />
             <View style={{ height: 10 }} />
 
-            <ViewComponent row gap={10}>
+            {/* SỬA Ở ĐÂY */}
+            <ViewComponent row wrap gap={10}>
               {portionHalf && (
                 <View style={s.portionBox}>
                   <TextComponent text="0.5×" weight="bold" />
@@ -542,10 +524,7 @@ export default function MealLogDetail({ onBack }: Props) {
                   />
                   <View style={{ height: 6 }} />
                   <TextComponent text={`C ${portionHalf.carbG}g`} size={12} />
-                  <TextComponent
-                    text={`P ${portionHalf.proteinG}g`}
-                    size={12}
-                  />
+                  <TextComponent text={`P ${portionHalf.proteinG}g`} size={12} />
                   <TextComponent text={`F ${portionHalf.fatG}g`} size={12} />
                 </View>
               )}
@@ -572,20 +551,15 @@ export default function MealLogDetail({ onBack }: Props) {
                     tone="muted"
                   />
                   <View style={{ height: 6 }} />
-                  <TextComponent
-                    text={`C ${portionOneHalf.carbG}g`}
-                    size={12}
-                  />
-                  <TextComponent
-                    text={`P ${portionOneHalf.proteinG}g`}
-                    size={12}
-                  />
+                  <TextComponent text={`C ${portionOneHalf.carbG}g`} size={12} />
+                  <TextComponent text={`P ${portionOneHalf.proteinG}g`} size={12} />
                   <TextComponent text={`F ${portionOneHalf.fatG}g`} size={12} />
                 </View>
               )}
             </ViewComponent>
           </ViewComponent>
         )}
+
       </ScrollView>
     </Container>
   );
@@ -676,12 +650,12 @@ const s = StyleSheet.create({
 
   /* Portion quick view */
   portionBox: {
-    flex: 1,
     borderWidth: 1,
     borderColor: C.border,
     backgroundColor: C.white,
     borderRadius: 12,
     padding: 12,
     minWidth: 100,
+    width: '30%',
   },
 });
