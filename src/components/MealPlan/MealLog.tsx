@@ -102,10 +102,11 @@ function mapItemsToSectionsStable(
   idMap: Map<string, MealPlanItemResponse>,
 ): Section[] {
   if (!items || items.length === 0) return [];
+  type GroupedItem = MealItem & { sortKey: number };
 
-  const grouped = new Map<(typeof MEAL_ORDER)[number], MealItem[]>();
+  const grouped = new Map<(typeof MEAL_ORDER)[number], GroupedItem[]>();
 
-  for (const it of items) {
+  items.forEach((it, index) => {
     const slotRaw = (it.mealSlot || '').toUpperCase();
     const slot = (
       MEAL_ORDER.includes(slotRaw as any) ? slotRaw : 'SNACK'
@@ -121,24 +122,30 @@ function mapItemsToSectionsStable(
     const portion = (it as any).portion ?? 1;
     const serving = it.food?.servingName || 'phần ăn';
     const weightLine = `x${portion} · ${serving}`;
+    const sortKey =
+      typeof (it as any).rank === 'number'
+        ? (it as any).rank
+        : index;
 
-    const mealItem: MealItem = {
+    const mealItem: GroupedItem = {
       id: it.id,
       foodId,
       title,
       kcal,
       img,
       weightLine,
+      sortKey,
     };
 
     if (!grouped.has(slot)) grouped.set(slot, []);
     grouped.get(slot)!.push(mealItem);
-  }
+  });
 
   const sections: Section[] = [];
   for (const slot of MEAL_ORDER) {
-    const itemsInSlot = grouped.get(slot);
-    if (!itemsInSlot || itemsInSlot.length === 0) continue;
+    const groupedItems = grouped.get(slot);
+    if (!groupedItems || groupedItems.length === 0) continue;
+    groupedItems.sort((a, b) => a.sortKey - b.sortKey);
 
     const icon: Section['icon'] =
       slot === 'BREAKFAST'
@@ -153,12 +160,13 @@ function mapItemsToSectionsStable(
       id: slot,
       name: MEAL_VN[slot],
       icon,
-      items: itemsInSlot,
+      items: groupedItems.map(({ sortKey, ...rest }) => rest),
     });
   }
 
   return sections;
 }
+
 
 /* ========= subcomponents ========= */
 function SectionHeader({ name, kcal }: { name: string; kcal: number }) {

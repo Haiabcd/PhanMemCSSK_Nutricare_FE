@@ -60,6 +60,9 @@ import { useHeader } from '../context/HeaderProvider';
 import { getTokenSecure, removeTokenSecure } from '../config/secureToken';
 import { resetTo } from '../navigation/RootNavigation';
 import { api } from '../config/api';
+import { useAuth } from '../context/AuthContext';
+import GoogleLinkedNoticeModal from '../components/Profile/GoogleLinkedNoticeModal';
+
 
 type PickerType = 'condition' | 'allergy';
 
@@ -232,13 +235,14 @@ export default function ProfileScreen() {
   const [oauthStarting, setOauthStarting] = useState(false);
 
   const { refresh: refreshHeader, reset: resetHeader } = useHeader();
+  const { setIsAuthed } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
-
-  // validate theo thời gian thực cho cặp mục tiêu
   const [planTouched, setPlanTouched] = useState(false);
   const [planCheck, setPlanCheck] = useState<PlanCheck>({ ok: true });
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const reloadAt: number | undefined = route.params?.reloadAt;
+  const [showLinkedModal, setShowLinkedModal] = useState(false);
+
+
 
   /* ================== Fetch ================== */
   const fetchData = useCallback(async (signal?: AbortSignal) => {
@@ -272,41 +276,10 @@ export default function ProfileScreen() {
   }, []);
 
   useEffect(() => {
-    if (!reloadAt) return;
-    const ac = new AbortController();
-    fetchData(ac.signal);
-    navigation.setParams?.({ reloadAt: undefined });
-    return () => ac.abort();
-  }, [reloadAt, fetchData, navigation]);
-
-  useEffect(() => {
     if (!notice || noticeShownRef.current) return;
     noticeShownRef.current = true;
-
-    Alert.alert(
-      'Tài khoản này đã được dùng',
-      notice || 'Tài khoản Google này đã liên kết với user khác.',
-      [
-        {
-          text: 'Hủy',
-          style: 'cancel',
-          onPress: () => {
-            navigation.setParams?.({ notice: undefined });
-            noticeShownRef.current = false;
-          },
-        },
-        {
-          text: 'Về Welcome để đăng nhập',
-          onPress: () => {
-            navigation.setParams?.({ notice: undefined });
-            noticeShownRef.current = false;
-            resetTo('Welcome');
-          },
-        },
-      ],
-      { cancelable: true },
-    );
-  }, [notice, navigation]);
+    setShowLinkedModal(true);
+  }, [notice]);
 
   useEffect(() => {
     const ac = new AbortController();
@@ -406,14 +379,15 @@ export default function ProfileScreen() {
       } catch { }
 
       resetHeader?.();
+      setIsAuthed(false);
+
       setShowLogoutModal(false);
       setLoggingOut(false);
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Welcome' }],
-      });
+
+      resetTo('Main');
     }
   };
+
 
   const onLogout = () => {
     setShowLogoutModal(true);
@@ -1263,6 +1237,27 @@ export default function ProfileScreen() {
         onCancel={() => setShowLogoutModal(false)}
         onConfirm={doLogout}
       />
+
+      {/* Modal cảnh báo Google đã liên kết với user khác */}
+      <GoogleLinkedNoticeModal
+        visible={showLinkedModal}
+        message={
+          notice ??
+          'Email Google này đã được liên kết với một tài khoản NutriCare khác.'
+        }
+        onClose={() => {
+          setShowLinkedModal(false);
+          navigation.setParams?.({ notice: undefined });
+          noticeShownRef.current = false;
+        }}
+        onGoLogin={() => {
+          setShowLinkedModal(false);
+          navigation.setParams?.({ notice: undefined });
+          noticeShownRef.current = false;
+          resetTo('Main');
+        }}
+      />
+
     </Container>
   );
 }

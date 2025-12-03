@@ -5,6 +5,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import ViewComponent from '../components/ViewComponent';
 import TextComponent from '../components/TextComponent';
 import { redeemGoogleExchange } from '../services/auth.service';
+import { useAuth } from '../context/AuthContext';
 
 type Params = {
   kind?: 'first' | 'upgrade' | 'returning' | 'success';
@@ -15,70 +16,51 @@ export default function OAuthReturn() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { kind, x } = (route?.params ?? {}) as Params;
+  const { setIsAuthed } = useAuth();
 
   useEffect(() => {
     let isMounted = true;
+
 
     (async () => {
       try {
         if (kind === 'returning') {
           if (!x) {
             if (!isMounted) return;
-            navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
+            navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
             return;
           }
-
           await redeemGoogleExchange(x);
-
           if (!isMounted) return;
-          navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+          setIsAuthed(true);
+          navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
           return;
         }
 
         if (kind === 'upgrade') {
           if (!isMounted) return;
-          navigation.reset({
-            index: 0,
-            routes: [
-              {
-                name: 'Home',
-                params: {
-                  screen: 'ProfileNavigator',
-                  params: {
-                    screen: 'Profile',
-                    params: {
-                      reloadAt: Date.now(),
-                    },
-                  },
-                },
-              },
-            ],
-          });
+          setIsAuthed(true);
+          navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
           return;
         }
-
         if (kind === 'first') {
           if (!isMounted) return;
-          navigation.reset({ index: 0, routes: [{ name: 'Wizard' }] });
+          setIsAuthed(true);
+          navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
           return;
         }
-
         if (!isMounted) return;
-        if (navigation.canGoBack()) {
-          navigation.goBack();
-        } else {
-          navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
-        }
+        navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
       } catch (e) {
         if (!isMounted) return;
-        navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
+        navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
       }
     })();
 
     return () => {
       isMounted = false;
     };
-  }, [kind, x, navigation]);
+  }, [kind, x, navigation, setIsAuthed]);
 
   return (
     <ViewComponent center style={{ flex: 1, padding: 16 }}>
@@ -88,10 +70,10 @@ export default function OAuthReturn() {
           kind === 'returning'
             ? 'Đang đăng nhập...'
             : kind === 'upgrade'
-            ? 'Đang hoàn tất nâng cấp tài khoản...'
-            : kind === 'first'
-            ? 'Đang chuẩn bị trải nghiệm đầu tiên...'
-            : 'Đang xử lý...'
+              ? 'Đang hoàn tất nâng cấp tài khoản...'
+              : kind === 'first'
+                ? 'Đang chuẩn bị trải nghiệm đầu tiên...'
+                : 'Đang xử lý...'
         }
         style={{ marginTop: 12 }}
       />

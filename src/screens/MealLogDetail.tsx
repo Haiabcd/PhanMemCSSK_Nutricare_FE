@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Image, StyleSheet, ScrollView, Pressable, View } from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { Image, StyleSheet, ScrollView, Pressable, View, ActivityIndicator } from 'react-native';
 import Entypo from 'react-native-vector-icons/Entypo';
 import Container from '../components/Container';
 import TextComponent from '../components/TextComponent';
@@ -8,55 +8,11 @@ import { colors as C } from '../constants/colors';
 import { useNavigation } from '@react-navigation/native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import type { PlanStackParamList } from '../navigation/PlanNavigator';
-
-// API & types
 import { getFoodById } from '../services/food.service';
 import type { FoodResponse } from '../types/food.type';
 
 type MacroKey = 'carb' | 'protein' | 'fat' | 'fiber';
 type Macro = { key: MacroKey; label: string; value: number; unit?: string };
-
-type MealDetailDemo = {
-  image: string;
-  title: string;
-  servingNote: string;
-  calories: number;
-  macros: Macro[];
-};
-
-// Fallback khi API thiếu dữ liệu
-const DEMO: MealDetailDemo = {
-  image:
-    'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?q=80&w=1600&auto=format&fit=crop',
-  title: 'Cơm gà áp chảo rau củ',
-  servingNote: '1 khẩu phần ~ 350 g (ước lượng)',
-  calories: 520,
-  macros: [
-    { key: 'carb', label: 'Carb', value: 58, unit: 'g' },
-    { key: 'protein', label: 'Đạm', value: 35, unit: 'g' },
-    { key: 'fat', label: 'Béo', value: 14, unit: 'g' },
-    { key: 'fiber', label: 'Xơ', value: 7, unit: 'g' },
-  ],
-};
-
-function MacroCard({ m }: { m: Macro }) {
-  const tone: Record<MacroKey, string> = {
-    carb: C.accent,
-    protein: C.success,
-    fat: C.amber500,
-    fiber: C.primary,
-  };
-  return (
-    <ViewComponent p={12} radius={14} style={s.macroCard}>
-      <TextComponent text={m.label} variant="caption" tone="muted" />
-      <TextComponent
-        text={`${m.value}${m.unit ?? 'g'}`}
-        weight="semibold"
-        color={tone[m.key]}
-      />
-    </ViewComponent>
-  );
-}
 
 type Props = { onBack?: () => void };
 type MealLogDetailRoute = RouteProp<PlanStackParamList, 'MealLogDetail'>;
@@ -87,7 +43,7 @@ function scalePortion(
 
 // Tính kcal của từng macro (4/4/9) và % trên tổng kcal
 function useMacroPercents(n?: FoodResponse['nutrition']) {
-  return useMemo(() => {
+  return React.useMemo(() => {
     if (!n) return { carbPct: 0, proteinPct: 0, fatPct: 0, totalKcalCalc: 0 };
     const carb = Number(n.carbG ?? 0);
     const protein = Number(n.proteinG ?? 0);
@@ -108,20 +64,43 @@ function useMacroPercents(n?: FoodResponse['nutrition']) {
   }, [n]);
 }
 
+function MacroCard({ m }: { m: Macro }) {
+  const tone: Record<MacroKey, string> = {
+    carb: C.accent,
+    protein: C.success,
+    fat: C.amber500,
+    fiber: C.primary,
+  };
+  return (
+    <ViewComponent p={12} radius={14} style={s.macroCard}>
+      <TextComponent text={m.label} variant="caption" tone="muted" />
+      <TextComponent
+        text={`${m.value}${m.unit ?? 'g'}`}
+        weight="semibold"
+        color={tone[m.key]}
+      />
+    </ViewComponent>
+  );
+}
+
 export default function MealLogDetail({ onBack }: Props) {
   const navigation = useNavigation();
   const { params } = useRoute<MealLogDetailRoute>();
   const { id, suggestionDesc, suggestionSwapText } = params;
 
   const [food, setFood] = useState<FoodResponse | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
   const fetchFood = useCallback(
     async (signal?: AbortSignal) => {
       try {
+        setLoading(true);
         const res = await getFoodById(id, signal);
         setFood(res);
       } catch (e) {
         console.log('getFoodById error:', e);
+      } finally {
+        setLoading(false);
       }
     },
     [id],
@@ -135,102 +114,151 @@ export default function MealLogDetail({ onBack }: Props) {
 
   const goBack = () => (onBack ? onBack() : (navigation as any).goBack?.());
 
-  // ===== Map dữ liệu hiển thị (giữ đúng phạm vi dữ liệu hiện có) =====
-  const displayTitle = food?.name ?? DEMO.title;
-  const displayImage = food?.imageUrl ?? DEMO.image;
+  // ===== TẤT CẢ HOOK PHỤ THUỘC PHẢI Ở TRÊN, TRƯỚC MỌI RETURN =====
+
+  const displayTitle = food?.name || 'Món ăn';
+  const displayImage = food?.imageUrl || '';
 
   const displayDescription =
     food?.description == null || `${food?.description}`.trim() === ''
       ? 'Món ăn đang chờ cập nhật mô tả. Hãy thử ngay để cảm nhận hương vị!'
       : (food!.description as string);
 
-  const displayServingNote = useMemo(() => {
-    if (food) {
-      const unit = food.servingName || 'khẩu phần';
-      const gram = Number(food.servingGram || 0);
-      return gram > 0 ? `1 ${unit} ~ ${gram} g` : `1 ${unit}`;
-    }
-    return DEMO.servingNote;
-  }, [food]);
+  const unit = food?.servingName || 'khẩu phần';
+  const gram = Number(food?.servingGram ?? 0);
+  const displayServingNote = gram > 0 ? `1 ${unit} ~ ${gram} g` : `1 ${unit}`;
 
-  const displayKcal = useMemo(
-    () =>
-      food?.nutrition?.kcal != null
-        ? Math.round(Number(food.nutrition.kcal))
-        : DEMO.calories,
-    [food?.nutrition?.kcal],
-  );
+  const displayKcal =
+    food?.nutrition?.kcal != null
+      ? Math.round(Number(food.nutrition.kcal))
+      : 0;
 
-  const displayMacros: Macro[] = useMemo(() => {
-    if (food?.nutrition) {
+  const displayMacros: Macro[] = (() => {
+    const n = food?.nutrition;
+    if (!n) {
       return [
-        {
-          key: 'carb',
-          label: 'Carb',
-          value: Math.round(Number(food.nutrition.carbG ?? 0)),
-          unit: 'g',
-        },
-        {
-          key: 'protein',
-          label: 'Đạm',
-          value: Math.round(Number(food.nutrition.proteinG ?? 0)),
-          unit: 'g',
-        },
-        {
-          key: 'fat',
-          label: 'Béo',
-          value: Math.round(Number(food.nutrition.fatG ?? 0)),
-          unit: 'g',
-        },
-        {
-          key: 'fiber',
-          label: 'Xơ',
-          value: Math.round(Number(food.nutrition.fiberG ?? 0)),
-          unit: 'g',
-        },
+        { key: 'carb', label: 'Carb', value: 0, unit: 'g' },
+        { key: 'protein', label: 'Đạm', value: 0, unit: 'g' },
+        { key: 'fat', label: 'Béo', value: 0, unit: 'g' },
+        { key: 'fiber', label: 'Xơ', value: 0, unit: 'g' },
       ];
     }
-    return DEMO.macros;
-  }, [food?.nutrition]);
+    return [
+      {
+        key: 'carb',
+        label: 'Carb',
+        value: Math.round(Number(n.carbG ?? 0)),
+        unit: 'g',
+      },
+      {
+        key: 'protein',
+        label: 'Đạm',
+        value: Math.round(Number(n.proteinG ?? 0)),
+        unit: 'g',
+      },
+      {
+        key: 'fat',
+        label: 'Béo',
+        value: Math.round(Number(n.fatG ?? 0)),
+        unit: 'g',
+      },
+      {
+        key: 'fiber',
+        label: 'Xơ',
+        value: Math.round(Number(n.fiberG ?? 0)),
+        unit: 'g',
+      },
+    ];
+  })();
 
-  const mealChips = useMemo(() => {
-    const slots = food?.mealSlots || [];
-    return slots.map(s => MEAL_SLOT_VN[s] ?? s);
-  }, [food?.mealSlots]);
+  const mealChips: string[] =
+    food?.mealSlots?.map(s => MEAL_SLOT_VN[s] ?? s) ?? [];
 
   const { carbPct, proteinPct, fatPct } = useMacroPercents(food?.nutrition);
 
-  // Vi chất (sodium/sugar/fiber) nếu có
-  const micro = useMemo(() => {
-    const n = food?.nutrition;
-    if (!n) return null;
-    const sodium = Number(n.sodiumMg ?? NaN);
-    const sugar = Number(n.sugarMg ?? NaN);
-    const fiber = Number(n.fiberG ?? NaN);
-    const items: { label: string; value: string }[] = [];
-    if (!Number.isNaN(sodium) && sodium > 0)
-      items.push({ label: 'Natri', value: `${Math.round(sodium)} mg` });
-    if (!Number.isNaN(sugar) && sugar > 0)
-      items.push({ label: 'Đường', value: `${Math.round(sugar)} mg` });
-    if (!Number.isNaN(fiber) && fiber > 0)
-      items.push({ label: 'Chất xơ', value: `${Math.round(fiber)} g` });
-    return items.length ? items : null;
-  }, [food?.nutrition]);
+  const micro =
+    (() => {
+      const n = food?.nutrition;
+      if (!n) return null;
+      const sodium = Number(n.sodiumMg ?? NaN);
+      const sugar = Number(n.sugarMg ?? NaN);
+      const fiber = Number(n.fiberG ?? NaN);
+      const items: { label: string; value: string }[] = [];
+      if (!Number.isNaN(sodium) && sodium > 0)
+        items.push({ label: 'Natri', value: `${Math.round(sodium)} mg` });
+      if (!Number.isNaN(sugar) && sugar > 0)
+        items.push({ label: 'Đường', value: `${Math.round(sugar)} mg` });
+      if (!Number.isNaN(fiber) && fiber > 0)
+        items.push({ label: 'Chất xơ', value: `${Math.round(fiber)} g` });
+      return items.length ? items : null;
+    })() || null;
 
-  // Khẩu phần nhanh
-  const portionHalf = useMemo(
-    () => scalePortion(food?.nutrition, displayKcal, 0.5),
-    [food?.nutrition, displayKcal],
-  );
-  const portionOne = useMemo(
-    () => scalePortion(food?.nutrition, displayKcal, 1.0),
-    [food?.nutrition, displayKcal],
-  );
-  const portionOneHalf = useMemo(
-    () => scalePortion(food?.nutrition, displayKcal, 1.5),
-    [food?.nutrition, displayKcal],
-  );
+  const portionHalf = scalePortion(food?.nutrition, displayKcal, 0.5);
+  const portionOne = scalePortion(food?.nutrition, displayKcal, 1.0);
+  const portionOneHalf = scalePortion(food?.nutrition, displayKcal, 1.5);
 
+  // ===== TỪ ĐÂY MỚI ĐƯỢC RETURN JSX THEO ĐIỀU KIỆN =====
+
+  // Loading
+  if (loading && !food) {
+    return (
+      <Container>
+        <ViewComponent row alignItems="center" mt={12} mb={12}>
+          <Pressable onPress={goBack} style={s.backBtn} hitSlop={10}>
+            <Entypo name="chevron-left" size={22} color={C.primary} />
+          </Pressable>
+          <TextComponent
+            text="Đang tải món ăn..."
+            variant="h3"
+            weight="semibold"
+            style={{ flex: 1, marginHorizontal: 10 }}
+            numberOfLines={1}
+          />
+        </ViewComponent>
+
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={C.primary} />
+          <TextComponent
+            text="Vui lòng chờ trong giây lát"
+            variant="caption"
+            tone="muted"
+            style={{ marginTop: 8 }}
+          />
+        </View>
+      </Container>
+    );
+  }
+
+  // Không loading nhưng không có dữ liệu (lỗi / 404)
+  if (!food) {
+    return (
+      <Container>
+        <ViewComponent row alignItems="center" mt={12} mb={12}>
+          <Pressable onPress={goBack} style={s.backBtn} hitSlop={10}>
+            <Entypo name="chevron-left" size={22} color={C.primary} />
+          </Pressable>
+          <TextComponent
+            text="Không tìm thấy món ăn"
+            variant="h3"
+            weight="semibold"
+            style={{ flex: 1, marginHorizontal: 10 }}
+            numberOfLines={1}
+          />
+        </ViewComponent>
+
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <TextComponent
+            text="Có lỗi xảy ra khi tải dữ liệu. Thử lại sau nhé."
+            variant="body"
+            tone="muted"
+            style={{ textAlign: 'center', paddingHorizontal: 24 }}
+          />
+        </View>
+      </Container>
+    );
+  }
+
+  // ĐÃ CÓ DỮ LIỆU → UI CHÍNH
   return (
     <Container>
       {/* Header */}
@@ -285,7 +313,22 @@ export default function MealLogDetail({ onBack }: Props) {
           borderColor={C.border}
           style={s.imageWrap}
         >
-          <Image source={{ uri: displayImage }} style={s.image} />
+          {displayImage ? (
+            <Image source={{ uri: displayImage }} style={s.image} />
+          ) : (
+            <View
+              style={[
+                s.image,
+                { alignItems: 'center', justifyContent: 'center' },
+              ]}
+            >
+              <TextComponent
+                text="Chưa có hình ảnh"
+                variant="caption"
+                tone="muted"
+              />
+            </View>
+          )}
           <View style={s.imageShade} />
           <View style={s.kcalBadge}>
             <TextComponent text="🔥" color={C.onPrimary} />
@@ -321,7 +364,6 @@ export default function MealLogDetail({ onBack }: Props) {
               style={{ marginBottom: 8 }}
             />
 
-            {/* Lý do gợi ý */}
             {suggestionDesc && (
               <TextComponent
                 text={suggestionDesc}
@@ -335,7 +377,6 @@ export default function MealLogDetail({ onBack }: Props) {
               />
             )}
 
-            {/* Box 'Thay cho: ...' */}
             {suggestionSwapText && (
               <ViewComponent
                 row
@@ -367,7 +408,7 @@ export default function MealLogDetail({ onBack }: Props) {
           </ViewComponent>
         )}
 
-        {/* Khẩu phần & dinh dưỡng (số liệu + 4 thẻ macro)*/}
+        {/* Khẩu phần & dinh dưỡng */}
         <ViewComponent p={16} radius={18} mb={16} style={s.card}>
           <ViewComponent row alignItems="center" style={{ gap: 10 }}>
             <View style={{ flex: 1, minWidth: 0 }}>
@@ -411,7 +452,7 @@ export default function MealLogDetail({ onBack }: Props) {
           </ViewComponent>
         </ViewComponent>
 
-        {/* Phân bố năng lượng theo macro (thanh phần trăm) */}
+        {/* Phân bố năng lượng theo macro */}
         <ViewComponent p={16} radius={18} mb={16} style={s.card}>
           <TextComponent
             text="Phân bố năng lượng theo macro"
@@ -512,7 +553,6 @@ export default function MealLogDetail({ onBack }: Props) {
             />
             <View style={{ height: 10 }} />
 
-            {/* SỬA Ở ĐÂY */}
             <ViewComponent row wrap gap={10}>
               {portionHalf && (
                 <View style={s.portionBox}>
@@ -559,7 +599,6 @@ export default function MealLogDetail({ onBack }: Props) {
             </ViewComponent>
           </ViewComponent>
         )}
-
       </ScrollView>
     </Container>
   );
@@ -617,7 +656,6 @@ const s = StyleSheet.create({
     borderColor: C.border,
   },
 
-  /* Macro thẻ nhỏ */
   macroCard: {
     borderWidth: 1,
     borderColor: C.border,
@@ -625,7 +663,6 @@ const s = StyleSheet.create({
     borderRadius: 14,
   },
 
-  /* Description */
   descBar: {
     width: 5,
     height: 22,
@@ -634,7 +671,6 @@ const s = StyleSheet.create({
   },
   descText: { fontSize: 14, lineHeight: 22, color: C.text },
 
-  /* Percent bars */
   barTrack: {
     height: 10,
     backgroundColor: C.bg,
@@ -648,7 +684,6 @@ const s = StyleSheet.create({
     borderRadius: 999,
   },
 
-  /* Portion quick view */
   portionBox: {
     borderWidth: 1,
     borderColor: C.border,

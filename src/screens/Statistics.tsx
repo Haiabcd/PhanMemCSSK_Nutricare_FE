@@ -456,8 +456,8 @@ export default function Statistics() {
                       opt === 'week'
                         ? 'Theo tuần'
                         : opt === 'month'
-                        ? 'Theo tháng'
-                        : 'Theo khoảng'
+                          ? 'Theo tháng'
+                          : 'Theo khoảng'
                     }
                     weight="bold"
                     size={12}

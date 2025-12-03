@@ -163,6 +163,119 @@ export default function NutritionGlossary() {
         [],
     );
 
+    // ==== Panel helper (để code gọn, không lặp) ====
+    const renderCategoryPanel = () => (
+        <View style={styles.categoryPanel}>
+            <TextComponent
+                text="Chọn chủ đề"
+                variant="caption"
+                weight="semibold"
+                tone="muted"
+                style={{
+                    marginBottom: 8,
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.6,
+                }}
+            />
+            <View style={styles.categoryRow}>
+                {QUICK_GROUPS.map(group => (
+                    <Pressable
+                        key={group.id}
+                        onPress={() => handleSelectGroup(group)}
+                        style={({ pressed }) => [
+                            styles.categoryBtn,
+                            pressed && { transform: [{ scale: 0.97 }] },
+                        ]}
+                    >
+                        <MaterialCommunityIcons
+                            name="folder-information-outline"
+                            size={18}
+                            color={C.primary}
+                            style={{ marginBottom: 4 }}
+                        />
+                        <TextComponent
+                            text={group.label}
+                            variant="body"
+                            weight="semibold"
+                            style={{ textAlign: 'center' }}
+                        />
+                    </Pressable>
+                ))}
+            </View>
+        </View>
+    );
+
+    const renderQuestionPanel = () => {
+        if (!selectedGroup) return null;
+        return (
+            <View style={styles.questionPanel}>
+                <View style={styles.questionHeaderRow}>
+                    <View style={styles.sectionLabelRow}>
+                        <View style={styles.sectionLabelDot} />
+                        <TextComponent
+                            text={selectedGroup.label}
+                            variant="caption"
+                            weight="bold"
+                            tone="muted"
+                            style={{
+                                textTransform: 'uppercase',
+                                letterSpacing: 0.6,
+                            }}
+                        />
+                    </View>
+
+                    <Pressable
+                        onPress={() => {
+                            setStage('root');
+                            setSelectedGroup(null);
+                        }}
+                        hitSlop={8}
+                        style={styles.changeTopicBtn}
+                    >
+                        <Ionicons
+                            name="refresh-outline"
+                            size={14}
+                            color={C.slate600}
+                        />
+                        <TextComponent
+                            text="Chủ đề khác"
+                            variant="caption"
+                            tone="muted"
+                            style={{ marginLeft: 4 }}
+                        />
+                    </Pressable>
+                </View>
+
+                <View style={styles.quickRow}>
+                    {selectedGroup.items.map(q => (
+                        <Pressable
+                            key={q}
+                            onPress={() => handleAsk(q)}
+                            style={({ pressed }) => [
+                                styles.quickChip,
+                                pressed && { transform: [{ scale: 0.97 }] },
+                            ]}
+                            disabled={sending}
+                        >
+                            <MaterialCommunityIcons
+                                name="chat-question-outline"
+                                size={14}
+                                color={C.slate600}
+                                style={{ marginRight: 6 }}
+                            />
+                            <TextComponent
+                                text={q}
+                                variant="caption"
+                                tone="default"
+                                numberOfLines={2}
+                            />
+                        </Pressable>
+                    ))}
+                </View>
+            </View>
+        );
+    };
+
     return (
         <Container>
             {/* Header đơn giản với nút back */}
@@ -220,127 +333,29 @@ export default function NutritionGlossary() {
                                     />
                                 </View>
                             }
+                            // LẦN ĐẦU: panel nằm trong list (sát trên)
+                            ListFooterComponent={
+                                !hasMessages ? (
+                                    <>
+                                        {stage === 'root' && renderCategoryPanel()}
+                                        {stage === 'groupQuestions' && renderQuestionPanel()}
+                                    </>
+                                ) : null
+                            }
                             onContentSizeChange={() => {
                                 if (hasMessages) {
                                     listRef.current?.scrollToEnd({ animated: true });
                                 }
                             }}
                             style={{ flex: 1 }}
+                            showsVerticalScrollIndicator={false}
                         />
 
-                        {/* ===== Panel chọn chủ đề (4 mục chính) ===== */}
-                        {stage === 'root' && (
-                            <View
-                                style={[
-                                    styles.categoryPanel,
-                                    !hasMessages && styles.categoryPanelCenter,
-                                ]}
-                            >
-                                <TextComponent
-                                    text="Chọn chủ đề"
-                                    variant="caption"
-                                    weight="semibold"
-                                    tone="muted"
-                                    style={{
-                                        marginBottom: 8,
-                                        textTransform: 'uppercase',
-                                        letterSpacing: 0.6,
-                                    }}
-                                />
-                                <View style={styles.categoryRow}>
-                                    {QUICK_GROUPS.map(group => (
-                                        <Pressable
-                                            key={group.id}
-                                            onPress={() => handleSelectGroup(group)}
-                                            style={({ pressed }) => [
-                                                styles.categoryBtn,
-                                                pressed && { transform: [{ scale: 0.97 }] },
-                                            ]}
-                                        >
-                                            <MaterialCommunityIcons
-                                                name="folder-information-outline"
-                                                size={18}
-                                                color={C.primary}
-                                                style={{ marginBottom: 4 }}
-                                            />
-                                            <TextComponent
-                                                text={group.label}
-                                                variant="body"
-                                                weight="semibold"
-                                                style={{ textAlign: 'center' }}
-                                            />
-                                        </Pressable>
-                                    ))}
-                                </View>
-                            </View>
-                        )}
-
-                        {/* ===== Panel câu hỏi trong 1 chủ đề ===== */}
-                        {stage === 'groupQuestions' && selectedGroup && (
-                            <View style={styles.questionPanel}>
-                                <View style={styles.questionHeaderRow}>
-                                    <View style={styles.sectionLabelRow}>
-                                        <View style={styles.sectionLabelDot} />
-                                        <TextComponent
-                                            text={selectedGroup.label}
-                                            variant="caption"
-                                            weight="bold"
-                                            tone="muted"
-                                            style={{
-                                                textTransform: 'uppercase',
-                                                letterSpacing: 0.6,
-                                            }}
-                                        />
-                                    </View>
-
-                                    <Pressable
-                                        onPress={() => {
-                                            setStage('root');
-                                            setSelectedGroup(null);
-                                        }}
-                                        hitSlop={8}
-                                        style={styles.changeTopicBtn}
-                                    >
-                                        <Ionicons
-                                            name="refresh-outline"
-                                            size={14}
-                                            color={C.slate600}
-                                        />
-                                        <TextComponent
-                                            text="Chủ đề khác"
-                                            variant="caption"
-                                            tone="muted"
-                                            style={{ marginLeft: 4 }}
-                                        />
-                                    </Pressable>
-                                </View>
-
-                                <View style={styles.quickRow}>
-                                    {selectedGroup.items.map(q => (
-                                        <Pressable
-                                            key={q}
-                                            onPress={() => handleAsk(q)}
-                                            style={({ pressed }) => [
-                                                styles.quickChip,
-                                                pressed && { transform: [{ scale: 0.97 }] },
-                                            ]}
-                                            disabled={sending}
-                                        >
-                                            <MaterialCommunityIcons
-                                                name="chat-question-outline"
-                                                size={14}
-                                                color={C.slate600}
-                                                style={{ marginRight: 6 }}
-                                            />
-                                            <TextComponent
-                                                text={q}
-                                                variant="caption"
-                                                tone="default"
-                                                numberOfLines={2}
-                                            />
-                                        </Pressable>
-                                    ))}
-                                </View>
+                        {/* TỪ LẦN SAU: panel cố định ở đáy card */}
+                        {hasMessages && (
+                            <View style={styles.bottomPanel}>
+                                {stage === 'root' && renderCategoryPanel()}
+                                {stage === 'groupQuestions' && renderQuestionPanel()}
                             </View>
                         )}
                     </View>
@@ -497,10 +512,7 @@ const styles = StyleSheet.create({
         paddingTop: 10,
         paddingHorizontal: 8,
         paddingBottom: 4,
-    },
-    categoryPanelCenter: {
-        flexGrow: 1,
-        justifyContent: 'center',
+        // marginTop: 8, // nếu muốn cách message phía trên một chút thì bật lại
     },
     categoryRow: {
         flexDirection: 'row',
@@ -578,5 +590,14 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 1 },
         elevation: 1,
         maxWidth: '100%',
+    },
+
+    bottomPanel: {
+        borderTopWidth: 1,
+        borderTopColor: C.slate100,
+        paddingTop: 8,
+        paddingHorizontal: 4,
+        paddingBottom: 4,
+        backgroundColor: C.white,
     },
 });

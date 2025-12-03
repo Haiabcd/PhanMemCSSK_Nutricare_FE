@@ -1,28 +1,32 @@
 import { createNavigationContainerRef } from '@react-navigation/native';
-import type { RootStackParamList } from './AppNavigator';
+
+export type RootStackParamList = {
+  Main: undefined;
+  OAuthReturn:
+  | {
+    kind?: 'first' | 'upgrade' | 'returning' | 'success';
+    x?: string;
+  }
+  | undefined;
+  OAuthError:
+  | {
+    message?: string;
+  }
+  | undefined;
+};
 
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
-export function resetTo<Name extends keyof RootStackParamList>(
-  name: Name,
-  params?: RootStackParamList[Name]
+export function resetTo<RouteName extends keyof RootStackParamList>(
+  name: RouteName,
+  params?: RootStackParamList[RouteName],
 ) {
-  if (!navigationRef.isReady()) return;
-  navigationRef.resetRoot({
-    index: 0,
-    routes: [{ name: name as any, params }] as any, 
-  });
-}
+  if (!navigationRef.isReady()) {
+    return;
+  }
 
-export function navigate<Name extends keyof RootStackParamList>(name: Name): void;
-export function navigate<Name extends keyof RootStackParamList>(
-  name: Name,
-  params: RootStackParamList[Name]
-): void;
-export function navigate(
-  name: keyof RootStackParamList,
-  params?: RootStackParamList[keyof RootStackParamList]
-) {
-  if (!navigationRef.isReady()) return;
-  navigationRef.navigate(name as any, params as any);
+  navigationRef.reset({
+    index: 0,
+    routes: [{ name, params } as any],
+  });
 }

@@ -1,8 +1,13 @@
 import './src/config/api';
 import React, { useEffect, useState } from 'react';
 import { NavigationContainer, LinkingOptions } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+
 import { AppNavigator } from './src/navigation/AppNavigator';
 import BottomNavigator from './src/navigation/BottomNavigator';
+import OAuthReturn from './src/screens/OAuthReturn';
+import OAuthError from './src/screens/OAuthError';
+
 import {
   applyAuthHeaderFromKeychain,
   isTokenExpiredSecure,
@@ -12,30 +17,29 @@ import {
 } from './src/config/secureToken';
 import { refreshWithStoredToken } from './src/services/auth.service';
 import { HeaderProvider } from './src/context/HeaderProvider';
-// Ăn
 import {
   schedulePrePostRange,
   registerForegroundHandlers,
   registerBackgroundHandler,
   ensureNotificationReady,
 } from './src/notifications/notifeeClient';
-// Uống
 import {
   registerHydrationForeground,
   registerHydrationBackground,
   bootstrapHydrationSchedule,
 } from './src/notifications/hydrationAuto';
 
-// 🟢 Bắt buộc: đăng ký background handler ngoài component
+import { navigationRef } from './src/navigation/RootNavigation';
+import { AuthProvider, useAuth } from './src/context/AuthContext';
+
 registerBackgroundHandler();
 
-import { navigationRef } from './src/navigation/RootNavigation';
+const RootStack = createNativeStackNavigator();
 
-function App() {
+function AppInner() {
   const [ready, setReady] = useState(false);
-  const [isAuthed, setIsAuthed] = useState(false);
+  const { isAuthed, setIsAuthed } = useAuth();
 
-  // 🔐 Auth init
   useEffect(() => {
     (async () => {
       await applyAuthHeaderFromKeychain();
@@ -65,32 +69,32 @@ function App() {
           }
         }
       }
+
       setIsAuthed(authed);
       setReady(true);
     })();
-  }, []);
+  }, [setIsAuthed]);
 
-  // 📱 Foreground handler
+  // Notifications giữ nguyên
   useEffect(() => {
     const unsub = registerForegroundHandlers();
     return () => unsub?.();
   }, []);
 
-  // 🔔 Lên lịch thật: báo 30' trước & 30' sau 3 bữa
   useEffect(() => {
     if (!ready) return;
     ensureNotificationReady()
-      .then(() => schedulePrePostRange(7)) // đặt cho 7 ngày tới
+      .then(() => schedulePrePostRange(7))
       .catch(console.warn);
   }, [ready]);
 
   useEffect(() => {
     if (!ready || !isAuthed) return;
 
-    const unsubFG = registerHydrationForeground(); // Đã uống
+    const unsubFG = registerHydrationForeground();
     const unsubBG = registerHydrationBackground();
 
-    bootstrapHydrationSchedule(7).catch(console.log); // tự động lên lịch 7 ngày cho "uống nước"
+    bootstrapHydrationSchedule(7).catch(console.log);
 
     return () => {
       unsubFG && unsubFG();
@@ -113,11 +117,29 @@ function App() {
 
   return (
     <HeaderProvider>
-      <NavigationContainer linking={linking} ref={navigationRef}>
-        {isAuthed ? <BottomNavigator /> : <AppNavigator />}
+      <NavigationContainer
+        linking={linking}
+        ref={navigationRef}
+        onStateChange={() => {
+          const r = navigationRef.getCurrentRoute();
+        }}
+      >
+        <RootStack.Navigator screenOptions={{ headerShown: false }}>
+          <RootStack.Screen name="Main">
+            {() => (isAuthed ? <BottomNavigator /> : <AppNavigator />)}
+          </RootStack.Screen>
+          <RootStack.Screen name="OAuthReturn" component={OAuthReturn} />
+          <RootStack.Screen name="OAuthError" component={OAuthError} />
+        </RootStack.Navigator>
       </NavigationContainer>
     </HeaderProvider>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppInner />
+    </AuthProvider>
+  );
+}
