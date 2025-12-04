@@ -21,7 +21,6 @@ import axios from 'axios';
 import { getAllConditions } from '../../services/condition.service';
 import type { Condition } from '../../types/types';
 
-/** Chuẩn hoá bỏ dấu để search không phân biệt dấu */
 const normalize = (s: string) =>
   s
     .normalize('NFD')
@@ -55,9 +54,7 @@ const StepConditionScreen = () => {
     (async () => {
       try {
         setLoading(true);
-        const data: Condition[] = await getAllConditions(
-          controller.signal,
-        );
+        const data: Condition[] = await getAllConditions(controller.signal);
 
         // Bỏ trùng theo name (không dấu)
         const seen = new Set<string>();

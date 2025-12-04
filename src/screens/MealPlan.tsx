@@ -347,7 +347,7 @@ const MealPlan = () => {
 
         {/* Nhật ký ăn uống */}
         <ViewComponent variant="card" p={12} mb={12} mt={12}>
-          <TextComponent text="Nhật ký ăn uống" variant="h3" tone="primary" />
+          <TextComponent text="Kế hoạch ăn uống" variant="h3" tone="primary" />
           <ViewComponent mt={12}>
             <MealLog
               range={range}

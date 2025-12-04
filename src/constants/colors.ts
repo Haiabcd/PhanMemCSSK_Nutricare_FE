@@ -49,8 +49,6 @@ export const colors = {
   emerald50: "#ecfdf5",
   emerald700: "#047857",
   emerald800: "#065f46",
-
-
   slate900: "#0f172a",
   slate300: "#cbd5e1",
   emerald200: "#a7f3d0",

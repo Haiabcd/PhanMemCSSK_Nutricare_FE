@@ -5,7 +5,7 @@ import axios from 'axios';
 // Lấy tất cả dị ứng
 export const getAllAllergies = async (
     signal?: AbortSignal,
-    size: number = 20
+    size: number = 35
 ): Promise<Allergy[]> => {
     try {
         const res = await api.get<ApiResponse<PageableResponse<Allergy>>>(

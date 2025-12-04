@@ -30,15 +30,10 @@ const normalize = (s: string) =>
 
 const StepAllergiesScreen = () => {
   const { form, addAllergy, removeAllergy, clearAllergies } = useWizard();
-
-  // Nhập text để filter theo tên
   const [text, setText] = useState('');
-
-  // Dữ liệu từ BE: danh sách dị ứng (id, name)
   const [loading, setLoading] = useState(true);
   const [remoteAllergies, setRemoteAllergies] = useState<Condition[]>([]);
 
-  // Map id -> name để render nhanh
   const idToName = useMemo(() => {
     const m = new Map<string, string>();
     for (const a of remoteAllergies) m.set(a.id, a.name);
@@ -50,11 +45,7 @@ const StepAllergiesScreen = () => {
     (async () => {
       try {
         setLoading(true);
-        const data: Condition[] = await getAllAllergies(
-          controller.signal,
-        );
-
-        // Bỏ trùng theo (name không dấu)
+        const data: Condition[] = await getAllAllergies(controller.signal);
         const seen = new Set<string>();
         const unique: Condition[] = [];
         for (const item of data ?? []) {
@@ -81,8 +72,6 @@ const StepAllergiesScreen = () => {
     })();
     return () => controller.abort();
   }, []);
-
-  // Gợi ý theo tên
   const normalizedInput = normalize(text);
   const suggestions = useMemo(() => {
     if (!normalizedInput) return remoteAllergies;
@@ -90,8 +79,6 @@ const StepAllergiesScreen = () => {
       normalize(s.name).includes(normalizedInput),
     );
   }, [normalizedInput, remoteAllergies]);
-
-  // Kiểm tra đã chọn (theo ID)
   const existsById = useCallback(
     (id: string) => form.allergies.includes(id),
     [form.allergies],
@@ -105,15 +92,12 @@ const StepAllergiesScreen = () => {
       Keyboard.dismiss();
       return;
     }
-    addAllergy(id); // lưu ID vào form
+    addAllergy(id);
     setText('');
     Keyboard.dismiss();
   };
-
-  // Vì BE cần ID, không cho tự do thêm text tự do nữa
   const handleSubmitTyping = () => {
     if (!normalizedInput) return;
-    // Chọn gợi ý đầu tiên khớp input
     const first = suggestions[0];
     if (first) handleAddById(first.id);
     else Alert.alert('Không tìm thấy', 'Vui lòng chọn từ gợi ý.');
@@ -447,7 +431,7 @@ function SelectedChips(props: {
       >
         <ViewComponent row wrap gap={8}>
           {ids.map(id => {
-            const name = idToName.get(id) ?? id; // fallback: hiển thị id nếu chưa map tên
+            const name = idToName.get(id) ?? id;
             return (
               <ViewComponent
                 key={id}

@@ -5,7 +5,7 @@ import axios from 'axios';
 //Lấy danh sách bệnh nền
 export const getAllConditions = async (
   signal?: AbortSignal,
-  size: number = 20
+  size: number = 35
 ): Promise<Condition[]> => {
   try {
     const res = await api.get<ApiResponse<PageableResponse<Condition>>>(
