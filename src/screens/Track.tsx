@@ -65,6 +65,8 @@ import IngredientRow from '../components/Track/IngredientRow';
 import IngredientPickerSheet from '../components/Track/IngredientPickerSheet';
 import useNutritionTotals from '../hooks/useNutritionTotals';
 import { toneToColor } from '../helpers/track.helper';
+import { useFirebase } from '../context/FirebaseContext';
+
 
 type TabKey = 'scan' | 'manual' | 'history';
 const INPUT_TEXT_COLOR = colors.text;
@@ -140,6 +142,7 @@ function ScanAIResult(audit: NutritionAudit) {
 
 /* =================== main screen =================== */
 export default function Track() {
+  const { fcmToken } = useFirebase();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const listRef = useRef<FlatList<any>>(null);
@@ -244,7 +247,6 @@ export default function Track() {
         const data = await analyzeNutritionFromImage(asset, {
           signal: ac.signal,
         });
-        console.log('AI scan result:', data);
         setScanResult(data ?? null);
         setShowScanResult(true);
         if (data?.items?.length) {
@@ -289,7 +291,7 @@ export default function Track() {
           fileName: asset.fileName,
         });
       }
-    } catch {}
+    } catch { }
   };
 
   const handleScanFromLibrary = async () => {
@@ -311,7 +313,7 @@ export default function Track() {
           fileName: asset.fileName,
         });
       }
-    } catch {}
+    } catch { }
   };
 
   useEffect(() => () => scanControllerRef.current?.abort?.(), []);
@@ -809,6 +811,7 @@ export default function Track() {
           id: String(it.id),
           qty: Number(it.qty) || 0,
         })),
+        ...(fcmToken ? { tokenFirebase: fcmToken } : {})
       } as const;
 
       const ac = new AbortController();
@@ -897,6 +900,7 @@ export default function Track() {
           id: String(it.id),
           qty: Number(it.qty) || 0,
         })),
+        ...(fcmToken ? { tokenFirebase: fcmToken } : {})
       };
 
       const ac = new AbortController();
@@ -976,6 +980,7 @@ export default function Track() {
           id: String(it.id),
           qty: Number(it.qty) || 0,
         })),
+        ...(fcmToken ? { tokenFirebase: fcmToken } : {})
       };
 
       const ac = new AbortController();
@@ -1698,9 +1703,8 @@ export default function Track() {
                                 )}
                                 {(p != null || c != null || f != null) && (
                                   <Text
-                                    text={`Protein: ${p ?? '-'} g, Carbs: ${
-                                      c ?? '-'
-                                    } g, Fat: ${f ?? '-'} g`}
+                                    text={`Protein: ${p ?? '-'} g, Carbs: ${c ?? '-'
+                                      } g, Fat: ${f ?? '-'} g`}
                                   />
                                 )}
                                 <V row gap={8} style={styles.rowBtns}>
@@ -1760,7 +1764,7 @@ export default function Track() {
             Platform.OS === 'ios' ? 'interactive' : 'on-drag'
           }
           nestedScrollEnabled
-          onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {}}
+          onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => { }}
           scrollEventThrottle={16}
           refreshControl={
             tab === 'history' ? (

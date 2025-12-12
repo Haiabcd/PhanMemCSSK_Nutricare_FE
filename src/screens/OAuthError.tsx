@@ -10,8 +10,6 @@ export default function OAuthError() {
   const { reason } = route.params ?? {};
 
   useEffect(() => {
-    console.log('[OAuthError effect] reason =', reason);
-
 
     if (reason) {
       const timer = setTimeout(() => {

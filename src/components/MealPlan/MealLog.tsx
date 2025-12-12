@@ -84,7 +84,7 @@ const MEAL_ORDER: Array<'BREAKFAST' | 'LUNCH' | 'SNACK' | 'DINNER'> = [
 const MEAL_VN: Record<(typeof MEAL_ORDER)[number], string> = {
   BREAKFAST: 'Bữa sáng (6h - 8h)',
   LUNCH: 'Bữa trưa (12h - 13h)',
-  SNACK: 'Đồ ăn vặt ',
+  SNACK: 'Bữa phụ ',
   DINNER: 'Bữa chiều (17h - 19h)',
 };
 

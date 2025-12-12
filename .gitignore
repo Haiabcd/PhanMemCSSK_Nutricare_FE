@@ -79,3 +79,4 @@ yarn.lock
 
 .env
 .env.production
+android/app/google-services.json

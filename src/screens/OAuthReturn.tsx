@@ -40,9 +40,25 @@ export default function OAuthReturn() {
         if (kind === 'upgrade') {
           if (!isMounted) return;
           setIsAuthed(true);
-          navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+
+          navigation.reset({
+            index: 0,
+            routes: [
+              {
+                name: 'Main',
+                params: {
+                  screen: 'ProfileNavigator',
+                  params: {
+                    screen: 'Profile',
+                  },
+                },
+              },
+            ],
+          });
+
           return;
         }
+
         if (kind === 'first') {
           if (!isMounted) return;
           setIsAuthed(true);

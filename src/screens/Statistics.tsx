@@ -521,8 +521,9 @@ export default function Statistics() {
             if (nd > endDate) setEndDate(nd);
             setStartDate(nd);
           }}
-          maxDate={endDate}
         />
+
+        {/* Picker ngày kết thúc (ĐẾN) */}
         <DatePickerSheet
           visible={showEndPicker}
           value={endDate}

@@ -8,14 +8,15 @@ import notifee, {
 } from '@notifee/react-native';
 import { Alert, Platform, Linking } from 'react-native';
 import { appendNotiHistory } from '../storage/notifications';
+import messaging from '@react-native-firebase/messaging';
 
 
 // Khai báo kiểu data đi kèm notification
 type NotiData = {
     [key: string]: unknown;
-    kind?: string;                
-    meal?: string;        
-    date?: string;    
+    kind?: string;
+    meal?: string;
+    date?: string;
 };
 
 type NotiKind = 'meal-pre' | 'meal-post' | 'other';
@@ -216,9 +217,34 @@ export async function schedulePrePostRange(daysAhead = 7) {
 
 /** Foreground handler */
 export function registerForegroundHandlers() {
-    return notifee.onForegroundEvent(async ({ type, detail }) => {
+    // (A) Nghe FCM khi app đang mở -> tự show Notifee
+    const unsubFcm = messaging().onMessage(async remoteMessage => {
+
+        await ensureNotificationReady();
+
+        const title = remoteMessage.notification?.title ?? 'NutriCare';
+        const body = remoteMessage.notification?.body ?? '';
+
+        // data bạn gửi từ BE nếu có (tokenFirebase không cần gửi về client)
+        const data = (remoteMessage.data ?? {}) as any;
+
+        await notifee.displayNotification({
+            title,
+            body,
+            android: {
+                channelId: 'meal', // hoặc 'default' tuỳ bạn
+                importance: AndroidImportance.HIGH,
+                pressAction: { id: 'default' },
+            },
+            data,
+        });
+    });
+
+    // (B) Nghe event của Notifee (bấm action, delivered local trigger...)
+    const unsubNotifee = notifee.onForegroundEvent(async ({ type, detail }) => {
         if (type === EventType.DELIVERED && detail.notification) {
-            const n = detail.notification; const d = n.data || {};
+            const n = detail.notification;
+            const d = n.data || {};
             await appendNotiHistory({
                 id: n.id || String(Math.random()),
                 title: n.title || '',
@@ -229,13 +255,23 @@ export function registerForegroundHandlers() {
             });
         }
 
-        if (type === EventType.ACTION_PRESS && detail.pressAction?.id === MARK_EATEN_ACTION_ID) {
+        if (
+            type === EventType.ACTION_PRESS &&
+            detail.pressAction?.id === MARK_EATEN_ACTION_ID
+        ) {
             const meal = (detail.notification?.data?.meal as MealKey) || 'breakfast';
             const dateStr = detail.notification?.data?.date as string | undefined;
             await cancelPostReminder(meal, parseYmd(dateStr));
         }
     });
+
+    // trả về hàm cleanup giống cách bạn đang dùng trong App.tsx
+    return () => {
+        unsubFcm();
+        unsubNotifee();
+    };
 }
+
 
 /** Background handler */
 export const registerBackgroundHandler = () =>

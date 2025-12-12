@@ -1,45 +1,46 @@
-import type { FoodResponse  , IngredientResponse} from './food.type';
-import type { NutritionResponse,MealSlot } from './types';
+import type { FoodResponse, IngredientResponse } from './food.type';
+import type { NutritionResponse, MealSlot } from './types';
 
 export interface LogResponse {
-    id: string;
-    mealSlot: MealSlot;
-    food: FoodResponse;
-    nameFood: string;
-    portion: number;
-    actualNutrition: NutritionResponse;
-    ingredients: PlanLogIngredientResponse[];
+  id: string;
+  mealSlot: MealSlot;
+  food: FoodResponse;
+  nameFood: string;
+  portion: number;
+  actualNutrition: NutritionResponse;
+  ingredients: PlanLogIngredientResponse[];
 }
 
 export interface PlanLogIngredientResponse {
-  id : string;
-  quantity : number;
+  id: string;
+  quantity: number;
   ingredient: IngredientResponse;
 }
 
 export interface PlanLogManualRequest {
-    date: string; 
-    mealSlot: MealSlot;
-    foodId?: string | null;
-    nameFood: string;
-    consumedServings: number;
-    totalNutrition: {
-      kcal: number;
-      proteinG: number;
-      carbG: number;
-      fatG: number;
-      fiberG: number;
-      sodiumMg: number;
-      sugarMg: number;
-    };
-    ingredients: Array<{
-      id: string;
-      qty: number;
-    }>;
+  date: string;
+  mealSlot: MealSlot;
+  foodId?: string | null;
+  nameFood: string;
+  consumedServings: number;
+  totalNutrition: {
+    kcal: number;
+    proteinG: number;
+    carbG: number;
+    fatG: number;
+    fiberG: number;
+    sodiumMg: number;
+    sugarMg: number;
+  };
+  ingredients: Array<{
+    id: string;
+    qty: number;
+  }>;
+  tokenFirebase?: string;
 };
 
 export interface PlanLogScanRequest {
-  date: string; 
+  date: string;
   mealSlot: MealSlot;
   nameFood: string;
   consumedServings: number;
@@ -56,6 +57,7 @@ export interface PlanLogScanRequest {
     id: string;
     qty: number;
   }>;
+  tokenFirebase?: string;
 };
 
 export interface PlanLogUpdateRequest {
@@ -76,14 +78,15 @@ export interface PlanLogUpdateRequest {
     id: string;
     qty: number;
   }>;
+  tokenFirebase?: string;
 }
 
-export interface KcalWarningResponse{
-  mealSlot: string;  
-  targetKcal:number; 
-  actualKcal:number; 
-  diff:number;       
-  status: 'OVER' | 'UNDER' | 'OK'; 
+export interface KcalWarningResponse {
+  mealSlot: string;
+  targetKcal: number;
+  actualKcal: number;
+  diff: number;
+  status: 'OVER' | 'UNDER' | 'OK';
 }
 
 export type IngredientBreakdown = {
@@ -106,7 +109,7 @@ export type NutritionAudit = {
 };
 
 export interface SaveSuggestion {
-  itemId : string;
-  newFoodId : string;
-  portion : number;
+  itemId: string;
+  newFoodId: string;
+  portion: number;
 }

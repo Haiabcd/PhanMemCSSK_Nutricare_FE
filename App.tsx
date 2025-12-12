@@ -2,11 +2,13 @@ import './src/config/api';
 import React, { useEffect, useState } from 'react';
 import { NavigationContainer, LinkingOptions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-
+import messaging from '@react-native-firebase/messaging';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import BottomNavigator from './src/navigation/BottomNavigator';
 import OAuthReturn from './src/screens/OAuthReturn';
 import OAuthError from './src/screens/OAuthError';
+import { FirebaseContext } from './src/context/FirebaseContext';
+
 
 import {
   applyAuthHeaderFromKeychain,
@@ -39,6 +41,8 @@ const RootStack = createNativeStackNavigator();
 function AppInner() {
   const [ready, setReady] = useState(false);
   const { isAuthed, setIsAuthed } = useAuth();
+  const [fcmToken, setFcmToken] = useState<string | null>(null);
+
 
   useEffect(() => {
     (async () => {
@@ -74,6 +78,20 @@ function AppInner() {
       setReady(true);
     })();
   }, [setIsAuthed]);
+
+  //firebase
+  useEffect(() => {
+    (async () => {
+      try {
+        await messaging().requestPermission();
+        const token = await messaging().getToken();
+        setFcmToken(token);
+      } catch (e) {
+        console.warn('FCM error', e);
+      }
+    })();
+  }, []);
+
 
   // Notifications giữ nguyên
   useEffect(() => {
@@ -116,23 +134,32 @@ function AppInner() {
   };
 
   return (
-    <HeaderProvider>
-      <NavigationContainer
-        linking={linking}
-        ref={navigationRef}
-        onStateChange={() => {
-          const r = navigationRef.getCurrentRoute();
-        }}
-      >
-        <RootStack.Navigator screenOptions={{ headerShown: false }}>
-          <RootStack.Screen name="Main">
-            {() => (isAuthed ? <BottomNavigator /> : <AppNavigator />)}
-          </RootStack.Screen>
-          <RootStack.Screen name="OAuthReturn" component={OAuthReturn} />
-          <RootStack.Screen name="OAuthError" component={OAuthError} />
-        </RootStack.Navigator>
-      </NavigationContainer>
-    </HeaderProvider>
+    <FirebaseContext.Provider value={{ fcmToken }}>
+      <HeaderProvider>
+        <NavigationContainer
+          linking={linking}
+          ref={navigationRef}
+          onStateChange={() => {
+            const r = navigationRef.getCurrentRoute();
+          }}
+        >
+          <RootStack.Navigator screenOptions={{ headerShown: false }}>
+            <RootStack.Screen name="Main">
+              {(props: any) =>
+                isAuthed ? (
+                  <BottomNavigator {...props} />
+                ) : (
+                  <AppNavigator {...props} />
+                )
+              }
+            </RootStack.Screen>
+            <RootStack.Screen name="OAuthReturn" component={OAuthReturn} />
+            <RootStack.Screen name="OAuthError" component={OAuthError} />
+          </RootStack.Navigator>
+
+        </NavigationContainer>
+      </HeaderProvider>
+    </FirebaseContext.Provider>
   );
 }
 

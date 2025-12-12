@@ -73,8 +73,10 @@ const SAFE = {
 };
 
 const HEIGHT_RANGE = { MIN: 80, MAX: 250 };
-const WEIGHT_RANGE = { MIN: 20, MAX: 500 };
+const WEIGHT_RANGE = { MIN: 30, MAX: 200 };
 const MIN_AGE = 13;
+const MAX_AGE = 100;
+
 
 const formatTargetDeltaForDisplay = (goal: string, delta: number) => {
   if (goal === 'LOSE') return Math.abs(delta);
@@ -212,6 +214,11 @@ export default function ProfileScreen() {
   const isSmall = width < 370;
 
   const [showEdit, setShowEdit] = useState(false);
+  const [ageInput, setAgeInput] = useState<string>('');
+  const [deltaInput, setDeltaInput] = useState<string>(''); // kg
+  const [weeksInput, setWeeksInput] = useState<string>(''); // tuần
+
+
 
   const [data, setData] = useState<ProfileDto | null>(null);
   const [myInfo, setMyInfo] = useState<InfoResponse | null>(null);
@@ -261,6 +268,23 @@ export default function ProfileScreen() {
       setMyInfo(info);
       setData(info.profileCreationResponse);
       setEditData(info.profileCreationResponse);
+      setAgeInput(`${calcAge(info.profileCreationResponse.birthYear)}`);
+
+      const p = info.profileCreationResponse;
+
+      setDeltaInput(
+        p.goal === 'MAINTAIN'
+          ? ''
+          : String(formatTargetDeltaForDisplay(p.goal, Number(p.targetWeightDeltaKg || 0)) || '')
+      );
+
+      setWeeksInput(
+        p.goal === 'MAINTAIN'
+          ? ''
+          : String(Number(p.targetDurationWeeks || 0) || '')
+      );
+
+
       setEditInfo({
         ...info,
         conditions: [...(info.conditions ?? [])],
@@ -274,6 +298,41 @@ export default function ProfileScreen() {
       setLoadingInfo(false);
     }
   }, []);
+
+
+  const sortSelectedFirst = <T,>(
+    options: T[],
+    selected: any[],
+    getId: (x: any) => string,
+  ) => {
+    const selectedSet = new Set((selected ?? []).map(getId));
+    return [...options].sort((a, b) => {
+      const aSel = selectedSet.has(getId(a)) ? 1 : 0;
+      const bSel = selectedSet.has(getId(b)) ? 1 : 0;
+      return bSel - aSel; // selected (1) lên trước
+    });
+  };
+
+
+  const selectedConds = editInfo?.conditions ?? [];
+  const selectedAllergies = editInfo?.allergies ?? [];
+
+  const conditionOptionsSorted = useMemo(() => {
+    return sortSelectedFirst(
+      conditions,
+      selectedConds,
+      (x: any) => String(x?.id ?? x?.conditionId ?? x),
+    );
+  }, [conditions, selectedConds]);
+
+  const allergyOptionsSorted = useMemo(() => {
+    return sortSelectedFirst(
+      allergies,
+      selectedAllergies,
+      (x: any) => String(x?.id ?? x?.allergyId ?? x),
+    );
+  }, [allergies, selectedAllergies]);
+
 
   useEffect(() => {
     if (!notice || noticeShownRef.current) return;
@@ -316,7 +375,24 @@ export default function ProfileScreen() {
   };
 
   const onOpenEdit = () => {
-    if (data) setEditData({ ...data });
+    if (data) {
+      setEditData({ ...data });
+      setAgeInput(`${calcAge(data.birthYear)}`);
+      setDeltaInput(
+        data.goal === 'MAINTAIN'
+          ? ''
+          : String(
+            formatTargetDeltaForDisplay(data.goal, Number(data.targetWeightDeltaKg || 0)) || ''
+          )
+      );
+
+      setWeeksInput(
+        data.goal === 'MAINTAIN'
+          ? ''
+          : String(Number(data.targetDurationWeeks || 0) || '')
+      );
+
+    }
     if (myInfo)
       setEditInfo({
         ...myInfo,
@@ -327,6 +403,7 @@ export default function ProfileScreen() {
     setPlanCheck({ ok: true });
     setShowEdit(true);
   };
+
 
   /* ================== OAuth / Logout ================== */
   const provider = myInfo?.provider ?? 'NONE';
@@ -457,13 +534,9 @@ export default function ProfileScreen() {
       if (!nameTrim) errs.push('Tên không được để trống.');
 
       // Age
-      const birthYearNum =
-        typeof editData.birthYear === 'number'
-          ? editData.birthYear
-          : parseInt((editData.birthYear as unknown as string) || '0', 10);
-      const age = Number.isFinite(birthYearNum) ? calcAge(birthYearNum) : NaN;
-      if (!Number.isFinite(age) || (age as number) < MIN_AGE) {
-        errs.push(`Tuổi phải từ ${MIN_AGE} trở lên.`);
+      const ageNum = ageInput ? parseInt(ageInput, 10) : NaN;
+      if (!Number.isFinite(ageNum) || ageNum < MIN_AGE || ageNum > MAX_AGE) {
+        errs.push(`Tuổi phải trong khoảng ${MIN_AGE}–${MAX_AGE}.`);
       }
 
       // Height
@@ -505,10 +578,14 @@ export default function ProfileScreen() {
     }
 
     return { blockingErrors: errs, warnings: warns };
-  }, [editData, planTouched, isDirty]);
+  }, [editData, planTouched, isDirty, ageInput]);
 
   const showWhoHint =
-    !!editData && editData.goal === 'LOSE' && blockingErrors.length === 0;
+    !!editData &&
+    editData.goal === 'LOSE' &&
+    planTouched &&
+    blockingErrors.length === 0;
+
 
   const saveDisabled = !isDirty || blockingErrors.length > 0;
 
@@ -797,20 +874,31 @@ export default function ProfileScreen() {
 
               <FormField icon="calendar" label="Tuổi" style={styles.half}>
                 <TextInput
-                  value={`${calcAge(editData.birthYear)}`}
+                  value={ageInput}
                   keyboardType="number-pad"
-                  onChangeText={t =>
-                    setEditData({
-                      ...editData,
-                      birthYear:
-                        new Date().getFullYear() - parseInt(t || '0', 10),
-                    })
-                  }
+                  onChangeText={t => {
+                    const onlyNum = t.replace(/[^\d]/g, '');
+                    setAgeInput(onlyNum);
+
+                    // user xóa hết thì giữ trống, không ép về 0
+                    if (!onlyNum) return;
+
+                    const ageNum = parseInt(onlyNum, 10);
+                    if (!Number.isFinite(ageNum)) return;
+
+                    setEditData(prev => ({
+                      ...prev!,
+                      birthYear: new Date().getFullYear() - ageNum,
+                    }));
+                  }}
                   placeholder="VD: 25"
                   style={styles.input}
                   placeholderTextColor={C.slate500}
                 />
+
+
               </FormField>
+
             </ViewComponent>
 
             <ViewComponent row gap={12} mb={12}>
@@ -890,6 +978,10 @@ export default function ProfileScreen() {
                         ? { targetWeightDeltaKg: 0, targetDurationWeeks: 0 }
                         : {}),
                     }));
+                    if (nextGoal === 'MAINTAIN') {
+                      setDeltaInput('');
+                      setWeeksInput('');
+                    }
                   }}
                 />
               </FormField>
@@ -1002,25 +1094,36 @@ export default function ProfileScreen() {
                     style={isSmall ? styles.full : styles.half}
                   >
                     <TextInput
-                      value={
-                        editData.targetWeightDeltaKg !== undefined &&
-                          editData.targetWeightDeltaKg !== null
-                          ? `${formatTargetDeltaForDisplay(
-                            editData.goal as any,
-                            Number(editData.targetWeightDeltaKg),
-                          )}`
-                          : ''
-                      }
+                      value={deltaInput}
+                      keyboardType="decimal-pad"
+                      inputMode="decimal"
                       onChangeText={t => {
                         setPlanTouched(true);
-                        setEditData(prev => ({
-                          ...prev!,
-                          targetWeightDeltaKg: Math.abs(parseFloat(t || '0')),
-                        }));
+                        let s = t.replace(',', '.').replace(/[^\d.]/g, '');
+                        const firstDot = s.indexOf('.');
+                        if (firstDot !== -1) {
+                          s = s.slice(0, firstDot + 1) + s.slice(firstDot + 1).replace(/\./g, '');
+                        }
+
+                        setDeltaInput(s);
+                        if (!s) {
+                          setEditData(prev => ({ ...prev!, targetWeightDeltaKg: null as any }));
+                          return;
+                        }
+                        const vRaw = parseFloat(s);
+                        if (!Number.isFinite(vRaw)) {
+                          setEditData(prev => ({ ...prev!, targetWeightDeltaKg: null as any }));
+                          return;
+                        }
+                        const v = Math.abs(vRaw);
+                        setEditData(prev => ({ ...prev!, targetWeightDeltaKg: v }));
+
                       }}
+                      placeholder="VD: 3.5"
                       style={styles.input}
                       placeholderTextColor={C.slate500}
                     />
+
                   </FormField>
 
                   <FormField
@@ -1029,86 +1132,92 @@ export default function ProfileScreen() {
                     style={isSmall ? styles.full : styles.half}
                   >
                     <TextInput
-                      value={
-                        editData.targetDurationWeeks
-                          ? `${editData.targetDurationWeeks}`
-                          : ''
-                      }
+                      value={weeksInput}
+                      keyboardType="number-pad"
+                      inputMode="numeric"
                       onChangeText={t => {
                         setPlanTouched(true);
-                        setEditData(prev => ({
-                          ...prev!,
-                          targetDurationWeeks: Math.abs(
-                            parseFloat(t || '0'),
-                          ),
-                        }));
+                        const s = t.replace(/[^\d]/g, '');
+                        setWeeksInput(s);
+                        if (!s) {
+                          setEditData(prev => ({ ...prev!, targetDurationWeeks: null as any }));
+                          return;
+                        }
+                        const v = Math.abs(parseInt(s, 10));
+                        setEditData(prev => ({ ...prev!, targetDurationWeeks: v }));
                       }}
+                      placeholder="VD: 12"
                       style={styles.input}
                       placeholderTextColor={C.slate500}
                     />
+
                   </FormField>
                 </ViewComponent>
+              </>
+            )}
 
-                {(blockingErrors.length > 0 || warnings.length > 0) && (
-                  <ViewComponent
-                    style={{
-                      marginTop: 2,
-                      marginBottom: 10,
-                      padding: 10,
-                      borderRadius: 12,
-                      backgroundColor:
-                        blockingErrors.length > 0 ? '#FEE2E2' : '#FEF3C7',
-                      borderWidth: 1,
-                      borderColor:
-                        blockingErrors.length > 0 ? '#FCA5A5' : '#FCD34D',
-                    }}
-                  >
-                    {blockingErrors.map((m, i) => (
-                      <TextComponent
-                        key={`e-${i}`}
-                        variant="caption"
-                        weight="bold"
-                        style={{ marginBottom: 4 }}
-                        text={`⚠️ ${m}`}
-                      />
-                    ))}
-                    {warnings.map((m, i) => (
-                      <TextComponent
-                        key={`w-${i}`}
-                        variant="caption"
-                        tone="muted"
-                        text={`ℹ️ ${m}`}
-                      />
-                    ))}
-                  </ViewComponent>
-                )}
 
+            {/* ✅ CẢNH BÁO TỔNG HỢP */}
+            {(blockingErrors.length > 0 || warnings.length > 0) && (
+              <ViewComponent
+                style={{
+                  marginTop: 10,
+                  marginBottom: 10,
+                  padding: 12,
+                  borderRadius: 12,
+                  backgroundColor: blockingErrors.length > 0 ? '#FEE2E2' : '#FEF3C7',
+                  borderWidth: 1,
+                  borderColor: blockingErrors.length > 0 ? '#FCA5A5' : '#FCD34D',
+                }}
+              >
+                {blockingErrors.map((m, i) => (
+                  <TextComponent
+                    key={`e-${i}`}
+                    variant="caption"
+                    weight="bold"
+                    style={{ marginBottom: 4 }}
+                    text={`⚠️ ${m}`}
+                  />
+                ))}
+
+                {warnings.map((m, i) => (
+                  <TextComponent
+                    key={`w-${i}`}
+                    variant="caption"
+                    tone="muted"
+                    text={`ℹ️ ${m}`}
+                  />
+                ))}
+
+                {/* (tuỳ chọn) đưa WHO hint xuống luôn */}
                 {showWhoHint && (
                   <TextComponent
                     variant="caption"
                     tone="muted"
-                    style={{ marginTop: -2, marginBottom: 8 }}
+                    style={{ marginTop: 6 }}
                     text="Lưu ý: WHO/FAO khuyến nghị không cắt quá 1000 kcal/ngày và không xuống dưới ~1200 kcal/ngày (nữ), ~1500 kcal/ngày (nam)."
                   />
                 )}
-              </>
+              </ViewComponent>
             )}
+
 
             <ViewComponent row gap={10} mt={6}>
               <Pressable
                 style={[
                   styles.saveBtn,
-                  (saveDisabled || !isDirty) && { opacity: 0.5 },
+                  (saveDisabled || loading) && { opacity: 0.6 },
                 ]}
                 onPress={handleSave}
-                disabled={saveDisabled}
+                disabled={saveDisabled || loading}
               >
                 <TextComponent
-                  text="Lưu Thay Đổi"
+                  text={loading ? 'Đang lưu...' : 'Lưu Thay Đổi'}
                   tone="inverse"
                   weight="bold"
                 />
               </Pressable>
+
               <Pressable
                 style={styles.cancelBtn}
                 onPress={() => setShowEdit(false)}
@@ -1207,12 +1316,10 @@ export default function ProfileScreen() {
           visible={pickerOpen}
           title="Chọn bệnh nền"
           onClose={() => setPickerOpen(false)}
-          options={conditions}
+          options={conditionOptionsSorted}
           value={editInfo?.conditions ?? []}
           onSave={selected =>
-            setEditInfo(prev =>
-              prev ? { ...prev, conditions: selected } : prev,
-            )
+            setEditInfo(prev => (prev ? { ...prev, conditions: selected } : prev))
           }
         />
       ) : (
@@ -1220,15 +1327,14 @@ export default function ProfileScreen() {
           visible={pickerOpen}
           title="Chọn dị ứng"
           onClose={() => setPickerOpen(false)}
-          options={allergies}
+          options={allergyOptionsSorted}
           value={editInfo?.allergies ?? []}
           onSave={selected =>
-            setEditInfo(prev =>
-              prev ? { ...prev, allergies: selected } : prev,
-            )
+            setEditInfo(prev => (prev ? { ...prev, allergies: selected } : prev))
           }
         />
       )}
+
 
       {/* Modal xác nhận đăng xuất */}
       <ConfirmLogoutModal
@@ -1254,7 +1360,7 @@ export default function ProfileScreen() {
           setShowLinkedModal(false);
           navigation.setParams?.({ notice: undefined });
           noticeShownRef.current = false;
-          resetTo('Main');
+          doLogout();
         }}
       />
 
