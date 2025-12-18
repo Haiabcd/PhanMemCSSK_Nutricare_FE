@@ -162,3 +162,41 @@ export async function saveSuggestionLog(
   );
   return res.data;
 }
+
+export const getRecentLogs = async (
+  limit: number = 20,
+  signal?: AbortSignal
+): Promise<LogResponse[]> => {
+  try {
+    const res = await api.get<any>('/logs/recent-logs', {
+      params: { limit },
+      signal,
+    });
+
+    const result = res.data;
+
+    // ✅ Case 1: API trả thẳng mảng
+    if (Array.isArray(result)) {
+      return result as LogResponse[];
+    }
+
+    // ✅ Case 2: API bọc chuẩn { code, data, message }
+    if (result && typeof result === 'object') {
+      if (result.code === 1000) {
+        return Array.isArray(result.data) ? (result.data as LogResponse[]) : [];
+      }
+      return [];
+    }
+
+    // ✅ Case 3: dữ liệu lạ
+    return [];
+  } catch (error) {
+    if (axios.isCancel(error)) {
+      console.log('⏹ Request canceled by user');
+      return [];
+    }
+    console.error('Error fetching recent logs:', error);
+    throw error;
+  }
+};
+

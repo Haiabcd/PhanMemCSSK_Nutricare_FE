@@ -34,6 +34,7 @@ import {
   saveScanLog,
   analyzeNutritionFromImage,
   updatePlanLog,
+  getRecentLogs,
 } from '../services/log.service';
 import type { MealSlot } from '../types/types';
 import type {
@@ -66,7 +67,6 @@ import IngredientPickerSheet from '../components/Track/IngredientPickerSheet';
 import useNutritionTotals from '../hooks/useNutritionTotals';
 import { toneToColor } from '../helpers/track.helper';
 import { useFirebase } from '../context/FirebaseContext';
-
 
 type TabKey = 'scan' | 'manual' | 'history';
 const INPUT_TEXT_COLOR = colors.text;
@@ -195,10 +195,33 @@ export default function Track() {
   // ingredient picker target: 'manual' | 'scan'
   const [ingTarget, setIngTarget] = useState<'manual' | 'scan'>('manual');
 
+  // ===== Recent logs for Manual tab =====
+  const [recentOpen, setRecentOpen] = useState(false);
+  const [recentLoading, setRecentLoading] = useState(false);
+  const [recentItems, setRecentItems] = useState<LogResponse[]>([]);
+  const recentCtrlRef = useRef<AbortController | null>(null);
+
   // Ingredients for Scan tab (each qty is gram)
   const [scanIngredients, setScanIngredients] = useState<
     (IngredientResponse & { qty: string })[]
   >([]);
+
+  const loadRecentLogs = useCallback(async () => {
+    try {
+      setRecentLoading(true);
+      recentCtrlRef.current?.abort?.();
+      const ac = new AbortController();
+      recentCtrlRef.current = ac;
+
+      const data = await getRecentLogs(20, ac.signal);
+      console.log('Recent logs:', data);
+      setRecentItems(Array.isArray(data) ? data : []);
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') setRecentItems([]);
+    } finally {
+      setRecentLoading(false);
+    }
+  }, []);
 
   // ➕ Reset Scan về trạng thái ban đầu
   const resetScan = useCallback(() => {
@@ -291,7 +314,7 @@ export default function Track() {
           fileName: asset.fileName,
         });
       }
-    } catch { }
+    } catch {}
   };
 
   const handleScanFromLibrary = async () => {
@@ -313,16 +336,22 @@ export default function Track() {
           fileName: asset.fileName,
         });
       }
-    } catch { }
+    } catch {}
   };
 
   useEffect(() => () => scanControllerRef.current?.abort?.(), []);
-  // dọn dẹp khi unmount để tránh memory leak
   useEffect(() => {
     return () => {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (tab !== 'manual') return;
+    if (!recentOpen) return;
+    loadRecentLogs();
+    return () => recentCtrlRef.current?.abort?.();
+  }, [tab, recentOpen, loadRecentLogs]);
 
   // Manual
   const mealNameInputRef = useRef<TextInput>(null);
@@ -567,10 +596,11 @@ export default function Track() {
     };
   };
 
-  const fillManualFromLog = useCallback(
-    (m: LogResponse) => {
+  const applyLogToManualForm = useCallback(
+    (m: LogResponse, asEdit: boolean) => {
       skipAcRef.current = true;
-      setEditingLogId(m.id ?? null);
+
+      setEditingLogId(asEdit ? m.id ?? null : null);
       setTab('manual');
       setOpenDateSheet(false);
       cancelAutocomplete();
@@ -578,6 +608,7 @@ export default function Track() {
 
       const slot = (m?.mealSlot as MealSlot) || 'SNACK';
       setMealTypeManual(slot);
+
       const portion = Number(m?.portion);
       setConsumedServings(
         Number.isFinite(portion) && portion > 0 ? String(portion) : '1',
@@ -587,6 +618,7 @@ export default function Track() {
         setMacrosLocked(true);
         setSelectedFoodId(String(m.food.id));
         setMealName(m.food.name || '');
+
         const n = m.food.nutrition as any;
         setBaseKcal(safeNum(n?.kcal));
         setBaseP(safeNum(n?.proteinG));
@@ -595,6 +627,7 @@ export default function Track() {
         setBaseFiber(safeNum(n?.fiberG));
         setBaseSodium(safeNum(n?.sodiumMg));
         setBaseSugar(safeNum(n?.sugarMg));
+
         setQtyManual(
           m.food.defaultServing != null ? String(m.food.defaultServing) : '1',
         );
@@ -604,6 +637,7 @@ export default function Track() {
         setMacrosLocked(false);
         setSelectedFoodId(null);
         setMealName(m?.nameFood || '');
+
         setBaseKcal(0);
         setBaseP(0);
         setBaseC(0);
@@ -611,12 +645,23 @@ export default function Track() {
         setBaseFiber(0);
         setBaseSodium(0);
         setBaseSugar(0);
+
         setQtyManual('1');
         setUnitManual('phần');
         setIngredients((m.ingredients || []).map(toUIIngredient));
       }
     },
     [cancelAutocomplete],
+  );
+
+  const fillManualFromLog = useCallback(
+    (m: LogResponse) => applyLogToManualForm(m, true),
+    [applyLogToManualForm],
+  );
+
+  const fillManualFromRecent = useCallback(
+    (m: LogResponse) => applyLogToManualForm(m, false),
+    [applyLogToManualForm],
   );
 
   const onRefresh = useCallback(async () => {
@@ -811,7 +856,7 @@ export default function Track() {
           id: String(it.id),
           qty: Number(it.qty) || 0,
         })),
-        ...(fcmToken ? { tokenFirebase: fcmToken } : {})
+        ...(fcmToken ? { tokenFirebase: fcmToken } : {}),
       } as const;
 
       const ac = new AbortController();
@@ -900,7 +945,7 @@ export default function Track() {
           id: String(it.id),
           qty: Number(it.qty) || 0,
         })),
-        ...(fcmToken ? { tokenFirebase: fcmToken } : {})
+        ...(fcmToken ? { tokenFirebase: fcmToken } : {}),
       };
 
       const ac = new AbortController();
@@ -980,7 +1025,7 @@ export default function Track() {
           id: String(it.id),
           qty: Number(it.qty) || 0,
         })),
-        ...(fcmToken ? { tokenFirebase: fcmToken } : {})
+        ...(fcmToken ? { tokenFirebase: fcmToken } : {}),
       };
 
       const ac = new AbortController();
@@ -1348,6 +1393,31 @@ export default function Track() {
                     style={{ marginTop: 4, marginBottom: 8 }}
                   />
 
+                  <Pressable
+                    onPress={() => setRecentOpen(true)}
+                    disabled={recentLoading}
+                    style={[
+                      styles.actionBtn,
+                      {
+                        height: 42,
+                        marginTop: 10,
+                        marginBottom: 10,
+                        backgroundColor: '#fef9c3',
+                        borderColor: '#fde68a',
+                      },
+                    ]}
+                  >
+                    {recentLoading ? (
+                      <ActivityIndicator />
+                    ) : (
+                      <Text
+                        text="⚡ Chọn món đã log gần đây"
+                        weight="bold"
+                        color="#713f12"
+                      />
+                    )}
+                  </Pressable>
+
                   {/* Name + Autocomplete */}
                   <RNView style={{ position: 'relative' }}>
                     <TextInput
@@ -1703,8 +1773,9 @@ export default function Track() {
                                 )}
                                 {(p != null || c != null || f != null) && (
                                   <Text
-                                    text={`Protein: ${p ?? '-'} g, Carbs: ${c ?? '-'
-                                      } g, Fat: ${f ?? '-'} g`}
+                                    text={`Protein: ${p ?? '-'} g, Carbs: ${
+                                      c ?? '-'
+                                    } g, Fat: ${f ?? '-'} g`}
                                   />
                                 )}
                                 <V row gap={8} style={styles.rowBtns}>
@@ -1764,7 +1835,7 @@ export default function Track() {
             Platform.OS === 'ios' ? 'interactive' : 'on-drag'
           }
           nestedScrollEnabled
-          onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => { }}
+          onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {}}
           scrollEventThrottle={16}
           refreshControl={
             tab === 'history' ? (
@@ -1818,6 +1889,114 @@ export default function Track() {
                 <Text text="Hủy" weight="bold" color={colors.onPrimary} />
               </Pressable>
             </V>
+          </Pressable>
+        </Modal>
+
+        {/* Modal món gần đây */}
+        <Modal
+          visible={recentOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setRecentOpen(false)}
+          statusBarTranslucent
+        >
+          <Pressable
+            style={styles.modalBackdrop}
+            onPress={() => setRecentOpen(false)}
+          >
+            <Pressable
+              style={styles.modalCard}
+              onPress={e => e.stopPropagation()}
+            >
+              <V row between alignItems="center" style={{ marginBottom: 10 }}>
+                <Text text="Món gần đây" weight="bold" variant="h3" />
+                <Pressable onPress={() => setRecentOpen(false)} hitSlop={10}>
+                  <Text text="✕" weight="bold" />
+                </Pressable>
+              </V>
+
+              {recentLoading ? (
+                <V alignItems="center" style={{ paddingVertical: 16 }}>
+                  <ActivityIndicator />
+                  <Text
+                    text="Đang tải..."
+                    tone="muted"
+                    style={{ marginTop: 6 }}
+                  />
+                </V>
+              ) : recentItems.length === 0 ? (
+                <V alignItems="center" style={{ paddingVertical: 16 }}>
+                  <Text text="Chưa có món gần đây" tone="muted" />
+                </V>
+              ) : (
+                <FlatList
+                  data={recentItems}
+                  keyExtractor={it => String(it.id)}
+                  ItemSeparatorComponent={() => (
+                    <RNView style={{ height: 8 }} />
+                  )}
+                  renderItem={({ item }) => {
+                    const name = item?.food?.name ?? item?.nameFood ?? 'Món ăn';
+                    const kcal = item?.actualNutrition?.kcal;
+
+                    return (
+                      <Pressable
+                        style={{
+                          flexDirection: 'row',
+                          gap: 10,
+                          padding: 10,
+                          borderWidth: 1,
+                          borderColor: '#e2e8f0',
+                          borderRadius: 12,
+                          backgroundColor: '#fff',
+                          alignItems: 'center',
+                        }}
+                        onPress={() => {
+                          fillManualFromRecent(item); // ✅ đổ form nhưng vẫn Add
+                          setRecentOpen(false);
+                          notify(`Đã chọn: ${name}`, 'success');
+                        }}
+                      >
+                        <Image
+                          source={{ uri: getThumb(item?.food) }}
+                          style={{ width: 44, height: 44, borderRadius: 10 }}
+                        />
+                        <V style={{ flex: 1 }}>
+                          <Text text={name} weight="bold" />
+                          {kcal != null && (
+                            <Text
+                              text={`${Math.round(Number(kcal))} kcal`}
+                              tone="muted"
+                            />
+                          )}
+                        </V>
+                      </Pressable>
+                    );
+                  }}
+                />
+              )}
+
+              <Pressable
+                style={[
+                  styles.modalAction,
+                  {
+                    marginTop: 12,
+                    backgroundColor: '#e0f2fe',
+                    borderColor: '#7dd3fc',
+                  },
+                ]}
+                onPress={loadRecentLogs}
+              >
+                <Text text="↻ Tải lại" weight="bold" color="#0c4a6e" />
+              </Pressable>
+
+              <Pressable
+                style={[styles.modalCancel]}
+                onPress={() => setRecentOpen(false)}
+              >
+                <Text text="Đóng" weight="bold" color={colors.onPrimary} />
+              </Pressable>
+            </Pressable>
           </Pressable>
         </Modal>
 
